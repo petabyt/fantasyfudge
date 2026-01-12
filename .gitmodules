@@ -1,0 +1,9 @@
+[submodule "third_party/wasm-micro-runtime"]
+	path = third_party/wasm-micro-runtime
+	url = https://github.com/bytecodealliance/wasm-micro-runtime/
+[submodule "third_party/quickjs"]
+	path = third_party/quickjs
+	url = https://github.com/petabyt/quickjs
+[submodule "libjpeg-turbo"]
+	path = third_party/libjpeg-turbo
+	url = https://github.com/petabyt/libjpeg-turbo
