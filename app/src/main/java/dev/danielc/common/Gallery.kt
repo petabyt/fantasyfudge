@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,18 +38,64 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.GoGreen
 
+enum class MimeType {
+    FILE,
+    FOLDER,
+    JPEG,
+    PNG,
+    MOV,
+}
+
+data class GalleryObject(
+    val filename: String? = null,
+    val jpegThumb: ByteArray? = null,
+    val colorThumb: Color? = null,
+    val mimeType: MimeType? = null,
+    val createdDate: String? = null,
+)
+
+data class GalleryState(
+    val objects: List<GalleryObject>
+)
+
 @Composable
-fun GalleryMenu(navController: NavHostController, innerPadding: PaddingValues) {
-    //var state = State()
-    var isEnabled by remember { mutableStateOf(true) }
-    Box(
-        modifier = Modifier
+fun DrawGalleryObject(obj: GalleryObject) {
+    var mod = Modifier.aspectRatio(1f)
+    if (obj.colorThumb != null) mod = mod.background(obj.colorThumb)
+    Box(modifier = mod.padding(2.dp)) {
+        if (obj.filename != null) {
+            val icon = when (obj.mimeType) {
+                MimeType.FILE -> R.drawable.baseline_question_mark_24
+                MimeType.FOLDER -> R.drawable.baseline_folder_open_24
+                MimeType.JPEG -> R.drawable.baseline_landscape_24
+                MimeType.PNG -> R.drawable.baseline_landscape_24
+                MimeType.MOV -> R.drawable.baseline_movie_24
+                null -> R.drawable.baseline_landscape_24
+            }
+            Icon(
+                modifier = Modifier.align(Alignment.TopEnd),
+                painter = painterResource(icon),
+                contentDescription = null,
+            )
+            Text(obj.filename, modifier = Modifier.align(Alignment.BottomStart)
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)),
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 10.sp,
+            )
+        }
+    }
+}
+
+@Composable
+fun GalleryMenu(navController: NavHostController, innerPadding: PaddingValues, state: GalleryState) {
+    Box(modifier = Modifier
             .padding(innerPadding)
             .fillMaxSize()
     ) {
@@ -81,21 +128,11 @@ fun GalleryMenu(navController: NavHostController, innerPadding: PaddingValues) {
                 }
             }
 
-            val colors = listOf(
-                Color.Red, Color.Green, Color.Blue,
-                Color.Cyan, Color.Magenta, Color.Yellow,
-                Color.Gray, Color.LightGray, Color.DarkGray,
-            )
-
             LazyVerticalGrid(
-                columns = GridCells.Fixed(4),
+                columns = GridCells.Fixed(4)
             ) {
-                items(100) { index ->
-                    Box(
-                        modifier = Modifier
-                            .aspectRatio(1f)
-                            .background(colors[index % colors.size])
-                    )
+                items(state.objects) { obj ->
+                    DrawGalleryObject(obj)
                 }
             }
         }
@@ -113,6 +150,22 @@ fun GalleryMenu(navController: NavHostController, innerPadding: PaddingValues) {
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun GalleryScreen(navController: NavHostController = rememberNavController()) {
+    val state = GalleryState(listOf(
+        GalleryObject(colorThumb = Color.Red, filename = "DSC1111.JPG", mimeType = MimeType.JPEG),
+        GalleryObject(colorThumb = Color.Green, filename = "DSC1112.MOV", mimeType = MimeType.MOV),
+        GalleryObject(colorThumb = Color.Blue),
+        GalleryObject(colorThumb = Color.Cyan),
+        GalleryObject(colorThumb = Color.Magenta),
+        GalleryObject(colorThumb = Color.Yellow),
+        GalleryObject(colorThumb = Color.Gray),
+        GalleryObject(colorThumb = Color.LightGray),
+        GalleryObject(colorThumb = Color.DarkGray),
+        GalleryObject(colorThumb = Color.Red),
+        GalleryObject(colorThumb = Color.Green),
+        GalleryObject(colorThumb = Color.Blue),
+        GalleryObject(colorThumb = Color.Cyan),
+    ))
+
     return FudgeTheme {
         Scaffold(
             topBar = {
@@ -134,7 +187,7 @@ fun GalleryScreen(navController: NavHostController = rememberNavController()) {
                 )
             },
         ) { innerPadding ->
-            GalleryMenu(navController, innerPadding)
+            GalleryMenu(navController, innerPadding, state)
         }
     }
 }

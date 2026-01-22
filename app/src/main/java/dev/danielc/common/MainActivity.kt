@@ -2,10 +2,14 @@ package dev.danielc.common
 
 import android.content.res.Configuration
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,6 +33,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.Alignment
@@ -42,11 +49,28 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
 import dev.danielc.common.ui.theme.FudgeTheme
+import java.io.Console
 
 const val TAG = "main";
+
+object Backend {
+    var mainLog by mutableStateOf("")
+    var tickText by mutableStateOf("5")
+    private val h = Handler(Looper.getMainLooper())
+    fun log(str: String) {
+        h.post { mainLog += str + "\n" }
+    }
+    fun tick() {
+        h.post {
+            tickText = (0..10).random().toString()
+        }
+    }
+}
 
 @Composable
 fun BottomLog(modifier: Modifier, text: String): Unit {
@@ -265,10 +289,16 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContent {
-            FudgeTheme {
-                MainScreen()
+            val navController = rememberNavController()
+
+            NavHost(
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None },
+                navController = navController, startDestination = "home") {
+                composable("home") { MainScreen(navController) }
+                composable("testsuite") { ConsoleScreen(navController) }
+                composable("gallery") { GalleryScreen(navController) }
             }
         }
     }

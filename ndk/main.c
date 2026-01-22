@@ -3,7 +3,7 @@
 #include <jni.h>
 
 JNIEXPORT void JNICALL
-Java_dev_danielc_common_Backend_Foo(JNIEnv *env, jclass clazz) {
+Java_dev_danielc_common_NativeBackend_Foo(JNIEnv *env, jclass clazz) {
 	JSRuntime *rt = JS_NewRuntime();
 
 	JSContext *ctx = JS_NewContext(rt);

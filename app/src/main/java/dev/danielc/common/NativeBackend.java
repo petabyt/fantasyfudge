@@ -1,5 +1,5 @@
 package dev.danielc.common;
 
-public class Backend {
+public class NativeBackend {
     static native void Foo();
 }

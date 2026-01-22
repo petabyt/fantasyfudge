@@ -1,7 +1,7 @@
 package dev.danielc.common
 
+import android.content.ClipData
 import android.content.res.Configuration
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,8 +19,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.toClipEntry
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -32,12 +36,32 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.R
+import kotlinx.coroutines.launch
+import java.io.Console
 import java.util.Locale
+
+data class ConsoleState(
+    val text: String = "",
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
-fun TestSuite(navController: NavHostController = rememberNavController()) {
+fun PreviewConsoleScreen(navController: NavHostController = rememberNavController(), state: ConsoleState = ConsoleState()) {
+    var x: String = "";
+    for (i in 0..100) {
+        x += String.format(Locale.US, "Testing %d\n", i)
+    }
+    ConsoleScreen(state = ConsoleState(
+        text = x
+    ))
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ConsoleScreen(navController: NavHostController = rememberNavController(), state: ConsoleState = ConsoleState()) {
+    val clipboardManager = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     return FudgeTheme {
         Scaffold(
             topBar = {
@@ -57,7 +81,10 @@ fun TestSuite(navController: NavHostController = rememberNavController()) {
                     },
                     actions = {
                         IconButton(onClick = {
-
+                            scope.launch {
+                                val clipData = ClipData.newPlainText("label", state.text)
+                                clipboardManager.setClipEntry(clipData.toClipEntry())
+                            }
                         }) {
                             Icon(
                                 painter = painterResource(R.drawable.baseline_content_copy_24),
@@ -94,12 +121,8 @@ fun TestSuite(navController: NavHostController = rememberNavController()) {
                     modifier = Modifier.fillMaxHeight().fillMaxWidth().padding(5.dp)
                         .verticalScroll(rememberScrollState())
                 ) {
-                    var x: String = "";
-                    for (i in 0..100) {
-                        x += String.format(Locale.US, "Testing %d\n", i)
-                    }
                     Text(
-                        text = x,
+                        text = state.text,
                         style = TextStyle(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 14.sp
