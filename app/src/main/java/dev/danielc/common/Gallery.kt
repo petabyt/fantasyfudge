@@ -44,6 +44,7 @@ import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.GoGreen
+import kotlinx.serialization.Serializable
 
 enum class MimeType {
     FILE,
@@ -53,6 +54,7 @@ enum class MimeType {
     MOV,
 }
 
+@Suppress("ArrayInDataClass")
 data class GalleryObject(
     val filename: String? = null,
     val jpegThumb: ByteArray? = null,

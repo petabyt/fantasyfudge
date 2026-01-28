@@ -16,6 +16,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,10 +25,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarDefaults
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -45,16 +50,29 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import dev.danielc.R
 import dev.danielc.common.ui.theme.FudgeTheme
-import java.io.Console
+import dev.danielc.libpak.Pak
+import dev.danielc.libpak.WiFi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 const val TAG = "main";
 
@@ -166,15 +184,15 @@ fun DeviceCard(
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
+//@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun SelectorScreen(navController: NavHostController = rememberNavController()) {
     val devices: List<Module.Manifest> = listOf(
-        Module.Manifest(name = "Fujifilm", description = "Connect to Fujifilm cameras", target = Module.Target(deviceId = Module.PakDevice.PROFESSIONAL_CAMERA)),
-        Module.Manifest(name = "Canon", description = "Canon DSLRs and mirrorless cameras", target = Module.Target(deviceId = Module.PakDevice.PROFESSIONAL_CAMERA)),
-        Module.Manifest(name = "Veement", description = "Veement/veecar dashcams", target = Module.Target(deviceId = Module.PakDevice.DASHCAM)),
-        Module.Manifest(name = "Toyota", description = "Toyota infotainment system", target = Module.Target(deviceId = Module.PakDevice.AUTOMOTIVE_INFOTAINMENT)),
-        Module.Manifest(name = "Roku", description = "Roku TV and media systems", target = Module.Target(deviceId = Module.PakDevice.SMART_TV)),
+        Module.Manifest(name = "Fujifilm", description = "Connect to Fujifilm cameras", target = Module.Target(deviceId = Module.Device.PROFESSIONAL_CAMERA)),
+        Module.Manifest(name = "Canon", description = "Canon DSLRs and mirrorless cameras", target = Module.Target(deviceId = Module.Device.PROFESSIONAL_CAMERA)),
+        Module.Manifest(name = "Veement", description = "Veement/veecar dashcams", target = Module.Target(deviceId = Module.Device.DASHCAM)),
+        Module.Manifest(name = "Toyota", description = "Toyota infotainment system", target = Module.Target(deviceId = Module.Device.AUTOMOTIVE_INFOTAINMENT)),
+        Module.Manifest(name = "Roku", description = "Roku TV and media systems", target = Module.Target(deviceId = Module.Device.SMART_TV)),
     )
 
     return FudgeTheme {
@@ -219,10 +237,70 @@ fun SelectorScreen(navController: NavHostController = rememberNavController()) {
     }
 }
 
+@Composable
+fun OldFudgeMenu(navController: NavHostController = rememberNavController()) {
+    val m = Modifier.fillMaxWidth()
+    Widgets.LongClickButton(m, {
+        navController.navigate("gallery")
+    }, {
+        Log.d(TAG, "Long press")
+    }, "Connect to a device")
+    Widgets.GrayButton(modifier = m, text = "Help", onClick = {
+        Log.d(TAG, "Help")
+    })
+    Widgets.GrayButton(modifier = m, text = "Send Feedback", onClick = {})
+
+    Box(modifier = Modifier
+        .fillMaxWidth()
+        .background(MaterialTheme.colorScheme.surfaceContainer)
+        .padding(16.dp)
+    ) {
+
+    }
+}
+
+@Composable
+fun DeviceListOnCard(innerPadding: PaddingValues, devices: List<Module.Manifest>) {
+    Box(modifier = Modifier
+        .padding(innerPadding)
+        .fillMaxSize()
+        .paint(
+            painterResource(id = R.drawable.background),
+            contentScale = ContentScale.Crop,
+            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.background, blendMode = BlendMode.Color)
+        )
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.padding(10.dp)
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.background.copy(0.8f))
+                    .padding(10.dp)
+            ) {
+                devices.forEach { dev ->
+                    ModuleCard(dev)
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun MainScreen(navController: NavHostController = rememberNavController()) {
+    val devices: List<Module.Manifest> = listOf(
+        Module.Manifest(name = "Fujifilm", description = "Connect to Fujifilm cameras", target = Module.Target(deviceId = Module.Device.PROFESSIONAL_CAMERA)),
+        Module.Manifest(name = "Canon", description = "Canon DSLRs and mirrorless cameras", target = Module.Target(deviceId = Module.Device.PROFESSIONAL_CAMERA)),
+        Module.Manifest(name = "Veement", description = "Veement/veecar dashcams", target = Module.Target(deviceId = Module.Device.DASHCAM)),
+        Module.Manifest(name = "Toyota", description = "Toyota infotainment system", target = Module.Target(deviceId = Module.Device.AUTOMOTIVE_INFOTAINMENT)),
+        Module.Manifest(name = "Roku", description = "Roku TV and media systems", target = Module.Target(deviceId = Module.Device.SMART_TV)),
+    )
+
     return FudgeTheme {
         Scaffold(
             topBar = {
@@ -248,38 +326,18 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
                 )
             },
         ) { innerPadding ->
-            Box(modifier = Modifier
-                .padding(innerPadding)
-                .fillMaxSize()
-                .paint(
-                    painterResource(id = R.drawable.background),
-                    contentScale = ContentScale.Crop,
-                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.background, blendMode = BlendMode.Color)
-                )) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .padding(horizontal = 20.dp)
-                ) {
-                    val m = Modifier.fillMaxWidth()
-                    Widgets.LongClickButton(m, {
-                        navController.navigate("gallery")
-                    }, {
-                        Log.d(TAG, "Long press")
-                    }, "Connect to a device")
-                    Widgets.GrayButton(modifier = m, text = "Help", onClick = {
-                        Log.d(TAG, "Help")
-                    })
-                    Widgets.GrayButton(modifier = m, text = "Send Feedback", onClick = {})
-
-                    Box(modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surfaceContainer)
-                        .padding(16.dp)
-                    ) {
-
-                    }
+            Column(Modifier.padding(innerPadding).fillMaxSize(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally) {
+                Button(onClick = {
+                    navController.navigate("test-dashboard1")
+                }) {
+                    Text("preview dashboard buds")
+                }
+                Button(onClick = {
+                    navController.navigate("console")
+                }) {
+                    Text("console")
                 }
             }
         }
@@ -289,6 +347,8 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        val ctx = this
         setContent {
             val navController = rememberNavController()
 
@@ -299,6 +359,27 @@ class MainActivity : ComponentActivity() {
                 composable("home") { MainScreen(navController) }
                 composable("testsuite") { ConsoleScreen(navController) }
                 composable("gallery") { GalleryScreen(navController) }
+                composable("console") {
+                    ConsoleScreen(navController, Runtime.mainLog, buttons = {
+                        Button(onClick = {
+                            val filter = WiFi.ApFilter()
+                            //filter.ssidPattern = "FUJIFILM.*"
+                            WiFi.connectToAccessPointCompanion(
+                                ctx,
+                                filter,
+                                "TextName"
+                            )
+                            Runtime.mainLog.addLine("Hello, World")
+                        }) {
+                            Text("Do a log")
+                        }
+                    })
+                }
+                composable("test-dashboard1") { PreviewDashboardBuds(navController) }
+                composable<ConnectionInstance> { backStackEntry ->
+                    val inst = backStackEntry.toRoute<ConnectionInstance>()
+                    ConsoleScreen(navController, Runtime.mainLog)
+                }
             }
         }
     }

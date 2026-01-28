@@ -1,10 +1,17 @@
 package dev.danielc.common
 import dev.danielc.R
+import kotlinx.serialization.Serializable
 
 typealias Job = Int
 
-class Module {
-    enum class PakDevice(val id: String) {
+class Module(val nativeModule: NativeModule) {
+    enum class ModuleType {
+        QUICKJS,
+        WEBASSEMBLY,
+        NATIVE,
+    }
+
+    enum class Device(val id: String) {
         // Photo class
         PROFESSIONAL_CAMERA("professional-camera"),
         ACTION_CAMERA("action-camera"),
@@ -43,42 +50,42 @@ class Module {
         GENERIC_AUTOMOTIVE("generic-automotive");
 
         companion object {
-            fun fromId(id: String?): PakDevice? {
+            fun fromId(id: String?): Device? {
                 return entries.find { it.id == id }
             }
         }
 
         fun getIcon(): Int {
             return when (this) {
-                PakDevice.PROFESSIONAL_CAMERA -> R.drawable.baseline_photo_camera_24
-                PakDevice.ACTION_CAMERA -> R.drawable.baseline_photo_camera_24
-                PakDevice.DASHCAM -> R.drawable.outline_camera_video_24
-                PakDevice.GENERIC_CAMERA -> R.drawable.baseline_photo_camera_24
-                PakDevice.WIFI_SD_CARD -> R.drawable.outline_sd_card_24
-                PakDevice.DOORBELL -> R.drawable.outline_general_device_24
-                PakDevice.GENERIC_HOME_DEVICE -> R.drawable.outline_general_device_24
-                PakDevice.DESK -> R.drawable.outline_general_device_24
-                PakDevice.GENERIC_FURNITURE -> R.drawable.outline_general_device_24
-                PakDevice.PRINTER_3D -> R.drawable.outline_general_device_24
-                PakDevice.HEADPHONES -> R.drawable.outline_general_device_24
-                PakDevice.EARBUDS -> R.drawable.outline_general_device_24
-                PakDevice.SPEAKERS -> R.drawable.outline_general_device_24
-                PakDevice.GENERIC_AUDIO -> R.drawable.outline_general_device_24
-                PakDevice.SMART_GLASSES -> R.drawable.outline_general_device_24
-                PakDevice.SMART_TV -> R.drawable.outline_connected_tv_24
-                PakDevice.SMARTWATCH -> R.drawable.outline_general_device_24
-                PakDevice.GENERIC_MEDICAL_WEARABLE -> R.drawable.outline_general_device_24
-                PakDevice.GENERIC_EXERCISE_MACHINE -> R.drawable.outline_general_device_24
-                PakDevice.POWER_TOOL -> R.drawable.outline_general_device_24
-                PakDevice.GAME_CONTROLLER -> R.drawable.outline_general_device_24
-                PakDevice.DRONE -> R.drawable.outline_general_device_24
-                PakDevice.GENERIC_REMOTE_CONTROL -> R.drawable.outline_general_device_24
-                PakDevice.SCOOTER -> R.drawable.outline_general_device_24
-                PakDevice.BICYCLE -> R.drawable.outline_general_device_24
-                PakDevice.GENERIC_RIDEABLE -> R.drawable.outline_general_device_24
-                PakDevice.AUTOMOTIVE_INFOTAINMENT -> R.drawable.outline_directions_car_24
-                PakDevice.AUTOMOTIVE_DIAGNOSTIC -> R.drawable.outline_car_repair_24
-                PakDevice.GENERIC_AUTOMOTIVE -> R.drawable.outline_directions_car_24
+                Device.PROFESSIONAL_CAMERA -> R.drawable.baseline_photo_camera_24
+                Device.ACTION_CAMERA -> R.drawable.baseline_photo_camera_24
+                Device.DASHCAM -> R.drawable.outline_camera_video_24
+                Device.GENERIC_CAMERA -> R.drawable.baseline_photo_camera_24
+                Device.WIFI_SD_CARD -> R.drawable.outline_sd_card_24
+                Device.DOORBELL -> R.drawable.outline_general_device_24
+                Device.GENERIC_HOME_DEVICE -> R.drawable.outline_general_device_24
+                Device.DESK -> R.drawable.outline_general_device_24
+                Device.GENERIC_FURNITURE -> R.drawable.outline_general_device_24
+                Device.PRINTER_3D -> R.drawable.outline_general_device_24
+                Device.HEADPHONES -> R.drawable.outline_headphones_24
+                Device.EARBUDS -> R.drawable.outline_earbuds_2_24
+                Device.SPEAKERS -> R.drawable.outline_speaker_24
+                Device.GENERIC_AUDIO -> R.drawable.outline_speaker_24
+                Device.SMART_GLASSES -> R.drawable.outline_general_device_24
+                Device.SMART_TV -> R.drawable.outline_connected_tv_24
+                Device.SMARTWATCH -> R.drawable.outline_general_device_24
+                Device.GENERIC_MEDICAL_WEARABLE -> R.drawable.outline_general_device_24
+                Device.GENERIC_EXERCISE_MACHINE -> R.drawable.outline_general_device_24
+                Device.POWER_TOOL -> R.drawable.outline_tools_power_drill_24
+                Device.GAME_CONTROLLER -> R.drawable.outline_general_device_24
+                Device.DRONE -> R.drawable.outline_general_device_24
+                Device.GENERIC_REMOTE_CONTROL -> R.drawable.outline_general_device_24
+                Device.SCOOTER -> R.drawable.outline_general_device_24
+                Device.BICYCLE -> R.drawable.outline_general_device_24
+                Device.GENERIC_RIDEABLE -> R.drawable.outline_general_device_24
+                Device.AUTOMOTIVE_INFOTAINMENT -> R.drawable.outline_directions_car_24
+                Device.AUTOMOTIVE_DIAGNOSTIC -> R.drawable.outline_car_repair_24
+                Device.GENERIC_AUTOMOTIVE -> R.drawable.outline_directions_car_24
             }
         }
     }
@@ -86,12 +93,10 @@ class Module {
     data class RememberedDevice(
         val uniqueId: String,
         val name: String,
-    ) {
-
-    }
+    )
 
     data class Target(
-        val deviceId: PakDevice = PakDevice.PROFESSIONAL_CAMERA,
+        val deviceId: Device = Device.PROFESSIONAL_CAMERA,
         val companies: List<String> = emptyList(),
         val products: List<String> = emptyList(),
     )
@@ -102,12 +107,12 @@ class Module {
         val author: String = "Daniel Cook",
         val target: Target = Target()
     )
+}
 
-    val currentScreen: String = "connect-wifi"
+class ModuleInstance(mod: Module) {
+    val module: Module = mod
+    val currentScreen: String = ""
     fun cancelJob(job: Job) {
-
-    }
-    constructor(manifest: Manifest) {
 
     }
 }
