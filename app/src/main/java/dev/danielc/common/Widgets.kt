@@ -212,7 +212,7 @@ object Widgets {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
-fun PreviewButton() {
+fun PreviewButtons() {
     return Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
         Widgets.LongClickButton(
             text = "asd",

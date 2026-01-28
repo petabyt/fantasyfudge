@@ -30,9 +30,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarDefaults
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -50,29 +47,19 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.danielc.R
+import dev.danielc.common.screens.ConsoleScreen
+import dev.danielc.common.screens.GalleryScreen
 import dev.danielc.common.ui.theme.FudgeTheme
-import dev.danielc.libpak.Pak
 import dev.danielc.libpak.WiFi
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 const val TAG = "main";
 
@@ -137,12 +124,14 @@ fun ModuleCard(
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 1,
                 )
-                Text(
-                    text = manifest.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                )
+                if (manifest.description != null) {
+                    Text(
+                        text = manifest.description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                    )
+                }
             }
         }
     }
@@ -290,7 +279,7 @@ fun DeviceListOnCard(innerPadding: PaddingValues, devices: List<Module.Manifest>
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(showBackground = true, device = "id:pixel_9a", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun MainScreen(navController: NavHostController = rememberNavController()) {
     val devices: List<Module.Manifest> = listOf(
@@ -347,6 +336,10 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) {
+            System.loadLibrary("pakit")
+            NativeRuntime.init()
+        }
         enableEdgeToEdge()
         val ctx = this
         setContent {
@@ -364,20 +357,20 @@ class MainActivity : ComponentActivity() {
                         Button(onClick = {
                             val filter = WiFi.ApFilter()
                             //filter.ssidPattern = "FUJIFILM.*"
-                            WiFi.connectToAccessPointCompanion(
-                                ctx,
-                                filter,
-                                "TextName"
-                            )
+//                            WiFi.connectToAccessPointCompanion(
+//                                ctx,
+//                                filter,
+//                                "TextName"
+//                            )
                             Runtime.mainLog.addLine("Hello, World")
                         }) {
                             Text("Do a log")
                         }
                     })
                 }
-                composable("test-dashboard1") { PreviewDashboardBuds(navController) }
-                composable<ConnectionInstance> { backStackEntry ->
-                    val inst = backStackEntry.toRoute<ConnectionInstance>()
+                composable("test-dashboard1") { PreviewDashboardCamera(navController) }
+                composable<SerializableModuleInstance> { backStackEntry ->
+                    val inst = backStackEntry.toRoute<SerializableModuleInstance>()
                     ConsoleScreen(navController, Runtime.mainLog)
                 }
             }

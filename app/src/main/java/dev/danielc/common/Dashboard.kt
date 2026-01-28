@@ -17,34 +17,26 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.ripple.RippleAlpha
-import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.RippleConfiguration
-import androidx.compose.material3.RippleDefaults.RippleAlpha
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -54,9 +46,19 @@ import androidx.navigation.compose.rememberNavController
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.R
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class DashboardState(
     val manifest: Module.Manifest?,
+    val module: SerializableModuleInstance? = null,
     val nameOfDevice: String? = null,
     val filesOnStorage: Int? = null,
     val firmwareVersion: String? = null,
@@ -67,12 +69,28 @@ data class DashboardState(
     var pageIndex: Int = 0,
 )
 
+class DashboardStateModel(manifest: Module.Manifest) : ViewModel() {
+    private val _uiState = MutableStateFlow(DashboardState(manifest))
+    val dummyState: DashboardState = DashboardState(manifest)
+    val uiState: StateFlow<DashboardState> = _uiState.asStateFlow()
+
+    fun update() {
+        viewModelScope.launch() {
+            withContext(Dispatchers.Default) {
+                _uiState.update { currentState ->
+                    dummyState
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun PreviewDashboardCamera(navController: NavHostController = rememberNavController()) {
     val state = DashboardState(
-        manifest = Module.Manifest("Fujifilm", "x", "Daniel Cook", Module.Target()),
+        manifest = temporaryManifestList[0],
         nameOfDevice = "Fujifilm X100V",
         filesOnStorage = 321,
         firmwareVersion = "0.1.0",
@@ -87,7 +105,7 @@ fun PreviewDashboardCamera(navController: NavHostController = rememberNavControl
 @Composable
 fun PreviewDashboardBuds(navController: NavHostController = rememberNavController()) {
     val state = DashboardState(
-        manifest = Module.Manifest("CMF", "x", "Daniel Cook", Module.Target(deviceId = Module.Device.EARBUDS)),
+        manifest = temporaryManifestList[1],
         nameOfDevice = "CMF Buds Pro 2",
         firmwareVersion = "5.0",
     )

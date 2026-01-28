@@ -4,11 +4,30 @@ import kotlinx.serialization.Serializable
 
 typealias Job = Int
 
-class Module(val nativeModule: NativeModule) {
+fun parseJsonManifest(path: String): Module.Manifest {
+    return Module.Manifest(
+        name = "x"
+    )
+}
+
+class Module(
+    val moduleType: ModuleType = ModuleType.DUMMY,
+    val jsonManifestPath: String? = null,
+) {
+    val manifest: Manifest
+    init {
+        if (jsonManifestPath != null) {
+            manifest = parseJsonManifest(jsonManifestPath)
+        } else {
+            error("can't create manifest")
+        }
+    }
+
     enum class ModuleType {
         QUICKJS,
         WEBASSEMBLY,
         NATIVE,
+        DUMMY,
     }
 
     enum class Device(val id: String) {
@@ -90,6 +109,23 @@ class Module(val nativeModule: NativeModule) {
         }
     }
 
+    data class WiFiDiscovery(
+        val ssidPattern: String,
+    )
+
+    @Suppress("ArrayInDataClass")
+    data class BleDiscovery(
+        val mfgData: ByteArray,
+        val mfgDataMask: ByteArray? = null,
+        val serviceUuids: List<String>,
+    )
+
+    data class UsbDiscovery(
+        val pid: Int? = null,
+        val vid: Int? = null,
+        val usbClass: Int? = null,
+    )
+
     data class RememberedDevice(
         val uniqueId: String,
         val name: String,
@@ -103,16 +139,38 @@ class Module(val nativeModule: NativeModule) {
 
     data class Manifest(
         val name: String,
-        val description: String,
+        val description: String? = null,
         val author: String = "Daniel Cook",
-        val target: Target = Target()
+        val authorUrl: String? = null,
+        val versionCode: Int = 0,
+        val target: Target = Target(),
+        val publicKey: String? = null,
     )
 }
 
 class ModuleInstance(mod: Module) {
     val module: Module = mod
+    val nativeInstance: NativeModule? = null
     val currentScreen: String = ""
+    val currentJob: Job = 0
     fun cancelJob(job: Job) {
 
+    }
+}
+
+// Serializable ID of connection instance that can be passed between activities
+@Serializable
+data class SerializableModuleInstance(
+    val connectionId: Int?,
+) {
+    fun getModuleInstance(): ModuleInstance {
+        if (connectionId == null) {
+            throw Exception();
+        } else {
+            return Runtime.moduleInstances[connectionId]
+        }
+    }
+    fun getManifest(): Module.Manifest {
+        return getModuleInstance().module.manifest
     }
 }

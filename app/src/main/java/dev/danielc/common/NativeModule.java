@@ -1,8 +1,7 @@
 package dev.danielc.common;
-import dev.danielc.common.Runtime;
 
 public class NativeModule {
-    ConnectionInstance ktConnectionInstance;
+    SerializableModuleInstance ktConnectionInstance;
     int currentTickInterval;
     byte[] struct;
     public enum Error {
@@ -31,10 +30,6 @@ public class NativeModule {
     public static class FileMetadata {
         String filename;
         String mimeType;
-    }
-
-    public void setProgressBar(int job) {
-
     }
 
     public void setTickInterval(int us) {

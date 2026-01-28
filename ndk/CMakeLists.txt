@@ -30,6 +30,8 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../libpak ${CMAKE_CURRENT_BINARY_DI
 
 add_library(${CMAKE_PROJECT_NAME} SHARED
     main.c
+    thread.c
+    module.c
 )
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE pak qjs libjpeg-turbo vmlib)
 target_link_options(pak PRIVATE "-Wl,-z,max-page-size=16384")

@@ -1,3 +1,10 @@
+#include <stdlib.h>
+#include <jni.h>
+#include <android/log.h>
+struct AndroidLocal {
+	JNIEnv *env;
+	jobject ctx;
+};
 __thread struct AndroidLocal local = {0, 0};
 
 void set_jni_env_ctx(JNIEnv *env, jobject ctx) {
@@ -20,7 +27,7 @@ void pop_jni_env_ctx(struct AndroidLocal l) {
 
 JNIEnv *get_jni_env(void) {
 	if (local.env == NULL) {
-		plat_dbg("JNIEnv not set for this thread");
+		__android_log_write(ANDROID_LOG_ERROR, __func__, "JNIEnv not set for this thread");
 		abort();
 	}
 
@@ -29,7 +36,7 @@ JNIEnv *get_jni_env(void) {
 
 jobject get_jni_ctx(void) {
 	if (local.ctx == NULL) {
-		plat_dbg("ctx not set for this thread");
+		__android_log_write(ANDROID_LOG_ERROR, __func__, "ctx not set for this thread");
 		abort();
 	}
 
