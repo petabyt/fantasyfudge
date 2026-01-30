@@ -1,0 +1,10 @@
+{
+  "name": "Fujifilm",
+  "description": "Supports Fujifilm X-series cameras",
+  "version": 1,
+  "target": {
+    "deviceType": "professional-camera",
+    "companies": ["Fujifilm"],
+    "products": ["X-T20", "X-T4", "X100V"]
+  }
+}

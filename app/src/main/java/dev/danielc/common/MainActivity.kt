@@ -107,12 +107,14 @@ fun ModuleCard(
         Row(
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                painter = painterResource(manifest.target.deviceId.getIcon()),
-                contentDescription = null,
-                modifier = Modifier.size(32.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
+            if (manifest.target != null) {
+                Icon(
+                    painter = painterResource(manifest.target.deviceId.getIcon()),
+                    contentDescription = null,
+                    modifier = Modifier.size(32.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+            }
 
             Spacer(modifier = Modifier.width(12.dp))
 
@@ -173,9 +175,9 @@ fun DeviceCard(
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-//@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
-fun SelectorScreen(navController: NavHostController = rememberNavController()) {
+fun PreviewSelectorScreen(navController: NavHostController = rememberNavController()) {
     val devices: List<Module.Manifest> = listOf(
         Module.Manifest(name = "Fujifilm", description = "Connect to Fujifilm cameras", target = Module.Target(deviceId = Module.Device.PROFESSIONAL_CAMERA)),
         Module.Manifest(name = "Canon", description = "Canon DSLRs and mirrorless cameras", target = Module.Target(deviceId = Module.Device.PROFESSIONAL_CAMERA)),
@@ -219,6 +221,38 @@ fun SelectorScreen(navController: NavHostController = rememberNavController()) {
                         .padding(10.dp)) {
                     devices.forEach { dev ->
                         ModuleCard(dev)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun ModuleList(navController: NavHostController = rememberNavController()) {
+    val devices = Runtime.modules
+    return FudgeTheme {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(),
+                    title = {
+                        Text("Modules")
+                    }
+                )
+            },
+        ) { innerPadding ->
+            Column {
+                // something here
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .padding(innerPadding)
+                        .fillMaxSize()
+                        .padding(10.dp)) {
+                    devices.forEach { dev ->
+                        ModuleCard(dev.manifest)
                     }
                 }
             }
@@ -282,14 +316,6 @@ fun DeviceListOnCard(innerPadding: PaddingValues, devices: List<Module.Manifest>
 @Preview(showBackground = true, device = "id:pixel_9a", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun MainScreen(navController: NavHostController = rememberNavController()) {
-    val devices: List<Module.Manifest> = listOf(
-        Module.Manifest(name = "Fujifilm", description = "Connect to Fujifilm cameras", target = Module.Target(deviceId = Module.Device.PROFESSIONAL_CAMERA)),
-        Module.Manifest(name = "Canon", description = "Canon DSLRs and mirrorless cameras", target = Module.Target(deviceId = Module.Device.PROFESSIONAL_CAMERA)),
-        Module.Manifest(name = "Veement", description = "Veement/veecar dashcams", target = Module.Target(deviceId = Module.Device.DASHCAM)),
-        Module.Manifest(name = "Toyota", description = "Toyota infotainment system", target = Module.Target(deviceId = Module.Device.AUTOMOTIVE_INFOTAINMENT)),
-        Module.Manifest(name = "Roku", description = "Roku TV and media systems", target = Module.Target(deviceId = Module.Device.SMART_TV)),
-    )
-
     return FudgeTheme {
         Scaffold(
             topBar = {
@@ -328,6 +354,11 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
                 }) {
                     Text("console")
                 }
+                Button(onClick = {
+                    navController.navigate("modules-list")
+                }) {
+                    Text("modules list")
+                }
             }
         }
     }
@@ -339,6 +370,9 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) {
             System.loadLibrary("pakit")
             NativeRuntime.init()
+            NativeRuntime.ctx = this
+            val manifests = NativeRuntime.getAllJsonManifests()
+            Runtime.loadModulesFromManifests(manifests)
         }
         enableEdgeToEdge()
         val ctx = this
@@ -350,6 +384,9 @@ class MainActivity : ComponentActivity() {
                 exitTransition = { ExitTransition.None },
                 navController = navController, startDestination = "home") {
                 composable("home") { MainScreen(navController) }
+                composable("modules-list") {
+                    ModuleList(navController)
+                }
                 composable("testsuite") { ConsoleScreen(navController) }
                 composable("gallery") { GalleryScreen(navController) }
                 composable("console") {

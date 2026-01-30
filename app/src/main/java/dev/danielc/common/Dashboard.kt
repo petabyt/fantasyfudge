@@ -9,6 +9,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.FlowRowScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -56,9 +57,18 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+data class DashboardSettingPane(
+    val settingName: String,
+    var currentBooleanValue: Boolean? = null,
+    val currentIntValue: Int? = null,
+    val intMinMax: Pair<Int, Int>? = null,
+    val dropDownOptions: List<String>? = null,
+)
+
 data class DashboardState(
     val manifest: Module.Manifest?,
     val module: SerializableModuleInstance? = null,
+    var customSettings: List<DashboardSettingPane> = emptyList(),
     val nameOfDevice: String? = null,
     val filesOnStorage: Int? = null,
     val firmwareVersion: String? = null,
@@ -67,7 +77,11 @@ data class DashboardState(
     val supportsGallery: Boolean = false,
     val supportsFirmwareUpdate: Boolean = false,
     var pageIndex: Int = 0,
-)
+) {
+    fun addBooleanPane(pane: DashboardSettingPane) {
+        customSettings += pane
+    }
+}
 
 class DashboardStateModel(manifest: Module.Manifest) : ViewModel() {
     private val _uiState = MutableStateFlow(DashboardState(manifest))
@@ -80,6 +94,16 @@ class DashboardStateModel(manifest: Module.Manifest) : ViewModel() {
                 _uiState.update { currentState ->
                     dummyState
                 }
+            }
+        }
+    }
+
+    fun addBooleanPane(pane: DashboardSettingPane) {
+        viewModelScope.launch(Dispatchers.Default) {
+            _uiState.update { currentState ->
+                currentState.copy(
+                    customSettings = currentState.customSettings + pane
+                )
             }
         }
     }
@@ -109,22 +133,27 @@ fun PreviewDashboardBuds(navController: NavHostController = rememberNavControlle
         nameOfDevice = "CMF Buds Pro 2",
         firmwareVersion = "5.0",
     )
+    state.addBooleanPane(DashboardSettingPane(
+        "Noise cancellation",
+        currentBooleanValue = true
+    ))
+    state.addBooleanPane(DashboardSettingPane(
+        "Bass enhancement",
+        currentBooleanValue = false
+    ))
     DashboardScreen(state = state)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 @SuppressLint("ModifierParameter")
-fun FlowRowScope.CardButton(text: String, icon: Int, bg: Color, fg: Color, onClick: () -> Unit = {}, modifier: Modifier = Modifier) {
-
+fun FlowRowScope.PaneButton(text: String, icon: Int, bg: Color, fg: Color, onClick: () -> Unit = {}, modifier: Modifier = Modifier) {
     val rippleConfiguration = RippleConfiguration(color = fg, rippleAlpha = RippleAlpha(
         0.16f,
         0.1f,
         0.08f,
         0.4f
-    )
-    )
-
+    ))
 
     CompositionLocalProvider(LocalRippleConfiguration provides rippleConfiguration) {
         Box(
@@ -151,6 +180,38 @@ fun FlowRowScope.CardButton(text: String, icon: Int, bg: Color, fg: Color, onCli
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+@SuppressLint("ModifierParameter")
+fun FlowRowScope.CustomPane(modifier: Modifier = Modifier, bg: Color = MaterialTheme.colorScheme.surfaceContainerHigh, fg: Color = MaterialTheme.colorScheme.onSurface, content: @Composable () -> Unit) {
+    val rippleConfiguration = RippleConfiguration(color = fg, rippleAlpha = RippleAlpha(
+        0.16f,
+        0.1f,
+        0.08f,
+        0.4f
+    ))
+
+    CompositionLocalProvider(LocalRippleConfiguration provides rippleConfiguration) {
+        Box(
+            modifier = modifier
+                .weight(1f)
+                //.aspectRatio(1.5f)
+                .fillMaxRowHeight()
+                .clip(RoundedCornerShape(12.dp))
+                .background(bg)
+                .clickable(onClick = {})
+                .indication(
+                    indication = ripple(),
+                    interactionSource = remember { MutableInteractionSource() }
+                )
+        ) {
+            Column(Modifier.padding(20.dp)) {
+                content()
+            }
+        }
+    }
+}
+
 @Composable
 fun Dashboard(innerPadding: PaddingValues, navController: NavHostController = rememberNavController(), state: DashboardState) {
     Column(
@@ -165,7 +226,7 @@ fun Dashboard(innerPadding: PaddingValues, navController: NavHostController = re
             Column(Modifier.padding(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (state.nameOfDevice != null) {
-                        if (state.manifest != null)
+                        if (state.manifest != null && state.manifest.target != null)
                             Icon(
                                 painter = painterResource(state.manifest.target.deviceId.getIcon()),
                                 contentDescription = null
@@ -205,27 +266,28 @@ fun Dashboard(innerPadding: PaddingValues, navController: NavHostController = re
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
             maxItemsInEachRow = 2) {
-            CardButton("Settings", R.drawable.baseline_settings_24, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.onSecondary)
-            CardButton("Save", R.drawable.outline_save_24, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.onSecondary)
-            CardButton("Disconnect", R.drawable.outline_close_24, MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.onError)
+            PaneButton("Settings", R.drawable.baseline_settings_24, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.onSecondary)
+            PaneButton("Save", R.drawable.outline_save_24, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.onSecondary)
+            PaneButton("Disconnect", R.drawable.outline_close_24, MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.onError)
             if (state.supportsGeoTag) {
-                CardButton("Geotagging", R.drawable.outline_globe_location_pin_24, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
-            }
-            Box(modifier = Modifier
-                .weight(1f)
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                Column(Modifier.padding(20.dp)) {
-                    Text("Change a setting", color = MaterialTheme.colorScheme.onSurface)
-                    Switch(true,
-                        onCheckedChange = {
-
-                        })
-                }
+                PaneButton("Geotagging", R.drawable.outline_globe_location_pin_24, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
             }
             if (state.supportsFirmwareUpdate) {
-                CardButton("Update Firmware", R.drawable.outline_developer_board_24, MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.onTertiary)
+                PaneButton("Update Firmware", R.drawable.outline_developer_board_24, MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.onTertiary)
+            }
+
+            for (pane in state.customSettings) {
+                val booleanValue = pane.currentBooleanValue
+                if (booleanValue != null) {
+                    CustomPane(content = {
+                        Text(pane.settingName, color = MaterialTheme.colorScheme.onSurface)
+                        Switch(booleanValue,
+                            onCheckedChange = {
+                                pane.currentBooleanValue = !booleanValue
+                            }
+                        )
+                    })
+                }
             }
         }
     }

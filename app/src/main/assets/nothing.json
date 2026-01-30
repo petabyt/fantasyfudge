@@ -1,0 +1,11 @@
+{
+  "name": "Nothing CMF devices",
+  "description": "Supports Nothing earbuds/headphones",
+  "version": 1,
+  "isDraft": true,
+  "target": {
+    "deviceType": "earbuds",
+    "companies": ["Nothing"],
+    "products": ["CMF 2"]
+  }
+}

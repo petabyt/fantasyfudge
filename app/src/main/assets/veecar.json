@@ -1,4 +1,11 @@
 {
   "name": "Veecar",
-  "description": "Veement/veecar dashcams"
+  "description": "Supports Veement/Veecar dashcams",
+  "version": 1,
+  "isDraft": true,
+  "target": {
+    "deviceType": "dashcam",
+    "companies": ["Veement"],
+    "products": ["V300", "V200", "S80", "VT10"]
+  }
 }

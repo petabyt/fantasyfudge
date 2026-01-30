@@ -5,30 +5,22 @@ import kotlinx.serialization.Serializable
 typealias Job = Int
 
 fun parseJsonManifest(path: String): Module.Manifest {
+
+
     return Module.Manifest(
         name = "x"
     )
 }
 
 class Module(
-    val moduleType: ModuleType = ModuleType.DUMMY,
-    val jsonManifestPath: String? = null,
-) {
     val manifest: Manifest
-    init {
-        if (jsonManifestPath != null) {
-            manifest = parseJsonManifest(jsonManifestPath)
-        } else {
-            error("can't create manifest")
-        }
-    }
-
-    enum class ModuleType {
-        QUICKJS,
-        WEBASSEMBLY,
-        NATIVE,
-        DUMMY,
-    }
+) {
+//    enum class ModuleType {
+//        QUICKJS,
+//        WEBASSEMBLY,
+//        NATIVE,
+//        DUMMY,
+//    }
 
     enum class Device(val id: String) {
         // Photo class
@@ -77,7 +69,7 @@ class Module(
         fun getIcon(): Int {
             return when (this) {
                 Device.PROFESSIONAL_CAMERA -> R.drawable.baseline_photo_camera_24
-                Device.ACTION_CAMERA -> R.drawable.baseline_photo_camera_24
+                Device.ACTION_CAMERA -> R.drawable.outline_videocam_24
                 Device.DASHCAM -> R.drawable.outline_camera_video_24
                 Device.GENERIC_CAMERA -> R.drawable.baseline_photo_camera_24
                 Device.WIFI_SD_CARD -> R.drawable.outline_sd_card_24
@@ -90,9 +82,9 @@ class Module(
                 Device.EARBUDS -> R.drawable.outline_earbuds_2_24
                 Device.SPEAKERS -> R.drawable.outline_speaker_24
                 Device.GENERIC_AUDIO -> R.drawable.outline_speaker_24
-                Device.SMART_GLASSES -> R.drawable.outline_general_device_24
+                Device.SMART_GLASSES -> R.drawable.outline_eyeglasses_2_24
                 Device.SMART_TV -> R.drawable.outline_connected_tv_24
-                Device.SMARTWATCH -> R.drawable.outline_general_device_24
+                Device.SMARTWATCH -> R.drawable.outline_watch_24
                 Device.GENERIC_MEDICAL_WEARABLE -> R.drawable.outline_general_device_24
                 Device.GENERIC_EXERCISE_MACHINE -> R.drawable.outline_general_device_24
                 Device.POWER_TOOL -> R.drawable.outline_tools_power_drill_24
@@ -142,9 +134,12 @@ class Module(
         val description: String? = null,
         val author: String = "Daniel Cook",
         val authorUrl: String? = null,
-        val versionCode: Int = 0,
-        val target: Target = Target(),
+        val version: Int = 0,
+        val requiredRuntimeVersion: Int? = null,
+        val runtimeVersion: Int = 0,
+        val target: Target? = null,
         val publicKey: String? = null,
+        val isDraft: Boolean = false,
     )
 }
 
