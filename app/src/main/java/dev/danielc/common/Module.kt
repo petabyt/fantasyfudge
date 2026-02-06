@@ -2,16 +2,6 @@ package dev.danielc.common
 import dev.danielc.R
 import kotlinx.serialization.Serializable
 
-typealias Job = Int
-
-fun parseJsonManifest(path: String): Module.Manifest {
-
-
-    return Module.Manifest(
-        name = "x"
-    )
-}
-
 class Module(
     val manifest: Manifest
 ) {
@@ -143,13 +133,25 @@ class Module(
     )
 }
 
+// Instance of a module with a single connection
 class ModuleInstance(mod: Module) {
     val module: Module = mod
     val nativeInstance: NativeModule? = null
-    val currentScreen: String = ""
-    val currentJob: Job = 0
-    fun cancelJob(job: Job) {
+    val serializableModuleInstance: SerializableModuleInstance? = null
 
+    private fun createJob(): Job {
+        return Runtime.createJob(serializableModuleInstance!!)
+    }
+
+    fun onFindConnection(): Job {
+        val job = createJob()
+        // Create a thread or pass message to module thread
+        nativeInstance!!.onFindConnection(job.id)
+        return job
+    }
+
+    fun cancelJob(job: Job) {
+        job.isCancelled = true
     }
 }
 

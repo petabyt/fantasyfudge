@@ -1,6 +1,7 @@
 {
   "name": "Nothing CMF devices",
   "description": "Supports Nothing earbuds/headphones",
+  "author": "Daniel Cook",
   "version": 1,
   "isDraft": true,
   "target": {

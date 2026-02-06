@@ -2,14 +2,14 @@ package dev.danielc.common
 
 import android.content.res.Configuration
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideIn
+import androidx.compose.animation.slideOut
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,10 +21,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -34,9 +39,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -49,6 +56,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -57,25 +65,13 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleScreen
-import dev.danielc.common.screens.GalleryScreen
+import dev.danielc.common.screens.PreviewDashboardBuds
+import dev.danielc.common.screens.PreviewGalleryScreen
+import dev.danielc.common.screens.PreviewDashboardCamera
+import dev.danielc.common.screens.PreviewViewer
 import dev.danielc.common.ui.theme.FudgeTheme
-import dev.danielc.libpak.WiFi
 
 const val TAG = "main";
-
-object Backend {
-    var mainLog by mutableStateOf("")
-    var tickText by mutableStateOf("5")
-    private val h = Handler(Looper.getMainLooper())
-    fun log(str: String) {
-        h.post { mainLog += str + "\n" }
-    }
-    fun tick() {
-        h.post {
-            tickText = (0..10).random().toString()
-        }
-    }
-}
 
 @Composable
 fun BottomLog(modifier: Modifier, text: String): Unit {
@@ -104,37 +100,45 @@ fun ModuleCard(
             })
             .padding(16.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (manifest.target != null) {
-                Icon(
-                    painter = painterResource(manifest.target.deviceId.getIcon()),
-                    contentDescription = null,
-                    modifier = Modifier.size(32.dp),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(
-                modifier = Modifier.weight(1f)
+        Column {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = manifest.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                )
-                if (manifest.description != null) {
-                    Text(
-                        text = manifest.description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
+                if (manifest.target != null) {
+                    Icon(
+                        painter = painterResource(manifest.target.deviceId.getIcon()),
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp),
+                        tint = MaterialTheme.colorScheme.primary,
                     )
                 }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = manifest.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                    )
+                    if (manifest.description != null) {
+                        Text(
+                            text = manifest.description,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                        )
+                    }
+                }
             }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Author: ${manifest.author}\n",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -175,7 +179,7 @@ fun DeviceCard(
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
+//@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun PreviewSelectorScreen(navController: NavHostController = rememberNavController()) {
     val devices: List<Module.Manifest> = listOf(
@@ -239,15 +243,32 @@ fun ModuleList(navController: NavHostController = rememberNavController()) {
                     colors = TopAppBarDefaults.topAppBarColors(),
                     title = {
                         Text("Modules")
-                    }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            navController.navigateUp()
+                        }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back"
+                            )
+                        }
+                    },
                 )
             },
         ) { innerPadding ->
-            Column {
-                // something here
+            var isRefreshing by remember { mutableStateOf(false) }
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    isRefreshing = true
+                    isRefreshing = false
+                },
+            )  {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier
+                        .verticalScroll(rememberScrollState())
                         .padding(innerPadding)
                         .fillMaxSize()
                         .padding(10.dp)) {
@@ -347,7 +368,17 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
                 Button(onClick = {
                     navController.navigate("test-dashboard1")
                 }) {
+                    Text("preview dashboard camera")
+                }
+                Button(onClick = {
+                    navController.navigate("test-dashboard2")
+                }) {
                     Text("preview dashboard buds")
+                }
+                Button(onClick = {
+                    navController.navigate("preview-viewer")
+                }) {
+                    Text("preview viewer")
                 }
                 Button(onClick = {
                     navController.navigate("console")
@@ -367,38 +398,33 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null) {
+        NativeRuntime.setupAndroidContext(this)
+        if (!NativeRuntime.hasInited) {
             System.loadLibrary("pakit")
             NativeRuntime.init()
-            NativeRuntime.ctx = this
             val manifests = NativeRuntime.getAllJsonManifests()
             Runtime.loadModulesFromManifests(manifests)
+            NativeRuntime.hasInited = true
         }
         enableEdgeToEdge()
-        val ctx = this
         setContent {
             val navController = rememberNavController()
-
             NavHost(
-                enterTransition = { EnterTransition.None },
-                exitTransition = { ExitTransition.None },
+                enterTransition = { slideIn { IntOffset(it.width / 2, 0) } + fadeIn() },
+                exitTransition = { slideOut { IntOffset(-it.width / 2, 0) } + fadeOut() },
+                popEnterTransition = { slideIn { IntOffset(-it.width / 2, 0) } + fadeIn() },
+                popExitTransition = { slideOut { IntOffset(it.width / 2, 0) } + fadeOut() },
                 navController = navController, startDestination = "home") {
                 composable("home") { MainScreen(navController) }
                 composable("modules-list") {
                     ModuleList(navController)
                 }
                 composable("testsuite") { ConsoleScreen(navController) }
-                composable("gallery") { GalleryScreen(navController) }
+                composable("gallery") { PreviewGalleryScreen(navController) }
+                composable("preview-viewer") { PreviewViewer(navController) }
                 composable("console") {
                     ConsoleScreen(navController, Runtime.mainLog, buttons = {
                         Button(onClick = {
-                            val filter = WiFi.ApFilter()
-                            //filter.ssidPattern = "FUJIFILM.*"
-//                            WiFi.connectToAccessPointCompanion(
-//                                ctx,
-//                                filter,
-//                                "TextName"
-//                            )
                             Runtime.mainLog.addLine("Hello, World")
                         }) {
                             Text("Do a log")
@@ -406,6 +432,7 @@ class MainActivity : ComponentActivity() {
                     })
                 }
                 composable("test-dashboard1") { PreviewDashboardCamera(navController) }
+                composable("test-dashboard2") { PreviewDashboardBuds(navController) }
                 composable<SerializableModuleInstance> { backStackEntry ->
                     val inst = backStackEntry.toRoute<SerializableModuleInstance>()
                     ConsoleScreen(navController, Runtime.mainLog)

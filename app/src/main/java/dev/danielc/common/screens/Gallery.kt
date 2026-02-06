@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -26,6 +27,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -33,12 +36,19 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
 import dev.danielc.common.Widgets
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.GoGreen
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class MimeType {
     FILE,
@@ -48,8 +58,14 @@ enum class MimeType {
     MOV,
 }
 
+enum class DisplayType {
+    THUMBNAILS,
+    FILENAME_TABLE,
+}
+
 @Suppress("ArrayInDataClass")
 data class GalleryObject(
+    val isFulfilled: Boolean = false,
     val filename: String? = null,
     val jpegThumb: ByteArray? = null,
     val colorThumb: Color? = null,
@@ -57,9 +73,44 @@ data class GalleryObject(
     val createdDate: String? = null,
 )
 
-data class GalleryState(
-    val objects: List<GalleryObject>
+data class GalleryObjectReference(
+    val index: Int,
+    val isPriority: Boolean,
 )
+
+data class GalleryState(
+    val displayType: DisplayType = DisplayType.THUMBNAILS,
+    val objects: MutableList<GalleryObject> = mutableListOf(),
+    val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
+)
+
+class GalleryViewModel() : ViewModel() {
+    private val _uiState = MutableStateFlow(GalleryState())
+
+    fun reset() {
+        viewModelScope.launch() {
+            withContext(Dispatchers.Default) {
+                _uiState.update { currentState ->
+                    currentState.copy(objects = mutableListOf())
+                }
+            }
+        }
+    }
+
+    fun setObject(i: Int, obj: GalleryObject) {
+        viewModelScope.launch(Dispatchers.Default) {
+            val list = _uiState.value.objects.toMutableList()
+            list[i] = obj
+            _uiState.update { currentState ->
+                currentState.copy(objects = list)
+            }
+        }
+    }
+
+    fun enqueueObject(index: Int, isPriority: Boolean = false) {
+        _uiState.value.queue.addLast(GalleryObjectReference(index, isPriority))
+    }
+}
 
 @Composable
 fun DrawGalleryObject(obj: GalleryObject) {
@@ -90,7 +141,7 @@ fun DrawGalleryObject(obj: GalleryObject) {
 }
 
 @Composable
-fun GalleryMenu(navController: NavHostController, innerPadding: PaddingValues, state: GalleryState) {
+fun Gallery(navController: NavHostController, innerPadding: PaddingValues, state: GalleryState, requestLoad: (Int) -> Unit = {}) {
     Box(modifier = Modifier
             .padding(innerPadding)
             .fillMaxSize()
@@ -124,12 +175,24 @@ fun GalleryMenu(navController: NavHostController, innerPadding: PaddingValues, s
                 }
             }
 
+            val listState = rememberLazyListState()
+
             LazyVerticalGrid(
                 columns = GridCells.Fixed(4)
             ) {
                 items(state.objects) { obj ->
                     DrawGalleryObject(obj)
                 }
+            }
+
+            // Monitor recently viewed items so it can be sent to the queue
+            LaunchedEffect(listState) {
+                snapshotFlow { listState.layoutInfo.visibleItemsInfo }
+                    .collect { visibleItems ->
+                        for (e in visibleItems) {
+                            requestLoad(e.index)
+                        }
+                    }
             }
         }
         LinearProgressIndicator(
@@ -145,8 +208,8 @@ fun GalleryMenu(navController: NavHostController, innerPadding: PaddingValues, s
 @OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
 @Composable
-fun GalleryScreen(navController: NavHostController = rememberNavController()) {
-    val state = GalleryState(listOf(
+fun PreviewGalleryScreen(navController: NavHostController = rememberNavController()) {
+    val state = GalleryState(objects = mutableListOf(
         GalleryObject(colorThumb = Color.Red, filename = "DSC1111.JPG", mimeType = MimeType.JPEG),
         GalleryObject(colorThumb = Color.Green, filename = "DSC1112.MOV", mimeType = MimeType.MOV),
         GalleryObject(colorThumb = Color.Blue),
@@ -183,7 +246,7 @@ fun GalleryScreen(navController: NavHostController = rememberNavController()) {
                 )
             },
         ) { innerPadding ->
-            GalleryMenu(navController, innerPadding, state)
+            Gallery(navController, innerPadding, state)
         }
     }
 }

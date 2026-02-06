@@ -1,6 +1,7 @@
 {
   "name": "Fujifilm",
   "description": "Supports Fujifilm X-series cameras",
+  "author": "Daniel Cook",
   "version": 1,
   "target": {
     "deviceType": "professional-camera",

@@ -1,7 +1,9 @@
-package dev.danielc.common
+package dev.danielc.common.screens
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.indication
@@ -14,11 +16,13 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.FlowRowScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ripple.RippleAlpha
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BasicAlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalRippleConfiguration
@@ -30,11 +34,15 @@ import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,8 +55,15 @@ import androidx.navigation.compose.rememberNavController
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.R
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import dev.danielc.common.Module
+import dev.danielc.common.Screen
+import dev.danielc.common.SerializableModuleInstance
+import dev.danielc.common.temporaryManifestList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -67,7 +82,6 @@ data class DashboardSettingPane(
 
 data class DashboardState(
     val manifest: Module.Manifest?,
-    val module: SerializableModuleInstance? = null,
     var customSettings: List<DashboardSettingPane> = emptyList(),
     val nameOfDevice: String? = null,
     val filesOnStorage: Int? = null,
@@ -76,12 +90,17 @@ data class DashboardState(
     val supportsLiveView: Boolean = false,
     val supportsGallery: Boolean = false,
     val supportsFirmwareUpdate: Boolean = false,
-    var pageIndex: Int = 0,
 ) {
     fun addBooleanPane(pane: DashboardSettingPane) {
         customSettings += pane
     }
 }
+
+data class DashboardCallbacks(
+    val updateSettingPane: (DashboardSettingPane, Any) -> Unit = { pane, value ->
+
+    }
+)
 
 class DashboardStateModel(manifest: Module.Manifest) : ViewModel() {
     private val _uiState = MutableStateFlow(DashboardState(manifest))
@@ -109,25 +128,7 @@ class DashboardStateModel(manifest: Module.Manifest) : ViewModel() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Composable
-fun PreviewDashboardCamera(navController: NavHostController = rememberNavController()) {
-    val state = DashboardState(
-        manifest = temporaryManifestList[0],
-        nameOfDevice = "Fujifilm X100V",
-        filesOnStorage = 321,
-        firmwareVersion = "0.1.0",
-        supportsFirmwareUpdate = true,
-        supportsGeoTag = true,
-    )
-    DashboardScreen(state = state)
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Composable
-fun PreviewDashboardBuds(navController: NavHostController = rememberNavController()) {
+fun budsState(): DashboardState {
     val state = DashboardState(
         manifest = temporaryManifestList[1],
         nameOfDevice = "CMF Buds Pro 2",
@@ -141,7 +142,47 @@ fun PreviewDashboardBuds(navController: NavHostController = rememberNavControlle
         "Bass enhancement",
         currentBooleanValue = false
     ))
-    DashboardScreen(state = state)
+    return state
+}
+fun cameraState(): DashboardState {
+    return DashboardState(
+        manifest = temporaryManifestList[0],
+        nameOfDevice = "Fujifilm X100VI",
+        filesOnStorage = 321,
+        firmwareVersion = "0.1.0",
+        supportsLiveView = true,
+        supportsGallery = true,
+        supportsFirmwareUpdate = true,
+        supportsGeoTag = true,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+fun PreviewDashboardCamera(navController: NavHostController = rememberNavController()) {
+    var state by remember { mutableStateOf(cameraState()) }
+    return FudgeTheme {
+        Scaffold(
+            content = { innerPadding ->
+                Dashboard(Modifier.padding(innerPadding), state = state, callbacks = DashboardCallbacks())
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+fun PreviewDashboardBuds(navController: NavHostController = rememberNavController()) {
+    var state by remember { mutableStateOf(budsState()) }
+    return FudgeTheme {
+        Scaffold(
+            content = { innerPadding ->
+                Dashboard(Modifier.padding(innerPadding), state = state, callbacks = DashboardCallbacks())
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -213,14 +254,14 @@ fun FlowRowScope.CustomPane(modifier: Modifier = Modifier, bg: Color = MaterialT
 }
 
 @Composable
-fun Dashboard(innerPadding: PaddingValues, navController: NavHostController = rememberNavController(), state: DashboardState) {
+fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = rememberNavController(), state: DashboardState, callbacks: DashboardCallbacks) {
     Column(
-        modifier = Modifier
-            .padding(innerPadding)
+        modifier = modifier
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Box(modifier = Modifier.fillMaxWidth()
+        Box(modifier = Modifier
+            .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
             Column(Modifier.padding(10.dp)) {
@@ -283,75 +324,12 @@ fun Dashboard(innerPadding: PaddingValues, navController: NavHostController = re
                         Text(pane.settingName, color = MaterialTheme.colorScheme.onSurface)
                         Switch(booleanValue,
                             onCheckedChange = {
-                                pane.currentBooleanValue = !booleanValue
+                                callbacks.updateSettingPane(pane, !booleanValue)
                             }
                         )
                     })
                 }
             }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DashboardScreen(navController: NavHostController = rememberNavController(), state: DashboardState) {
-    return FudgeTheme {
-        Scaffold(
-            bottomBar = {
-                NavigationBar(
-                    windowInsets = NavigationBarDefaults.windowInsets,
-                    containerColor = TopAppBarDefaults.topAppBarColors().containerColor
-                ) {
-                    NavigationBarItem(
-                        selected = state.pageIndex == 0,
-                        onClick = {
-                            state.pageIndex = 0
-                        },
-                        icon = {
-                            Icon(
-                                painter = painterResource(R.drawable.outline_home_24),
-                                contentDescription = null
-                            )
-                        },
-                        label = {
-                            Text("Dashboard")
-                        }
-                    )
-                    NavigationBarItem(
-                        selected = state.pageIndex == 1,
-                        onClick = {
-                            state.pageIndex = 1
-                        },
-                        icon = {
-                            Icon(
-                                painter = painterResource(R.drawable.outline_photo_library_24),
-                                contentDescription = null
-                            )
-                        },
-                        label = {
-                            Text("Gallery")
-                        }
-                    )
-                    NavigationBarItem(
-                        selected = state.pageIndex == 2,
-                        onClick = {
-                            state.pageIndex = 2
-                        },
-                        icon = {
-                            Icon(
-                                painter = painterResource(R.drawable.outline_smart_display_24),
-                                contentDescription = null
-                            )
-                        },
-                        label = {
-                            Text("Liveview")
-                        }
-                    )
-                }
-            }
-        ) { innerPadding ->
-            Dashboard(innerPadding, navController, state)
         }
     }
 }

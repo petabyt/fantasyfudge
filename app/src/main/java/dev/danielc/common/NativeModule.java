@@ -45,7 +45,7 @@ public class NativeModule {
     public native int onRequestFileThumbnail(int job, FileHandle file);
     public native int onRequestFileMetadata(int job, FileHandle file);
 
-    NativeModule() {
-
+    NativeModule(SerializableModuleInstance ktInstance) {
+        ktConnectionInstance = ktInstance;
     }
 }

@@ -1,3 +1,5 @@
+///  Bridge between non-android Kotlin code and native C runtime code
+/// (allows kotlin code to be used through compose multiplatform)
 package dev.danielc.common;
 
 import android.content.Context;
@@ -5,15 +7,21 @@ import android.content.res.AssetManager;
 import android.util.Log;
 
 import java.io.InputStream;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class NativeRuntime {
-    static Context ctx;
+    public static boolean hasInited = false;
+    public static WeakReference<Context> weakCtx = null;
+    public static void setupAndroidContext(Context ctx) {
+        weakCtx = new WeakReference<>(ctx);
+    }
     static native void init();
 
     public static List<String> getAllJsonManifests() {
+        Context ctx = weakCtx.get();
         AssetManager assman = ctx.getAssets();
         try {
             List<String> files = new ArrayList<>();
@@ -32,6 +40,10 @@ public class NativeRuntime {
             Log.e("NR", e.toString());
             return Collections.emptyList();
         }
+    }
+
+    public static void logGlobalLine(String s) {
+        Runtime.INSTANCE.getMainLog().addLine(s);
     }
 
     public static void setProgressBar(int job) {

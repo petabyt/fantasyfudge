@@ -1,6 +1,7 @@
 {
   "name": "Veecar",
   "description": "Supports Veement/Veecar dashcams",
+  "author": "Daniel Cook",
   "version": 1,
   "isDraft": true,
   "target": {

@@ -1,10 +1,15 @@
+// Thread safe JNIEnv storage for global access
 #include <stdlib.h>
 #include <jni.h>
 #include <android/log.h>
+
 struct AndroidLocal {
 	JNIEnv *env;
 	jobject ctx;
 };
+
+// This will be put 'local' in a __emutls_t.* variable
+// It's up to the compiler to decide how to implement it
 __thread struct AndroidLocal local = {0, 0};
 
 void set_jni_env_ctx(JNIEnv *env, jobject ctx) {
