@@ -5,4 +5,16 @@ This is an app that can connect to various gadgets and devices, serving as an al
 This app includes a Javascript module system, which allows loading third-party 'modules'. A module
 can connect to a device through WiFi or Bluetooth, and implement its proprietary protocol needed to communicate with and control it.
 
-A module can control the UI through the runtime API and handle switching between various 'screens', such as a dashboard, photo gallery, or liveview.
+A module can control the UI and handle switching between various 'screens', such as a dashboard, photo gallery, or liveview.
+
+## Roadmap
+- [ ] WiFi and Bluetooth bindings for Android+Linux
+  - libpak: https://github.com/petabyt/pak
+- [ ] Runtime/Module interop + thread model
+- [ ] Develop initial set of modules
+  - Use [libfuji](https://github.com/petabyt/libfuji) for connecting to Fujifilm cameras
+  - Use/adapt [furble](https://github.com/gkoh/furble) for camera bluetooth
+  - TODO: Reverse engineer more dashcams
+  - TODO: Reverse engineer smart TVs
+- [ ] Dashboard with interactive grid of cards
+- [ ] File gallery
