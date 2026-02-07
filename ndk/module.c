@@ -1,4 +1,6 @@
+/// Implements module bindings
 #include <stdlib.h>
+#include <stdio.h>
 #include <jni.h>
 #include <pak.h>
 #include <runtime.h>
@@ -20,13 +22,23 @@ void release_mod(JNIEnv *env, struct TempStruct *info) {
 	(*env)->ReleaseByteArrayElements(env, info->byte_array, info->data, 0);
 }
 
+JNIEXPORT void JNICALL
+Java_dev_danielc_common_NativeModule_free(JNIEnv *env, jobject thiz) {
+	struct TempStruct info;
+	struct Module *mod = get_mod(env, thiz, &info);
+
+	free(mod->rt);
+
+	release_mod(env, &info);
+}
+
 JNIEXPORT jint JNICALL
 Java_dev_danielc_common_NativeModule_onFindConnection(JNIEnv *env, jobject thiz, jint job) {
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
 
 	int rc = 0;
-	if (mod->on_find_connection) mod->on_find_connection(mod, job);
+	if (mod->on_find_connection) rc = mod->on_find_connection(mod, job);
 
 	release_mod(env, &info);
 	return rc;

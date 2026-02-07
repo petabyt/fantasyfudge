@@ -19,6 +19,7 @@ public class NativeRuntime {
         weakCtx = new WeakReference<>(ctx);
     }
     static native void init();
+    static native NativeModule getDummyModule();
 
     public static List<String> getAllJsonManifests() {
         Context ctx = weakCtx.get();
@@ -45,6 +46,8 @@ public class NativeRuntime {
     public static void logGlobalLine(String s) {
         Runtime.INSTANCE.getMainLog().addLine(s);
     }
+
+
 
     public static void setProgressBar(int job) {
 

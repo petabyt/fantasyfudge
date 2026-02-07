@@ -82,7 +82,7 @@ data class DashboardSettingPane(
 
 data class DashboardState(
     val manifest: Module.Manifest?,
-    var customSettings: List<DashboardSettingPane> = emptyList(),
+    val customSettings: List<DashboardSettingPane> = emptyList(),
     val nameOfDevice: String? = null,
     val filesOnStorage: Int? = null,
     val firmwareVersion: String? = null,
@@ -92,41 +92,13 @@ data class DashboardState(
     val supportsFirmwareUpdate: Boolean = false,
 ) {
     fun addBooleanPane(pane: DashboardSettingPane) {
-        customSettings += pane
+        //customSettings += pane
     }
 }
 
 data class DashboardCallbacks(
-    val updateSettingPane: (DashboardSettingPane, Any) -> Unit = { pane, value ->
-
-    }
+    val updateSettingPane: (DashboardSettingPane, Any) -> Unit = { pane, value -> }
 )
-
-class DashboardStateModel(manifest: Module.Manifest) : ViewModel() {
-    private val _uiState = MutableStateFlow(DashboardState(manifest))
-    val dummyState: DashboardState = DashboardState(manifest)
-    val uiState: StateFlow<DashboardState> = _uiState.asStateFlow()
-
-    fun update() {
-        viewModelScope.launch() {
-            withContext(Dispatchers.Default) {
-                _uiState.update { currentState ->
-                    dummyState
-                }
-            }
-        }
-    }
-
-    fun addBooleanPane(pane: DashboardSettingPane) {
-        viewModelScope.launch(Dispatchers.Default) {
-            _uiState.update { currentState ->
-                currentState.copy(
-                    customSettings = currentState.customSettings + pane
-                )
-            }
-        }
-    }
-}
 
 fun budsState(): DashboardState {
     val state = DashboardState(

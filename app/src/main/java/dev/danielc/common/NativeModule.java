@@ -1,6 +1,6 @@
 package dev.danielc.common;
 
-public class NativeModule {
+public class NativeModule extends ModuleInstance {
     SerializableModuleInstance ktConnectionInstance;
     int currentTickInterval;
     byte[] struct;
@@ -44,8 +44,9 @@ public class NativeModule {
     public native int onRequestFileContents(int screen, int job, FileHandle file);
     public native int onRequestFileThumbnail(int job, FileHandle file);
     public native int onRequestFileMetadata(int job, FileHandle file);
+    public native void free();
 
-    NativeModule(SerializableModuleInstance ktInstance) {
-        ktConnectionInstance = ktInstance;
+    NativeModule() {
+        currentTickInterval = 10000;
     }
 }

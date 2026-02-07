@@ -32,6 +32,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     main.c
     thread.c
     module.c
+    dummymod.c
 )
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE pak qjs libjpeg-turbo vmlib)
 target_link_options(pak PRIVATE "-Wl,-z,max-page-size=16384")

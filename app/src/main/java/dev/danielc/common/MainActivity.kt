@@ -6,6 +6,8 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideIn
@@ -65,6 +67,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleScreen
+import dev.danielc.common.screens.DashboardScreen
+import dev.danielc.common.screens.HomeViewModel
 import dev.danielc.common.screens.PreviewDashboardBuds
 import dev.danielc.common.screens.PreviewGalleryScreen
 import dev.danielc.common.screens.PreviewDashboardCamera
@@ -371,9 +375,9 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
                     Text("preview dashboard camera")
                 }
                 Button(onClick = {
-                    navController.navigate("test-dashboard2")
+                    navController.navigate("view-dummy-instance")
                 }) {
-                    Text("preview dashboard buds")
+                    Text("Dashboard for dummy instance")
                 }
                 Button(onClick = {
                     navController.navigate("preview-viewer")
@@ -404,16 +408,40 @@ class MainActivity : ComponentActivity() {
             NativeRuntime.init()
             val manifests = NativeRuntime.getAllJsonManifests()
             Runtime.loadModulesFromManifests(manifests)
+            Runtime.openTempConnection()
             NativeRuntime.hasInited = true
         }
         enableEdgeToEdge()
+
+        val duration = 200
         setContent {
             val navController = rememberNavController()
             NavHost(
-                enterTransition = { slideIn { IntOffset(it.width / 2, 0) } + fadeIn() },
-                exitTransition = { slideOut { IntOffset(-it.width / 2, 0) } + fadeOut() },
-                popEnterTransition = { slideIn { IntOffset(-it.width / 2, 0) } + fadeIn() },
-                popExitTransition = { slideOut { IntOffset(it.width / 2, 0) } + fadeOut() },
+                enterTransition = {
+                    slideIn(
+                        initialOffset = { IntOffset(it.width, 0) },
+                        animationSpec = tween(duration, easing = FastOutSlowInEasing)
+                    )
+                },
+                exitTransition = {
+                    slideOut(
+                        targetOffset = { IntOffset(-it.width / 4, 0) },
+                        animationSpec = tween(duration, easing = FastOutSlowInEasing)
+                    )
+                },
+                popEnterTransition = {
+                    slideIn(
+                        initialOffset = { IntOffset(-it.width / 4, 0) },
+                        animationSpec = tween(duration, easing = FastOutSlowInEasing)
+                    )
+                },
+                popExitTransition = {
+                    slideOut(
+                        targetOffset = { IntOffset(it.width, 0) },
+                        animationSpec = tween(duration, easing = FastOutSlowInEasing)
+                    )
+                },
+
                 navController = navController, startDestination = "home") {
                 composable("home") { MainScreen(navController) }
                 composable("modules-list") {
@@ -432,7 +460,7 @@ class MainActivity : ComponentActivity() {
                     })
                 }
                 composable("test-dashboard1") { PreviewDashboardCamera(navController) }
-                composable("test-dashboard2") { PreviewDashboardBuds(navController) }
+                composable("view-dummy-instance") { DashboardScreen(state = Runtime.tempConnection!!.homeModelView) }
                 composable<SerializableModuleInstance> { backStackEntry ->
                     val inst = backStackEntry.toRoute<SerializableModuleInstance>()
                     ConsoleScreen(navController, Runtime.mainLog)

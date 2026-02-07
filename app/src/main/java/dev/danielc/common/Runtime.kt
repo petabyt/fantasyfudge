@@ -8,7 +8,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.int
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -56,6 +55,11 @@ enum class Screen(val id: String) {
     }
 }
 
+enum class ModuleProperty(val id: String) {
+    NAME_OF_DEVICE("name"),
+    FIRMWARE_VERSION("firmware-version");
+}
+
 @Serializable
 data class Job(
     val moduleInstance: SerializableModuleInstance,
@@ -75,6 +79,10 @@ object Runtime {
 
     var tempConnection: ModuleInstance? = null
 
+    fun openTempConnection() {
+        tempConnection = ModuleInstance(modules[0])
+    }
+
     fun createJob(mod: SerializableModuleInstance): Job {
         val job = Job(
             moduleInstance = mod,
@@ -86,6 +94,17 @@ object Runtime {
     }
 
     fun loadModulesFromManifests(list: List<String>) {
+        modules += Module(Module.Manifest(
+            name = "Dummy Module",
+            description = "Test module that calls some internal C code",
+            target = Module.Target(
+                deviceId = Module.Device.GAME_CONTROLLER
+            )),
+            createNativeModuleInstance = {
+                NativeRuntime.getDummyModule()
+            }
+        )
+
         for (text in list) {
             val obj: JsonElement = Json.parseToJsonElement(text)
             val root = obj.jsonObject

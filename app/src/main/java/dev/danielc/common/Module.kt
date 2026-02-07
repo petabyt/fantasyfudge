@@ -1,16 +1,28 @@
 package dev.danielc.common
 import dev.danielc.R
+import dev.danielc.common.screens.DashboardSettingPane
+import dev.danielc.common.screens.HomeViewModel
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.Serializable
 
 class Module(
-    val manifest: Manifest
+    val manifest: Manifest,
+    val createNativeModuleInstance: (() -> NativeModule)? = null,
 ) {
-//    enum class ModuleType {
-//        QUICKJS,
-//        WEBASSEMBLY,
-//        NATIVE,
-//        DUMMY,
-//    }
+    enum class ModuleType {
+        QUICKJS,
+        WEBASSEMBLY,
+        NATIVE,
+        DUMMY,
+    }
+    val moduleType: ModuleType
+    init {
+        moduleType = if (createNativeModuleInstance != null) {
+            ModuleType.NATIVE
+        } else {
+            ModuleType.DUMMY
+        }
+    }
 
     enum class Device(val id: String) {
         // Photo class
@@ -78,7 +90,7 @@ class Module(
                 Device.GENERIC_MEDICAL_WEARABLE -> R.drawable.outline_general_device_24
                 Device.GENERIC_EXERCISE_MACHINE -> R.drawable.outline_general_device_24
                 Device.POWER_TOOL -> R.drawable.outline_tools_power_drill_24
-                Device.GAME_CONTROLLER -> R.drawable.outline_general_device_24
+                Device.GAME_CONTROLLER -> R.drawable.outline_videogame_asset_24
                 Device.DRONE -> R.drawable.outline_general_device_24
                 Device.GENERIC_REMOTE_CONTROL -> R.drawable.outline_general_device_24
                 Device.SCOOTER -> R.drawable.outline_general_device_24
@@ -136,8 +148,18 @@ class Module(
 // Instance of a module with a single connection
 class ModuleInstance(mod: Module) {
     val module: Module = mod
-    val nativeInstance: NativeModule? = null
+    val nativeInstance: NativeModule? = if (mod.createNativeModuleInstance != null) mod.createNativeModuleInstance() else null
     val serializableModuleInstance: SerializableModuleInstance? = null
+    val homeModelView = HomeViewModel(mod.manifest)
+
+    init {
+        homeModelView.setProperty(ModuleProperty.NAME_OF_DEVICE, "Dummy Device")
+        homeModelView.setProperty(ModuleProperty.FIRMWARE_VERSION, "v5.7")
+        homeModelView.addSettingPane(DashboardSettingPane(
+            settingName = "A custom setting",
+            currentBooleanValue = true,
+        ))
+    }
 
     private fun createJob(): Job {
         return Runtime.createJob(serializableModuleInstance!!)

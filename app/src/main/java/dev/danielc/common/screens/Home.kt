@@ -15,14 +15,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -32,15 +28,12 @@ import dev.danielc.common.SerializableModuleInstance
 import dev.danielc.common.ui.theme.FudgeTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.collections.plus
-import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.danielc.common.temporaryManifestList
+import dev.danielc.common.ModuleProperty
 
 data class HomeState(
     val supportsLiveView: Boolean = false,
@@ -50,33 +43,58 @@ data class HomeState(
 )
 
 class HomeViewModel(val manifest: Module.Manifest, val module: SerializableModuleInstance? = null) : ViewModel() {
-    val dashboard = MutableStateFlow(DashboardState(manifest))
+    private val _dashboardState = MutableStateFlow(DashboardState(manifest))
+    val dashboardState = _dashboardState.asStateFlow()
     val dashboardCallbacks: DashboardCallbacks = DashboardCallbacks(updateSettingPane = { pane, value ->
         updateSettingPane(pane, value)
     })
-    private val _state = MutableStateFlow(HomeState())
-    val state = _state.asStateFlow()
+    private val _homeState = MutableStateFlow(HomeState())
+    val homeState = _homeState.asStateFlow()
+
+    fun setProperty(type: ModuleProperty, value: String) {
+        viewModelScope.launch(Dispatchers.Default) {
+            _dashboardState.update { currentState ->
+                when (type) {
+                    ModuleProperty.NAME_OF_DEVICE -> currentState.copy(nameOfDevice = value)
+                    ModuleProperty.FIRMWARE_VERSION -> currentState.copy(firmwareVersion = value)
+                }
+            }
+        }
+    }
+
+    fun addSettingPane(pane: DashboardSettingPane) {
+        viewModelScope.launch(Dispatchers.Default) {
+            _dashboardState.update { currentState ->
+                currentState.copy(customSettings = currentState.customSettings + pane)
+            }
+        }
+    }
 
     fun updateSettingPane(pane: DashboardSettingPane, value: Any) {
-        dashboard.value.copy(customSettings = dashboard.value.customSettings.map { curr ->
-            if (curr == pane) {
-                if (value is Boolean) {
-                    curr.copy(currentBooleanValue = value)
-                } else {
-                    curr
-                }
-            } else {
-                curr
+        viewModelScope.launch(Dispatchers.Default) {
+            _dashboardState.update { currentState ->
+                currentState.copy(customSettings = currentState.customSettings.map { curr ->
+                    if (curr == pane) {
+                        if (value is Boolean) {
+                            curr.copy(currentBooleanValue = value)
+                        } else {
+                            curr
+                        }
+                    } else {
+                        curr
+                    }
+                })
             }
-        })
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardScreen(navController: NavHostController = rememberNavController(), state: HomeViewModel) {
-    val homestate by state.state.collectAsStateWithLifecycle()
-    val dashboardstate by state.dashboard.collectAsStateWithLifecycle()
+fun DashboardScreen(state: HomeViewModel) {
+    val navController = rememberNavController()
+    val homestate by state.homeState.collectAsStateWithLifecycle()
+    val dashboardstate by state.dashboardState.collectAsStateWithLifecycle()
     val navScreens = mutableListOf(
         Screen.DASHBOARD,
     )
@@ -118,7 +136,7 @@ fun DashboardScreen(navController: NavHostController = rememberNavController(), 
                 exitTransition = { ExitTransition.None },
                 navController = navController, startDestination = Screen.DASHBOARD.id) {
                 composable(Screen.DASHBOARD.id) {
-                    Dashboard(Modifier.padding(innerPadding), navController, state = state.dashboard.collectAsState().value, callbacks = state.dashboardCallbacks)
+                    Dashboard(Modifier.padding(innerPadding), navController, state = dashboardstate, callbacks = state.dashboardCallbacks)
                 }
                 composable(Screen.FILE_GALLERY.id) {
                     Gallery(navController, innerPadding, GalleryState())
