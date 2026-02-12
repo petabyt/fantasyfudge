@@ -8,8 +8,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideIn
 import androidx.compose.animation.slideOut
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -68,8 +66,6 @@ import androidx.navigation.toRoute
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleScreen
 import dev.danielc.common.screens.DashboardScreen
-import dev.danielc.common.screens.HomeViewModel
-import dev.danielc.common.screens.PreviewDashboardBuds
 import dev.danielc.common.screens.PreviewGalleryScreen
 import dev.danielc.common.screens.PreviewDashboardCamera
 import dev.danielc.common.screens.PreviewViewer
@@ -93,7 +89,7 @@ fun BottomLog(modifier: Modifier, text: String): Unit {
 
 @Composable
 fun ModuleCard(
-    manifest: Module.Manifest,
+    manifest: ModuleManifest,
 ) {
     Box(modifier = Modifier
             .fillMaxWidth()
@@ -149,7 +145,7 @@ fun ModuleCard(
 
 @Composable
 fun DeviceCard(
-    manifest: Module.RememberedDevice,
+    manifest: ModuleManifest.RememberedDevice,
 ) {
     Box(modifier = Modifier
         .fillMaxWidth()
@@ -186,12 +182,12 @@ fun DeviceCard(
 //@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun PreviewSelectorScreen(navController: NavHostController = rememberNavController()) {
-    val devices: List<Module.Manifest> = listOf(
-        Module.Manifest(name = "Fujifilm", description = "Connect to Fujifilm cameras", target = Module.Target(deviceId = Module.Device.PROFESSIONAL_CAMERA)),
-        Module.Manifest(name = "Canon", description = "Canon DSLRs and mirrorless cameras", target = Module.Target(deviceId = Module.Device.PROFESSIONAL_CAMERA)),
-        Module.Manifest(name = "Veement", description = "Veement/veecar dashcams", target = Module.Target(deviceId = Module.Device.DASHCAM)),
-        Module.Manifest(name = "Toyota", description = "Toyota infotainment system", target = Module.Target(deviceId = Module.Device.AUTOMOTIVE_INFOTAINMENT)),
-        Module.Manifest(name = "Roku", description = "Roku TV and media systems", target = Module.Target(deviceId = Module.Device.SMART_TV)),
+    val devices: List<ModuleManifest> = listOf(
+        ModuleManifest(name = "Fujifilm", description = "Connect to Fujifilm cameras", target = ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA)),
+        ModuleManifest(name = "Canon", description = "Canon DSLRs and mirrorless cameras", target = ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA)),
+        ModuleManifest(name = "Veement", description = "Veement/veecar dashcams", target = ModuleManifest.Target(deviceId = Device.DASHCAM)),
+        ModuleManifest(name = "Toyota", description = "Toyota infotainment system", target = ModuleManifest.Target(deviceId = Device.AUTOMOTIVE_INFOTAINMENT)),
+        ModuleManifest(name = "Roku", description = "Roku TV and media systems", target = ModuleManifest.Target(deviceId = Device.SMART_TV)),
     )
 
     return FudgeTheme {
@@ -239,7 +235,7 @@ fun PreviewSelectorScreen(navController: NavHostController = rememberNavControll
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ModuleList(navController: NavHostController = rememberNavController()) {
-    val devices = Runtime.modules
+    val devices = Runtime.moduleManifests
     return FudgeTheme {
         Scaffold(
             topBar = {
@@ -277,7 +273,7 @@ fun ModuleList(navController: NavHostController = rememberNavController()) {
                         .fillMaxSize()
                         .padding(10.dp)) {
                     devices.forEach { dev ->
-                        ModuleCard(dev.manifest)
+                        ModuleCard(dev)
                     }
                 }
             }
@@ -308,7 +304,7 @@ fun OldFudgeMenu(navController: NavHostController = rememberNavController()) {
 }
 
 @Composable
-fun DeviceListOnCard(innerPadding: PaddingValues, devices: List<Module.Manifest>) {
+fun DeviceListOnCard(innerPadding: PaddingValues, devices: List<ModuleManifest>) {
     Box(modifier = Modifier
         .padding(innerPadding)
         .fillMaxSize()

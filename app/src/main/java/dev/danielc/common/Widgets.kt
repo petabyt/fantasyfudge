@@ -5,6 +5,7 @@ import android.hardware.lights.Light
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -213,7 +214,7 @@ object Widgets {
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun PreviewButtons() {
-    return Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+    return Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
         Widgets.LongClickButton(
             text = "asd",
             onClick = {

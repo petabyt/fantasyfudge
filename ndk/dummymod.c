@@ -29,6 +29,7 @@ static int on_disconnect(struct Module *mod) {
 }
 
 static int on_switch_screen(struct Module *mod, int old_screen, int new_screen, int job) {
+	pak_global_log("Switching screen");
 	return 0;
 }
 

@@ -60,3 +60,16 @@ JNIEXPORT jint JNICALL
 Java_dev_danielc_common_NativeModule_onDisconnect(JNIEnv *env, jobject thiz) {
 	// TODO: implement onDisconnect()
 }
+
+JNIEXPORT jint JNICALL
+Java_dev_danielc_common_NativeModule_onSwitchScreen(JNIEnv *env, jobject thiz, jint old_screen,
+													jint new_screen, jint job) {
+	struct TempStruct info;
+	struct Module *mod = get_mod(env, thiz, &info);
+
+	int rc = 0;
+	if (mod->on_switch_screen) rc = mod->on_switch_screen(mod, old_screen, new_screen, job);
+
+	release_mod(env, &info);
+	return rc;
+}

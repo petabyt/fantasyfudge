@@ -1,6 +1,6 @@
 package dev.danielc.common;
 
-public class NativeModule extends ModuleInstance {
+public class NativeModule {
     SerializableModuleInstance ktConnectionInstance;
     int currentTickInterval;
     byte[] struct;
@@ -40,7 +40,7 @@ public class NativeModule extends ModuleInstance {
     public native int onTryConnectWiFi(WiFiAdapter adapter, int job);
     public native int onIdleTick(int usSinceLastTick);
     public native int onDisconnect();
-    public native int onSwitchScreen(int oldScreen, int newScreen);
+    public native int onSwitchScreen(int oldScreen, int newScreen, int job);
     public native int onRequestFileContents(int screen, int job, FileHandle file);
     public native int onRequestFileThumbnail(int job, FileHandle file);
     public native int onRequestFileMetadata(int job, FileHandle file);

@@ -60,10 +60,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import dev.danielc.common.Module
+import dev.danielc.common.Device
+import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Screen
 import dev.danielc.common.SerializableModuleInstance
-import dev.danielc.common.temporaryManifestList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -81,7 +81,7 @@ data class DashboardSettingPane(
 )
 
 data class DashboardState(
-    val manifest: Module.Manifest?,
+    val manifest: ModuleManifest?,
     val customSettings: List<DashboardSettingPane> = emptyList(),
     val nameOfDevice: String? = null,
     val filesOnStorage: Int? = null,
@@ -90,35 +90,35 @@ data class DashboardState(
     val supportsLiveView: Boolean = false,
     val supportsGallery: Boolean = false,
     val supportsFirmwareUpdate: Boolean = false,
-) {
-    fun addBooleanPane(pane: DashboardSettingPane) {
-        //customSettings += pane
-    }
-}
+)
 
 data class DashboardCallbacks(
     val updateSettingPane: (DashboardSettingPane, Any) -> Unit = { pane, value -> }
 )
 
 fun budsState(): DashboardState {
+    val manifest = ModuleManifest(name = "CMF Nothing", description = "Supports ", target = ModuleManifest.Target(deviceId = Device.EARBUDS))
     val state = DashboardState(
-        manifest = temporaryManifestList[1],
+        manifest = manifest,
         nameOfDevice = "CMF Buds Pro 2",
         firmwareVersion = "5.0",
+        customSettings = listOf(
+            DashboardSettingPane(
+                "Noise cancellation",
+                currentBooleanValue = true
+            ),
+            DashboardSettingPane(
+                "Bass enhancement",
+                currentBooleanValue = false
+            )
+        )
     )
-    state.addBooleanPane(DashboardSettingPane(
-        "Noise cancellation",
-        currentBooleanValue = true
-    ))
-    state.addBooleanPane(DashboardSettingPane(
-        "Bass enhancement",
-        currentBooleanValue = false
-    ))
     return state
 }
 fun cameraState(): DashboardState {
+    val manifest = ModuleManifest(name = "Fujifilm", description = "Connect to Fujifilm cameras", target = ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA))
     return DashboardState(
-        manifest = temporaryManifestList[0],
+        manifest = manifest,
         nameOfDevice = "Fujifilm X100VI",
         filesOnStorage = 321,
         firmwareVersion = "0.1.0",

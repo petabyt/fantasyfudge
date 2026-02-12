@@ -22,7 +22,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import dev.danielc.common.Module
+import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Screen
 import dev.danielc.common.SerializableModuleInstance
 import dev.danielc.common.ui.theme.FudgeTheme
@@ -42,7 +42,7 @@ data class HomeState(
     var pageIndex: Int = 0,
 )
 
-class HomeViewModel(val manifest: Module.Manifest, val module: SerializableModuleInstance? = null) : ViewModel() {
+class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModuleInstance? = null) : ViewModel() {
     private val _dashboardState = MutableStateFlow(DashboardState(manifest))
     val dashboardState = _dashboardState.asStateFlow()
     val dashboardCallbacks: DashboardCallbacks = DashboardCallbacks(updateSettingPane = { pane, value ->
@@ -115,7 +115,7 @@ fun DashboardScreen(state: HomeViewModel) {
                                 homestate.copy(
                                     pageIndex = i
                                 )
-                                navController.navigate(route = navScreens[homestate.pageIndex].id)
+                                navController.navigate(route = navScreens[homestate.pageIndex].strId)
                             },
                             icon = {
                                 Icon(
@@ -134,14 +134,14 @@ fun DashboardScreen(state: HomeViewModel) {
             NavHost(
                 enterTransition = { EnterTransition.None },
                 exitTransition = { ExitTransition.None },
-                navController = navController, startDestination = Screen.DASHBOARD.id) {
-                composable(Screen.DASHBOARD.id) {
+                navController = navController, startDestination = Screen.DASHBOARD.strId) {
+                composable(Screen.DASHBOARD.strId) {
                     Dashboard(Modifier.padding(innerPadding), navController, state = dashboardstate, callbacks = state.dashboardCallbacks)
                 }
-                composable(Screen.FILE_GALLERY.id) {
+                composable(Screen.FILE_GALLERY.strId) {
                     Gallery(navController, innerPadding, GalleryState())
                 }
-                composable(Screen.LIVEVIEW.id) {
+                composable(Screen.LIVEVIEW.strId) {
                     Liveview(Modifier.padding(innerPadding), navController, LiveviewState())
                 }
             }

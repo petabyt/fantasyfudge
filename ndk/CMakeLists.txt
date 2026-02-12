@@ -2,16 +2,20 @@ cmake_minimum_required(VERSION 3.10)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 project(pakit)
 
+option(APP_WASM_SUPPORT "" no)
+
 # wasm runtime
-set(WAMR_BUILD_SIMD "" OFF)
-set(WAMR_BUILD_PLATFORM "android")
-if(ANDROID_ABI STREQUAL "x86_64")
-    set(WAMR_BUILD_TARGET "X86_64")
-elseif(ANDROID_ABI STREQUAL "arm64-v8a")
-    set(WAMR_BUILD_TARGET "AARCH64")
+if(APP_WASM_SUPPORT)
+    set(WAMR_BUILD_SIMD "" OFF)
+    set(WAMR_BUILD_PLATFORM "android")
+    if(ANDROID_ABI STREQUAL "x86_64")
+        set(WAMR_BUILD_TARGET "X86_64")
+    elseif(ANDROID_ABI STREQUAL "arm64-v8a")
+        set(WAMR_BUILD_TARGET "AARCH64")
+    endif()
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../third_party/wasm-micro-runtime/ ${CMAKE_CURRENT_BINARY_DIR}/wamr)
+    target_link_options(vmlib PRIVATE "-Wl,-z,max-page-size=16384")
 endif()
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../third_party/wasm-micro-runtime/ ${CMAKE_CURRENT_BINARY_DIR}/wamr)
-target_link_options(vmlib PRIVATE "-Wl,-z,max-page-size=16384")
 
 # libjpeg-turbo
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../third_party/libjpeg-turbo ${CMAKE_CURRENT_BINARY_DIR}/libjpeg)
@@ -34,6 +38,6 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     module.c
     dummymod.c
 )
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE pak qjs libjpeg-turbo vmlib)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE pak qjs libjpeg-turbo $<$<BOOL:${APP_WASM_SUPPORT}>:vmlib>)
 target_link_options(pak PRIVATE "-Wl,-z,max-page-size=16384")
 target_link_options(pakit PRIVATE "-Wl,-z,max-page-size=16384")

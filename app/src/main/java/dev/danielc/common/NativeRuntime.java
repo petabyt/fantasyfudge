@@ -47,9 +47,7 @@ public class NativeRuntime {
         Runtime.INSTANCE.getMainLog().addLine(s);
     }
 
-
-
-    public static void setProgressBar(int job) {
+    public static void setProgressBar(NativeRuntime rt, int job) {
 
     }
 

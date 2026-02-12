@@ -77,7 +77,7 @@ fun Liveview(modifier: Modifier = Modifier, navController: NavHostController = r
 
         Image(
             modifier = Modifier.align(Alignment.Center),
-            painter = painterResource(R.drawable.background),
+            painter = painterResource(R.drawable.image),
             contentDescription = null
         )
 

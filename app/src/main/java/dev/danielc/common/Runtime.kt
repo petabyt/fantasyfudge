@@ -1,6 +1,5 @@
 package dev.danielc.common
 import dev.danielc.R
-import dev.danielc.common.Module.Device
 import dev.danielc.common.screens.ConsoleStateModel
 import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
@@ -12,15 +11,15 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 @Serializable
-enum class Screen(val id: String) {
-    CONNECT("connect"),
-    CONSOLE("console"),
-    DASHBOARD("dashboard"),
-    FILE_GALLERY("filegallery"),
-    FILE_VIEWER("fileviewer"),
-    GEOTAGGING("geotagging"),
-    LIVEVIEW("liveview"),
-    LIVE_FEED("livefeed");
+enum class Screen(val strId: String, val id: Int) {
+    CONNECT("connect", 1),
+    CONSOLE("console", 100),
+    DASHBOARD("dashboard", 101),
+    FILE_GALLERY("filegallery", 102),
+    FILE_VIEWER("fileviewer", 103),
+    GEOTAGGING("geotagging", 104),
+    LIVEVIEW("liveview", 105),
+    LIVE_FEED("livefeed", 106);
 
     companion object {
         fun fromId(id: String?): Device? {
@@ -72,7 +71,7 @@ data class Job(
 
 object Runtime {
     var mainLog = ConsoleStateModel()
-    var modules: List<Module> = emptyList()
+    var moduleManifests: List<ModuleManifest> = emptyList()
     val moduleInstances: List<ModuleInstance> = emptyList()
     var jobs: List<Job> = emptyList()
     var jobCounter = 0
@@ -80,7 +79,7 @@ object Runtime {
     var tempConnection: ModuleInstance? = null
 
     fun openTempConnection() {
-        tempConnection = ModuleInstance(modules[0])
+        tempConnection = ModuleInstance(moduleManifests[0])
     }
 
     fun createJob(mod: SerializableModuleInstance): Job {
@@ -94,12 +93,12 @@ object Runtime {
     }
 
     fun loadModulesFromManifests(list: List<String>) {
-        modules += Module(Module.Manifest(
+        moduleManifests += ModuleManifest(
             name = "Dummy Module",
             description = "Test module that calls some internal C code",
-            target = Module.Target(
-                deviceId = Module.Device.GAME_CONTROLLER
-            )),
+            target = ModuleManifest.Target(
+                deviceId = Device.GAME_CONTROLLER
+            ),
             createNativeModuleInstance = {
                 NativeRuntime.getDummyModule()
             }
@@ -111,14 +110,14 @@ object Runtime {
 
             val jsonTarget = root["target"]?.jsonObject
             try {
-                var target: Module.Target? = null
+                var target: ModuleManifest.Target? = null
                 if (jsonTarget != null) {
-                    target = Module.Target(
+                    target = ModuleManifest.Target(
                         companies = Json.decodeFromJsonElement<List<String>>(jsonTarget["companies"]!!),
-                        deviceId = Module.Device.fromId(jsonTarget["deviceType"]?.jsonPrimitive?.content)!!
+                        deviceId = Device.fromId(jsonTarget["deviceType"]?.jsonPrimitive?.content)!!
                     )
                 }
-                val manifest = Module.Manifest(
+                val manifest = ModuleManifest(
                     name = root["name"]?.jsonPrimitive?.content!!,
                     description = root["description"]?.jsonPrimitive?.content,
                     author = root["author"]?.jsonPrimitive?.content!!,
@@ -128,7 +127,7 @@ object Runtime {
                     target = target,
                 )
 
-                modules += Module(manifest)
+                moduleManifests += manifest
             } catch (e: Exception) {
                 mainLog.addLine("Error parsing manifest: ${e.toString()}")
             }

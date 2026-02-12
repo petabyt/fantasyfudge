@@ -97,7 +97,7 @@ fun Viewer(navController: NavHostController, innerPadding: PaddingValues, state:
 fun PreviewViewer(navController: NavHostController = rememberNavController()) {
     val state = ViewerState(
         filename = "DSCF0001.JPG",
-        painter = painterResource(R.drawable.background),
+        painter = painterResource(R.drawable.image),
         isLoading = false
     )
 
