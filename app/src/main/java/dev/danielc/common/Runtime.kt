@@ -1,6 +1,7 @@
 package dev.danielc.common
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleStateModel
+import dev.danielc.common.screens.DashboardSettingPane
 import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -22,8 +23,8 @@ enum class Screen(val strId: String, val id: Int) {
     LIVE_FEED("livefeed", 106);
 
     companion object {
-        fun fromId(id: String?): Device? {
-            return Device.entries.find { it.id == id }
+        fun fromId(id: Int?): Screen? {
+            return Screen.entries.find { it.id == id }
         }
     }
 
@@ -59,34 +60,49 @@ enum class ModuleProperty(val id: String) {
     FIRMWARE_VERSION("firmware-version");
 }
 
+typealias JobUpdateCallback = (Job) -> Unit
+
 @Serializable
 data class Job(
+    val onUpdate: JobUpdateCallback,
     val moduleInstance: SerializableModuleInstance,
     val id: Int,
     var progressBarValue: Int = 100,
     var isCancelled: Boolean = false,
     var isFinished: Boolean = false,
-    val onFinished: () -> Unit,
 )
 
 object Runtime {
     var mainLog = ConsoleStateModel()
     var moduleManifests: List<ModuleManifest> = emptyList()
-    val moduleInstances: List<ModuleInstance> = emptyList()
+    var moduleInstances: List<ModuleInstance> = emptyList()
     var jobs: List<Job> = emptyList()
     var jobCounter = 0
 
-    var tempConnection: ModuleInstance? = null
-
-    fun openTempConnection() {
-        tempConnection = ModuleInstance(moduleManifests[0])
+    fun addModuleInstance(mod: ModuleInstance): Int {
+        moduleInstances += mod
+        return moduleInstances.lastIndex
     }
 
-    fun createJob(mod: SerializableModuleInstance): Job {
+    var tempConnection: ModuleInstance? = null
+    fun openTempConnection() {
+        tempConnection = NativeRuntime.getDummyModule(moduleManifests[0])
+
+        // TODO: Replace with C code
+        tempConnection!!.homeModelView.setProperty(ModuleProperty.NAME_OF_DEVICE, "Dummy Device")
+        tempConnection!!.homeModelView.setProperty(ModuleProperty.FIRMWARE_VERSION, "v5.7")
+        tempConnection!!.homeModelView.addSettingPane(DashboardSettingPane(
+            settingName = "A custom setting",
+            currentBooleanValue = true,
+        ))
+
+    }
+
+    fun createJob(mod: SerializableModuleInstance, onUpdate: JobUpdateCallback): Job {
         val job = Job(
             moduleInstance = mod,
             id = jobCounter++,
-            onFinished = {}
+            onUpdate = onUpdate
         )
         jobs += job
         return job
@@ -99,13 +115,11 @@ object Runtime {
             target = ModuleManifest.Target(
                 deviceId = Device.GAME_CONTROLLER
             ),
-            createNativeModuleInstance = {
-                NativeRuntime.getDummyModule()
-            }
         )
 
-        for (text in list) {
-            val obj: JsonElement = Json.parseToJsonElement(text)
+        for (filename in list) {
+            val text = NativeRuntime.readAssetsFile(filename)
+            val obj: JsonElement = Json.parseToJsonElement(String(text))
             val root = obj.jsonObject
 
             val jsonTarget = root["target"]?.jsonObject
@@ -129,21 +143,9 @@ object Runtime {
 
                 moduleManifests += manifest
             } catch (e: Exception) {
-                mainLog.addLine("Error parsing manifest: ${e.toString()}")
+                mainLog.addLine("Error parsing manifest: $filename")
+                mainLog.addLine(e.toString())
             }
         }
-    }
-
-    fun tick() {
-
-    }
-
-    fun mainLoop() {
-        Thread {
-            while (true) {
-                tick()
-                Thread.sleep(100)
-            }
-        }.start()
     }
 }

@@ -4,6 +4,7 @@ package dev.danielc.common;
 
 import android.content.Context;
 import android.content.res.AssetManager;
+import android.net.Network;
 import android.util.Log;
 
 import java.io.InputStream;
@@ -19,22 +20,32 @@ public class NativeRuntime {
         weakCtx = new WeakReference<>(ctx);
     }
     static native void init();
-    static native NativeModule getDummyModule();
+    static native NativeModule getDummyModule(ModuleManifest manifest);
+    static native NativeModule getJavascriptModule(ModuleManifest manifest, String jsPath);
+    static native NativeModule getWebassemblyModule(ModuleManifest manifest, String jsPath);
 
-    public static List<String> getAllJsonManifests() {
+    public static class WiFiAdapter {
+        Network net;
+    }
+    public static class FileHandle {
+        int index;
+        String filename;
+    }
+    public static class FileMetadata {
+        String filename;
+        String mimeType;
+    }
+
+    public static List<String> getJsonManifestList() {
         Context ctx = weakCtx.get();
         AssetManager assman = ctx.getAssets();
         try {
             List<String> files = new ArrayList<>();
             String[] list = assman.list("");
-            if (list == null) return  Collections.emptyList();
+            if (list == null) return Collections.emptyList();
             for (String s : list) {
                 if (!s.endsWith(".json")) continue;
-                InputStream f = assman.open(s);
-                byte[] buffer = new byte[f.available()];
-                f.read(buffer);
-                f.close();
-                files.add(new String(buffer));
+                files.add(s);
             }
             return files;
         } catch (Exception e) {
@@ -43,15 +54,17 @@ public class NativeRuntime {
         }
     }
 
+    public static byte[] readAssetsFile(String path) throws Exception {
+        Context ctx = weakCtx.get();
+        AssetManager assman = ctx.getAssets();
+        InputStream f = assman.open(path);
+        byte[] buffer = new byte[f.available()];
+        int n = f.read(buffer);
+        f.close();
+        return buffer;
+    }
+
     public static void logGlobalLine(String s) {
         Runtime.INSTANCE.getMainLog().addLine(s);
-    }
-
-    public static void setProgressBar(NativeRuntime rt, int job) {
-
-    }
-
-    public static void isJobCancelled(int job) {
-
     }
 }

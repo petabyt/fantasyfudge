@@ -11,13 +11,13 @@ struct RuntimePriv {
 	jobject obj;
 };
 
-jobject pak_ndk_create_module(JNIEnv *env, int (*get_fn)(struct Module *mod)) {
+jobject pak_ndk_create_module(JNIEnv *env, int (*get_fn)(struct Module *mod), jobject manifest) {
 	struct Module *mod = calloc(1, sizeof(struct Module));
 	mod->rt = malloc(sizeof(struct RuntimePriv));
 
 	jclass class = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
-	jmethodID constructor = (*env)->GetMethodID(env, class, "<init>", "()V");
-	jobject o_mod = (*env)->NewObject(env, class, constructor);
+	jmethodID constructor = (*env)->GetMethodID(env, class, "<init>", "(Ldev/danielc/common/ModuleManifest;)V");
+	jobject o_mod = (*env)->NewObject(env, class, constructor, manifest);
 	mod->rt->obj = o_mod;
 
 	jbyteArray struct_ = (*env)->NewByteArray(env, sizeof(struct Module));
@@ -57,10 +57,17 @@ void pak_global_log(const char *fmt, ...) {
 	(*env)->PopLocalFrame(env, NULL);
 }
 
+void pak_rt_set_screen_supported(struct Module *mod, int screen, int v) {
+	JNIEnv *env = get_jni_env();
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jmethodID set_screen_supported = (*env)->GetMethodID(env, module_c, "setScreenSupported", "(IZ)V");
+	(*env)->CallVoidMethod(env, mod->rt->obj, set_screen_supported, screen, (jboolean)v);
+}
+
 int get_module_dummy(struct Module *mod);
 
 JNIEXPORT jobject JNICALL
-Java_dev_danielc_common_NativeRuntime_getDummyModule(JNIEnv *env, jclass clazz) {
+Java_dev_danielc_common_NativeRuntime_getDummyModule(JNIEnv *env, jclass clazz, jobject manifest) {
 	set_jni_env_ctx(env, clazz);
-	return pak_ndk_create_module(env, get_module_dummy);
+	return pak_ndk_create_module(env, get_module_dummy, manifest);
 }

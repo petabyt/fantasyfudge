@@ -3,6 +3,8 @@ import dev.danielc.R
 import dev.danielc.common.screens.DashboardSettingPane
 import dev.danielc.common.screens.HomeViewModel
 import kotlinx.serialization.Serializable
+import kotlin.time.DurationUnit
+import kotlin.time.TimeSource
 
 enum class Device(val id: String) {
     // Photo class
@@ -93,18 +95,9 @@ data class ModuleManifest(
     val runtimeVersion: Int = 0,
     val target: Target? = null,
     val publicKey: String? = null,
-    val isDraft: Boolean = false,
-    val createNativeModuleInstance: (() -> NativeModule)? = null,
+    val isDraft: Boolean = false
     ) {
-    val moduleType: ModuleType
-    init {
-        moduleType = if (createNativeModuleInstance != null) {
-            ModuleType.NATIVE
-        } else {
-            ModuleType.DUMMY
-        }
-    }
-
+    val moduleType: ModuleType = ModuleType.NATIVE
     enum class ModuleType {
         QUICKJS,
         WEBASSEMBLY,
@@ -139,30 +132,38 @@ data class ModuleManifest(
 }
 
 // Instance of a module with a single connection
-class ModuleInstance(mod: ModuleManifest) {
+abstract class ModuleInstance(mod: ModuleManifest) {
     val module: ModuleManifest = mod
-    val nativeInstance: NativeModule? = if (mod.createNativeModuleInstance != null) mod.createNativeModuleInstance() else null
-    val serializableModuleInstance: SerializableModuleInstance? = null
     val homeModelView = HomeViewModel(mod)
+    var currentTickInterval: Int = 100000
+    val serializableModuleInstance: SerializableModuleInstance = SerializableModuleInstance(Runtime.addModuleInstance(this))
 
-    init {
-        homeModelView.setProperty(ModuleProperty.NAME_OF_DEVICE, "Dummy Device")
-        homeModelView.setProperty(ModuleProperty.FIRMWARE_VERSION, "v5.7")
-        homeModelView.addSettingPane(DashboardSettingPane(
-            settingName = "A custom setting",
-            currentBooleanValue = true,
-        ))
+    abstract fun onFindConnection(job: Int): Int
+    abstract fun onTryConnectWiFi(a: NativeRuntime.WiFiAdapter, job: Int): Int
+    abstract fun onIdleTick(usSinceLast: Int): Int
+
+    fun setProperty(type: ModuleProperty, value: String) {
+        homeModelView.setProperty(type, value)
     }
 
-    private fun createJob(): Job {
-        return Runtime.createJob(serializableModuleInstance!!)
+    fun mainLoop() {
+        Thread {
+            var curr = TimeSource.Monotonic.markNow()
+            while (true) {
+                onIdleTick(curr.elapsedNow().toInt(DurationUnit.MICROSECONDS))
+                curr = TimeSource.Monotonic.markNow()
+                Thread.sleep(currentTickInterval.toLong())
+            }
+        }.start()
     }
 
-    fun onFindConnection(): Job {
-        val job = createJob()
-        // Create a thread or pass message to module thread
-        nativeInstance!!.onFindConnection(job.id)
-        return job
+    private fun createJob(callback: JobUpdateCallback): Job {
+        return Runtime.createJob(serializableModuleInstance, callback)
+    }
+
+    fun onFindConnection(onUpdate: JobUpdateCallback = {}) {
+        val job = createJob(onUpdate)
+        onFindConnection(job.id)
     }
 
     fun cancelJob(job: Job) {

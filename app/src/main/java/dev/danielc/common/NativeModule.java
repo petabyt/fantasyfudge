@@ -1,9 +1,13 @@
 package dev.danielc.common;
 
-public class NativeModule {
-    SerializableModuleInstance ktConnectionInstance;
-    int currentTickInterval;
+import androidx.annotation.NonNull;
+
+import dev.danielc.common.NativeRuntime.*;
+
+public class NativeModule extends ModuleInstance {
     byte[] struct;
+
+    ModuleInstance instance;
     public enum Error {
         PERMISSION_DENIED(-1),
         UNSUPPORTED(-2),
@@ -21,23 +25,8 @@ public class NativeModule {
         }
     }
 
-    public static class WiFiAdapter {
-        byte[] struct;
-    }
-    public static class FileHandle {
-        byte[] struct;
-    }
-    public static class FileMetadata {
-        String filename;
-        String mimeType;
-    }
-
-    public void setTickInterval(int us) {
-        currentTickInterval = us;
-    }
-
     public native int onFindConnection(int job);
-    public native int onTryConnectWiFi(WiFiAdapter adapter, int job);
+    public native int onTryConnectWiFi(@NonNull WiFiAdapter adapter, int job);
     public native int onIdleTick(int usSinceLastTick);
     public native int onDisconnect();
     public native int onSwitchScreen(int oldScreen, int newScreen, int job);
@@ -46,7 +35,19 @@ public class NativeModule {
     public native int onRequestFileMetadata(int job, FileHandle file);
     public native void free();
 
-    NativeModule() {
-        currentTickInterval = 10000;
+    public void setScreenSupported(int screen, boolean v) {
+        instance.getHomeModelView().addSupportedScreen(screen);
+    }
+
+    public void setProgressBar(NativeRuntime rt, int job) {
+
+    }
+
+    public void isJobCancelled(int job) {
+
+    }
+
+    NativeModule(ModuleManifest manifest) {
+        super(manifest);
     }
 }

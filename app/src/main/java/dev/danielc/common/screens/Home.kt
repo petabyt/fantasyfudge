@@ -33,11 +33,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.collections.plus
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.danielc.common.ModuleInstance
 import dev.danielc.common.ModuleProperty
 
 data class HomeState(
     val supportsLiveView: Boolean = false,
     val supportsGallery: Boolean = false,
+    val supportedScreenList: List<Screen> = emptyList(),
     val showDisconnectDialog: Boolean = false,
     var pageIndex: Int = 0,
 )
@@ -60,6 +62,21 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
                 }
             }
         }
+    }
+
+    fun addSupportedScreen(s: Screen) {
+        viewModelScope.launch(Dispatchers.Default) {
+            _homeState.update { currentState ->
+                currentState.copy(
+                    supportedScreenList = currentState.supportedScreenList + s
+                )
+            }
+        }
+    }
+
+    fun addSupportedScreen(s: Int) {
+        val screen = Screen.fromId(s)
+        if (screen != null) addSupportedScreen(screen)
     }
 
     fun addSettingPane(pane: DashboardSettingPane) {
@@ -91,7 +108,8 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardScreen(state: HomeViewModel) {
+fun DashboardScreen(module: ModuleInstance) {
+    val state = module.homeModelView
     val navController = rememberNavController()
     val homestate by state.homeState.collectAsStateWithLifecycle()
     val dashboardstate by state.dashboardState.collectAsStateWithLifecycle()
