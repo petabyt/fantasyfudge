@@ -116,11 +116,11 @@ fun DeviceCard(
 @Composable
 fun PreviewSelectorScreen(navController: NavHostController = rememberNavController()) {
     val devices: List<ModuleManifest> = listOf(
-        ModuleManifest(name = "Fujifilm", description = "Connect to Fujifilm cameras", target = ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA)),
-        ModuleManifest(name = "Canon", description = "Canon DSLRs and mirrorless cameras", target = ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA)),
-        ModuleManifest(name = "Veement", description = "Veement/veecar dashcams", target = ModuleManifest.Target(deviceId = Device.DASHCAM)),
-        ModuleManifest(name = "Toyota", description = "Toyota infotainment system", target = ModuleManifest.Target(deviceId = Device.AUTOMOTIVE_INFOTAINMENT)),
-        ModuleManifest(name = "Roku", description = "Roku TV and media systems", target = ModuleManifest.Target(deviceId = Device.SMART_TV)),
+        ModuleManifest(name = "Fujifilm", description = "Connect to Fujifilm cameras", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA))),
+        ModuleManifest(name = "Canon", description = "Canon DSLRs and mirrorless cameras", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA))),
+        ModuleManifest(name = "Veement", description = "Veement/veecar dashcams", targets = listOf(ModuleManifest.Target(deviceId = Device.DASHCAM))),
+        ModuleManifest(name = "Toyota", description = "Toyota infotainment system", targets = listOf(ModuleManifest.Target(deviceId = Device.AUTOMOTIVE_INFOTAINMENT))),
+        ModuleManifest(name = "Roku", description = "Roku TV and media systems", targets = listOf(ModuleManifest.Target(deviceId = Device.SMART_TV))),
     )
 
     return FudgeTheme {

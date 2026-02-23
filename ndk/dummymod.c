@@ -11,8 +11,18 @@ static int on_find_connection(struct Module *mod, int job) {
 }
 
 static int init(struct Module *mod) {
-	mod->priv = (struct ModulePriv *)malloc(sizeof(struct ModulePriv));
 	pak_global_log("Hello from module");
+	mod->priv = (struct ModulePriv *)malloc(sizeof(struct ModulePriv));
+	pak_rt_set_session_property(mod, PAK_PROP_NAME, "Dummy Device");
+	pak_rt_set_session_property(mod, PAK_PROP_FW_VER, "v1.2.3");
+	struct PakUserSetting set;
+	set.name = "Flipper";
+	set.type = PAK_BOOLEAN;
+	set.u.boolv.v = 1;
+	pak_rt_add_user_setting(mod, &set);
+
+	pak_rt_set_screen_supported(mod, SCREEN_FILE_GALLERY, 1);
+
 	return 0;
 }
 

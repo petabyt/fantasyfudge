@@ -21,8 +21,9 @@ public class NativeRuntime {
     }
     static native void init();
     static native NativeModule getDummyModule(ModuleManifest manifest);
-    static native NativeModule getJavascriptModule(ModuleManifest manifest, String jsPath);
-    static native NativeModule getWebassemblyModule(ModuleManifest manifest, String jsPath);
+    static native int setupDummyNativeModule(NativeModule mod, ModuleManifest manifest);
+    static native int setupJavascriptModule(NativeModule mod, ModuleManifest manifest, String jsPath);
+    static native int getWebassemblyModule(NativeModule mod, ModuleManifest manifest, String jsPath);
 
     public static class WiFiAdapter {
         Network net;

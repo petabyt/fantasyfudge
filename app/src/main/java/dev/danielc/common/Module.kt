@@ -1,6 +1,5 @@
 package dev.danielc.common
 import dev.danielc.R
-import dev.danielc.common.screens.DashboardSettingPane
 import dev.danielc.common.screens.HomeViewModel
 import kotlinx.serialization.Serializable
 import kotlin.time.DurationUnit
@@ -93,7 +92,7 @@ data class ModuleManifest(
     val version: Int = 0,
     val requiredRuntimeVersion: Int? = null,
     val runtimeVersion: Int = 0,
-    val target: Target? = null,
+    val targets: List<Target> = emptyList(),
     val publicKey: String? = null,
     val isDraft: Boolean = false
     ) {
@@ -106,7 +105,7 @@ data class ModuleManifest(
     }
     data class Target(
         val deviceId: Device = Device.PROFESSIONAL_CAMERA,
-        val companies: List<String> = emptyList(),
+        val company: String = "",
         val products: List<String> = emptyList(),
     )
     data class WiFiDiscovery(
@@ -144,6 +143,10 @@ abstract class ModuleInstance(mod: ModuleManifest) {
 
     fun setProperty(type: ModuleProperty, value: String) {
         homeModelView.setProperty(type, value)
+    }
+
+    fun setProperty(type: String, value: String) {
+        homeModelView.setProperty(ModuleProperty.fromId(type)!!, value)
     }
 
     fun mainLoop() {

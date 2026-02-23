@@ -57,11 +57,54 @@ void pak_global_log(const char *fmt, ...) {
 	(*env)->PopLocalFrame(env, NULL);
 }
 
-void pak_rt_set_screen_supported(struct Module *mod, int screen, int v) {
+int pak_rt_set_screen_supported(struct Module *mod, int screen, int v) {
 	JNIEnv *env = get_jni_env();
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
 	jmethodID set_screen_supported = (*env)->GetMethodID(env, module_c, "setScreenSupported", "(IZ)V");
 	(*env)->CallVoidMethod(env, mod->rt->obj, set_screen_supported, screen, (jboolean)v);
+	return 0;
+}
+
+int pak_rt_set_session_property(struct Module *mod, const char *key, const char *value) {
+	JNIEnv *env = get_jni_env();
+	(*env)->PushLocalFrame(env, 10);
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jmethodID set_screen_supported = (*env)->GetMethodID(env, module_c, "setProperty", "(Ljava/lang/String;Ljava/lang/String;)V");
+	jstring key_s = (*env)->NewStringUTF(env, key);
+	jstring value_s = (*env)->NewStringUTF(env, value);
+	(*env)->CallVoidMethod(env, mod->rt->obj, set_screen_supported, key_s, value_s);
+	(*env)->PopLocalFrame(env, NULL);
+	return 0;
+}
+
+int pak_rt_add_user_setting(struct Module *mod, const struct PakUserSetting *s) {
+	JNIEnv *env = get_jni_env();
+	(*env)->PushLocalFrame(env, 10);
+	jclass setting_c = (*env)->FindClass(env, "dev/danielc/common/UserSetting");
+	jmethodID constructor = (*env)->GetMethodID(env, setting_c, "<init>", "(Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/Integer;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/util/List;)V");
+	jstring name_s = (*env)->NewStringUTF(env, s->name);
+	jobject boolv = NULL;
+	jobject intv = NULL;
+	jobject stringv = NULL;
+	jobject min_o = NULL;
+	jobject max_o = NULL;
+	jobject dropdownlist_o = NULL;
+	if (s->type == PAK_BOOLEAN) {
+		jclass clazz = (*env)->FindClass(env, "java/lang/Boolean");
+		boolv = (*env)->NewObject(env, clazz, (*env)->GetMethodID(env, clazz, "<init>", "(Z)V"), s->u.boolv.v);
+	}
+	jobject setting_o = (*env)->NewObject(env, setting_c, constructor, name_s, boolv, intv, stringv, min_o, max_o, dropdownlist_o);
+
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jmethodID add_setting = (*env)->GetMethodID(env, module_c, "addUserSetting", "(Ldev/danielc/common/UserSetting;)V");
+	(*env)->CallVoidMethod(env, mod->rt->obj, add_setting, setting_o);
+
+	(*env)->PopLocalFrame(env, NULL);
+	return 0;
+}
+
+int pak_rt_test_module(struct Module *mod) {
+	return 0;
 }
 
 int get_module_dummy(struct Module *mod);
@@ -70,4 +113,54 @@ JNIEXPORT jobject JNICALL
 Java_dev_danielc_common_NativeRuntime_getDummyModule(JNIEnv *env, jclass clazz, jobject manifest) {
 	set_jni_env_ctx(env, clazz);
 	return pak_ndk_create_module(env, get_module_dummy, manifest);
+}
+
+JNIEXPORT int JNICALL
+Java_dev_danielc_common_NativeRuntime_setupDummyNativeModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest) {
+	set_jni_env_ctx(env, clazz);
+
+	struct Module *mod = calloc(1, sizeof(struct Module));
+	mod->rt = malloc(sizeof(struct RuntimePriv));
+
+	mod->rt->obj = mod_o;
+
+	jbyteArray struct_ = (*env)->NewByteArray(env, sizeof(struct Module));
+	(*env)->SetByteArrayRegion(env, struct_, 0, sizeof(struct Module), (const jbyte *)mod);
+
+	jfieldID struct_field = (*env)->GetFieldID(env, (*env)->FindClass(env, "dev/danielc/common/NativeModule"), "struct", "[B");
+	(*env)->SetObjectField(env, mod_o, struct_field, struct_);
+
+	get_module_dummy(mod);
+
+	int rc = 0;
+	if (mod->init != NULL) rc = mod->init(mod);
+	if (rc) return rc;
+
+	return 0;
+}
+
+int setup_quickjs_module(struct Module **mod, const char *filename);
+
+JNIEXPORT int JNICALL
+Java_dev_danielc_common_NativeRuntime_setupJavascriptModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest, jstring jsPath) {
+	set_jni_env_ctx(env, clazz);
+
+	const char *js_path = (*env)->GetStringUTFChars(env, jsPath, 0);
+
+	struct Module *mod;
+	int rc = setup_quickjs_module(&mod, js_path);
+	if (rc) return rc;
+	mod->rt = malloc(sizeof(struct RuntimePriv));
+	mod->rt->obj = mod_o;
+
+	jbyteArray struct_ = (*env)->NewByteArray(env, sizeof(struct Module));
+	(*env)->SetByteArrayRegion(env, struct_, 0, sizeof(struct Module), (const jbyte *)mod);
+
+	jfieldID struct_field = (*env)->GetFieldID(env, (*env)->FindClass(env, "dev/danielc/common/NativeModule"), "struct", "[B");
+	(*env)->SetObjectField(env, mod_o, struct_field, struct_);
+
+	if (mod->init != NULL) rc = mod->init(mod);
+	if (rc) return rc;
+
+	return 0;
 }

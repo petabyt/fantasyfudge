@@ -2,8 +2,6 @@ package dev.danielc.common.screens
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.indication
@@ -14,28 +12,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.FlowRowScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ripple.RippleAlpha
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.BasicAlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarDefaults
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -55,34 +44,13 @@ import androidx.navigation.compose.rememberNavController
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.R
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.window.Dialog
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import dev.danielc.common.Device
 import dev.danielc.common.ModuleManifest
-import dev.danielc.common.Screen
-import dev.danielc.common.SerializableModuleInstance
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-
-data class DashboardSettingPane(
-    val settingName: String,
-    var currentBooleanValue: Boolean? = null,
-    val currentIntValue: Int? = null,
-    val intMinMax: Pair<Int, Int>? = null,
-    val dropDownOptions: List<String>? = null,
-)
+import dev.danielc.common.UserSetting
 
 data class DashboardState(
     val manifest: ModuleManifest?,
-    val customSettings: List<DashboardSettingPane> = emptyList(),
+    val customSettings: List<UserSetting> = emptyList(),
     val nameOfDevice: String? = null,
     val filesOnStorage: Int? = null,
     val firmwareVersion: String? = null,
@@ -93,21 +61,21 @@ data class DashboardState(
 )
 
 data class DashboardCallbacks(
-    val updateSettingPane: (DashboardSettingPane, Any) -> Unit = { pane, value -> }
+    val updateSettingPane: (UserSetting, Any) -> Unit = { pane, value -> }
 )
 
 fun budsState(): DashboardState {
-    val manifest = ModuleManifest(name = "CMF Nothing", description = "Supports ", target = ModuleManifest.Target(deviceId = Device.EARBUDS))
+    val manifest = ModuleManifest(name = "CMF Nothing", description = "Supports ", targets = listOf(ModuleManifest.Target(deviceId = Device.EARBUDS)))
     val state = DashboardState(
         manifest = manifest,
         nameOfDevice = "CMF Buds Pro 2",
         firmwareVersion = "5.0",
         customSettings = listOf(
-            DashboardSettingPane(
+            UserSetting(
                 "Noise cancellation",
                 currentBooleanValue = true
             ),
-            DashboardSettingPane(
+            UserSetting(
                 "Bass enhancement",
                 currentBooleanValue = false
             )
@@ -116,7 +84,7 @@ fun budsState(): DashboardState {
     return state
 }
 fun cameraState(): DashboardState {
-    val manifest = ModuleManifest(name = "Fujifilm", description = "Connect to Fujifilm cameras", target = ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA))
+    val manifest = ModuleManifest(name = "Fujifilm", description = "Connect to Fujifilm cameras", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA)))
     return DashboardState(
         manifest = manifest,
         nameOfDevice = "Fujifilm X100VI",
@@ -239,9 +207,9 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
             Column(Modifier.padding(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (state.nameOfDevice != null) {
-                        if (state.manifest != null && state.manifest.target != null)
+                        if (state.manifest != null && !state.manifest.targets.isEmpty())
                             Icon(
-                                painter = painterResource(state.manifest.target.deviceId.getIcon()),
+                                painter = painterResource(state.manifest.targets[0].deviceId.getIcon()),
                                 contentDescription = null
                             )
                         Text(
@@ -293,7 +261,7 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                 val booleanValue = pane.currentBooleanValue
                 if (booleanValue != null) {
                     CustomPane(content = {
-                        Text(pane.settingName, color = MaterialTheme.colorScheme.onSurface)
+                        Text(pane.name, color = MaterialTheme.colorScheme.onSurface)
                         Switch(booleanValue,
                             onCheckedChange = {
                                 callbacks.updateSettingPane(pane, !booleanValue)

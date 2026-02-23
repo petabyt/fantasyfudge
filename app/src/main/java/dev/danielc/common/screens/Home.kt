@@ -35,10 +35,9 @@ import kotlin.collections.plus
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.danielc.common.ModuleInstance
 import dev.danielc.common.ModuleProperty
+import dev.danielc.common.UserSetting
 
 data class HomeState(
-    val supportsLiveView: Boolean = false,
-    val supportsGallery: Boolean = false,
     val supportedScreenList: List<Screen> = emptyList(),
     val showDisconnectDialog: Boolean = false,
     var pageIndex: Int = 0,
@@ -52,6 +51,14 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
     })
     private val _homeState = MutableStateFlow(HomeState())
     val homeState = _homeState.asStateFlow()
+
+    fun setPageIndex(i: Int) {
+        _homeState.update { homeState ->
+            homeState.copy(
+                pageIndex = i
+            )
+        }
+    }
 
     fun setProperty(type: ModuleProperty, value: String) {
         viewModelScope.launch(Dispatchers.Default) {
@@ -79,7 +86,7 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
         if (screen != null) addSupportedScreen(screen)
     }
 
-    fun addSettingPane(pane: DashboardSettingPane) {
+    fun addSettingPane(pane: UserSetting) {
         viewModelScope.launch(Dispatchers.Default) {
             _dashboardState.update { currentState ->
                 currentState.copy(customSettings = currentState.customSettings + pane)
@@ -87,7 +94,7 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
         }
     }
 
-    fun updateSettingPane(pane: DashboardSettingPane, value: Any) {
+    fun updateSettingPane(pane: UserSetting, value: Any) {
         viewModelScope.launch(Dispatchers.Default) {
             _dashboardState.update { currentState ->
                 currentState.copy(customSettings = currentState.customSettings.map { curr ->
@@ -109,15 +116,15 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(module: ModuleInstance) {
-    val state = module.homeModelView
+    val model = module.homeModelView
     val navController = rememberNavController()
-    val homestate by state.homeState.collectAsStateWithLifecycle()
-    val dashboardstate by state.dashboardState.collectAsStateWithLifecycle()
+    val homestate by model.homeState.collectAsStateWithLifecycle()
+    val dashboardstate by model.dashboardState.collectAsStateWithLifecycle()
     val navScreens = mutableListOf(
         Screen.DASHBOARD,
     )
-    if (homestate.supportsGallery) navScreens += Screen.FILE_GALLERY
-    if (homestate.supportsLiveView) navScreens += Screen.LIVEVIEW
+    if (homestate.supportedScreenList.contains(Screen.FILE_GALLERY)) navScreens += Screen.FILE_GALLERY
+    if (homestate.supportedScreenList.contains(Screen.LIVEVIEW)) navScreens += Screen.LIVEVIEW
 
     return FudgeTheme {
         Scaffold(
@@ -130,10 +137,8 @@ fun DashboardScreen(module: ModuleInstance) {
                         NavigationBarItem(
                             selected = homestate.pageIndex == i,
                             onClick = {
-                                homestate.copy(
-                                    pageIndex = i
-                                )
-                                navController.navigate(route = navScreens[homestate.pageIndex].strId)
+                                model.setPageIndex(i)
+                                navController.navigate(route = navScreens[i].strId)
                             },
                             icon = {
                                 Icon(
@@ -154,7 +159,7 @@ fun DashboardScreen(module: ModuleInstance) {
                 exitTransition = { ExitTransition.None },
                 navController = navController, startDestination = Screen.DASHBOARD.strId) {
                 composable(Screen.DASHBOARD.strId) {
-                    Dashboard(Modifier.padding(innerPadding), navController, state = dashboardstate, callbacks = state.dashboardCallbacks)
+                    Dashboard(Modifier.padding(innerPadding), navController, state = dashboardstate, callbacks = model.dashboardCallbacks)
                 }
                 composable(Screen.FILE_GALLERY.strId) {
                     Gallery(navController, innerPadding, GalleryState())

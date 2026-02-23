@@ -58,9 +58,9 @@ fun ModuleCard(
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (manifest.target != null) {
+                for (e in manifest.targets) {
                     Icon(
-                        painter = painterResource(manifest.target.deviceId.getIcon()),
+                        painter = painterResource(e.deviceId.getIcon()),
                         contentDescription = null,
                         modifier = Modifier.size(32.dp),
                         tint = MaterialTheme.colorScheme.primary,

@@ -7,7 +7,6 @@ import dev.danielc.common.NativeRuntime.*;
 public class NativeModule extends ModuleInstance {
     byte[] struct;
 
-    ModuleInstance instance;
     public enum Error {
         PERMISSION_DENIED(-1),
         UNSUPPORTED(-2),
@@ -36,7 +35,11 @@ public class NativeModule extends ModuleInstance {
     public native void free();
 
     public void setScreenSupported(int screen, boolean v) {
-        instance.getHomeModelView().addSupportedScreen(screen);
+        getHomeModelView().addSupportedScreen(screen);
+    }
+
+    public void addUserSetting(UserSetting setting) {
+        getHomeModelView().addSettingPane(setting);
     }
 
     public void setProgressBar(NativeRuntime rt, int job) {

@@ -1,15 +1,26 @@
 package dev.danielc.common
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleStateModel
-import dev.danielc.common.screens.DashboardSettingPane
 import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+
+/// Module defined setting that can be updated by the user or the module
+data class UserSetting(
+    val name: String,
+    var currentBooleanValue: Boolean? = null,
+    val currentIntValue: Int? = null,
+    val currentStringValue: String? = null,
+    val intMin: Int? = null,
+    val intMax: Int? = null,
+    val dropDownOptions: List<String>? = null,
+)
 
 @Serializable
 enum class Screen(val strId: String, val id: Int) {
@@ -55,13 +66,10 @@ enum class Screen(val strId: String, val id: Int) {
     }
 }
 
-enum class ModuleProperty(val id: String) {
-    NAME_OF_DEVICE("name"),
-    FIRMWARE_VERSION("firmware-version");
-}
-
 typealias JobUpdateCallback = (Job) -> Unit
 
+/// A job id is passed each time a module function is called. A job can be cancelled
+/// at any time by the user, and the percent finished value can be updated by the module.
 @Serializable
 data class Job(
     val onUpdate: JobUpdateCallback,
@@ -71,6 +79,17 @@ data class Job(
     var isCancelled: Boolean = false,
     var isFinished: Boolean = false,
 )
+
+/// Property IDs for the module instance
+enum class ModuleProperty(val id: String) {
+    NAME_OF_DEVICE("name"),
+    FIRMWARE_VERSION("firmware-version");
+    companion object {
+        fun fromId(id: String?): ModuleProperty? {
+            return ModuleProperty.entries.find { it.id == id }
+        }
+    }
+}
 
 object Runtime {
     var mainLog = ConsoleStateModel()
@@ -86,16 +105,7 @@ object Runtime {
 
     var tempConnection: ModuleInstance? = null
     fun openTempConnection() {
-        tempConnection = NativeRuntime.getDummyModule(moduleManifests[0])
-
-        // TODO: Replace with C code
-        tempConnection!!.homeModelView.setProperty(ModuleProperty.NAME_OF_DEVICE, "Dummy Device")
-        tempConnection!!.homeModelView.setProperty(ModuleProperty.FIRMWARE_VERSION, "v5.7")
-        tempConnection!!.homeModelView.addSettingPane(DashboardSettingPane(
-            settingName = "A custom setting",
-            currentBooleanValue = true,
-        ))
-
+        tempConnection = DummyModule(moduleManifests[0])
     }
 
     fun createJob(mod: SerializableModuleInstance, onUpdate: JobUpdateCallback): Job {
@@ -112,24 +122,30 @@ object Runtime {
         moduleManifests += ModuleManifest(
             name = "Dummy Module",
             description = "Test module that calls some internal C code",
-            target = ModuleManifest.Target(
-                deviceId = Device.GAME_CONTROLLER
+            targets = listOf(
+                ModuleManifest.Target(
+                    company = "Evilcorp",
+                    deviceId = Device.GAME_CONTROLLER
+                )
             ),
         )
 
         for (filename in list) {
-            val text = NativeRuntime.readAssetsFile(filename)
-            val obj: JsonElement = Json.parseToJsonElement(String(text))
-            val root = obj.jsonObject
-
-            val jsonTarget = root["target"]?.jsonObject
             try {
-                var target: ModuleManifest.Target? = null
+                val text = NativeRuntime.readAssetsFile(filename)
+                val obj: JsonElement = Json.parseToJsonElement(String(text))
+                val root = obj.jsonObject
+
+                val jsonTarget = root["targets"]?.jsonArray
+
+                val targets = mutableListOf<ModuleManifest.Target>()
                 if (jsonTarget != null) {
-                    target = ModuleManifest.Target(
-                        companies = Json.decodeFromJsonElement<List<String>>(jsonTarget["companies"]!!),
-                        deviceId = Device.fromId(jsonTarget["deviceType"]?.jsonPrimitive?.content)!!
-                    )
+                    for (target in jsonTarget) {
+                        targets += ModuleManifest.Target(
+                            products = Json.decodeFromJsonElement<List<String>>(target.jsonObject["products"]!!),
+                            deviceId = Device.fromId(target.jsonObject["deviceType"]?.jsonPrimitive?.content)!!
+                        )
+                    }
                 }
                 val manifest = ModuleManifest(
                     name = root["name"]?.jsonPrimitive?.content!!,
@@ -138,7 +154,7 @@ object Runtime {
                     authorUrl = root["authorUrl"]?.jsonPrimitive?.content,
                     version = root["version"]?.jsonPrimitive?.int!!,
                     isDraft = root["isDraft"]?.jsonPrimitive?.booleanOrNull == true,
-                    target = target,
+                    targets = targets,
                 )
 
                 moduleManifests += manifest
