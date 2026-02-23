@@ -18,20 +18,21 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        // Nobody uses 32bit x86 anymore, disabling 32bit arm for now
         ndk {
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
     }
 
-    flavorDimensions += "tier"
+    flavorDimensions += "buildType"
     productFlavors {
-        create("pakit") {
-            dimension = "tier"
-            applicationId = "dev.danielc.pakit"
-            resValue("string", "app_name", "Pakit")
+        create("playstore") {
+            dimension = "buildType"
+            applicationId = "dev.danielc.fantasyfudge.playstore"
+            resValue("string", "app_name", "FantasyFudge")
         }
-        create("fudge") {
-            dimension = "tier"
+        create("stable") {
+            dimension = "buildType"
             applicationId = "dev.danielc.fantasyfudge"
             resValue("string", "app_name", "FantasyFudge")
         }

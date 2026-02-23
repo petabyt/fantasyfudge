@@ -19,7 +19,8 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Pakit"
+rootProject.name = "FantasyFudge"
 include(":app")
+
 include(":libpak")
 project(":libpak").projectDir = File("./libpak/android")
