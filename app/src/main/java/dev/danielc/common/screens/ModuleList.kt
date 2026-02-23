@@ -97,11 +97,30 @@ fun ModuleCard(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun ModuleList(modifier: Modifier = Modifier) {
+    PullToRefreshBox(
+        state = rememberPullToRefreshState(),
+        isRefreshing = false,
+        onRefresh = {
+        },
+        modifier = modifier
+    ) {
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxSize().padding(10.dp)
+        ) {
+            items(Runtime.moduleManifests) { dev ->
+                ModuleCard(dev)
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ModuleListScreen(navController: NavHostController = rememberNavController()) {
-    val devices = Runtime.moduleManifests
     return FudgeTheme {
         Scaffold(
             topBar = {
@@ -123,22 +142,7 @@ fun ModuleListScreen(navController: NavHostController = rememberNavController())
                 )
             },
         ) { innerPadding ->
-            PullToRefreshBox(
-                state = rememberPullToRefreshState(),
-                isRefreshing = false,
-                onRefresh = {
-                },
-                modifier = Modifier.padding(innerPadding)
-            ) {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxSize().padding(10.dp)
-                ) {
-                    items(devices) { dev ->
-                        ModuleCard(dev)
-                    }
-                }
-            }
+            ModuleList(Modifier.padding(innerPadding))
         }
     }
 }

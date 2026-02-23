@@ -142,9 +142,39 @@ fun PreviewConsoleScreen(navController: NavHostController = rememberNavControlle
     })
 }
 
+@Composable
+fun Console(state: ConsoleState) {
+    LazyColumn(
+        modifier = Modifier.fillMaxHeight().fillMaxWidth().padding(5.dp)
+        //.verticalScroll(rememberScrollState())
+    ) {
+        items(state.lines) { line ->
+            SelectionContainer {
+                Row {
+                    val style = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp
+                    )
+                    if (line.timestamp != null) {
+                        Text(
+                            text = "${line.timestamp.inWholeSeconds}",
+                            style = style,
+                            modifier = Modifier.width(20.dp)
+                        )
+                    }
+                    Text(
+                        text = line.line,
+                        style = style
+                    )
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConsoleScreen(navController: NavHostController = rememberNavController(), model: ConsoleStateModel = ConsoleStateModel(), buttons: @Composable () -> Unit = {}) {
+fun ConsoleScreen(navController: NavHostController = rememberNavController(), model: ConsoleStateModel = ConsoleStateModel(), buttons: @Composable () -> Unit = {}, title: String = "Console") {
     val clipboardManager = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val state by model.uiState.collectAsStateWithLifecycle()
@@ -153,7 +183,7 @@ fun ConsoleScreen(navController: NavHostController = rememberNavController(), mo
             topBar = {
                 TopAppBar(
                     title = {
-                        Text("Test Suite")
+                        Text(title)
                     },
                     navigationIcon = {
                         IconButton(onClick = {
@@ -185,32 +215,7 @@ fun ConsoleScreen(navController: NavHostController = rememberNavController(), mo
                 modifier = Modifier.padding(innerPadding)
             ) {
                 buttons()
-                LazyColumn(
-                    modifier = Modifier.fillMaxHeight().fillMaxWidth().padding(5.dp)
-                        //.verticalScroll(rememberScrollState())
-                ) {
-                    items(state.lines) { line ->
-                        SelectionContainer {
-                            Row {
-                                val style = TextStyle(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 14.sp
-                                )
-                                if (line.timestamp != null) {
-                                    Text(
-                                        text = "${line.timestamp.inWholeSeconds}",
-                                        style = style,
-                                        modifier = Modifier.width(20.dp)
-                                    )
-                                }
-                                Text(
-                                    text = line.line,
-                                    style = style
-                                )
-                            }
-                        }
-                    }
-                }
+                Console(state)
             }
         }
     }

@@ -1,5 +1,6 @@
 package dev.danielc.common
 import dev.danielc.R
+import dev.danielc.common.screens.ConsoleStateModel
 import dev.danielc.common.screens.HomeViewModel
 import kotlinx.serialization.Serializable
 import kotlin.time.DurationUnit
@@ -94,14 +95,16 @@ data class ModuleManifest(
     val runtimeVersion: Int = 0,
     val targets: List<Target> = emptyList(),
     val publicKey: String? = null,
-    val isDraft: Boolean = false
+    val isDraft: Boolean = false,
+    val moduleType: ModuleType = ModuleType.NATIVE,
+    //    val instanceInitializer: (ModuleManifest) -> ModuleInstance = { throw Exception("no instanceInitializer") }
     ) {
-    val moduleType: ModuleType = ModuleType.NATIVE
     enum class ModuleType {
         QUICKJS,
         WEBASSEMBLY,
         NATIVE,
-        DUMMY,
+        DUMMY_MODULE,
+        JAVA_MODULE,
     }
     data class Target(
         val deviceId: Device = Device.PROFESSIONAL_CAMERA,
@@ -132,7 +135,8 @@ data class ModuleManifest(
 
 // Instance of a module with a single connection
 abstract class ModuleInstance(mod: ModuleManifest) {
-    val module: ModuleManifest = mod
+    val manifest: ModuleManifest = mod
+    var debugLog = ConsoleStateModel()
     val homeModelView = HomeViewModel(mod)
     var currentTickInterval: Int = 100000
     val serializableModuleInstance: SerializableModuleInstance = SerializableModuleInstance(Runtime.addModuleInstance(this))
@@ -140,6 +144,10 @@ abstract class ModuleInstance(mod: ModuleManifest) {
     abstract fun onFindConnection(job: Int): Int
     abstract fun onTryConnectWiFi(a: NativeRuntime.WiFiAdapter, job: Int): Int
     abstract fun onIdleTick(usSinceLast: Int): Int
+
+    fun debugLog(s: String) {
+        debugLog.addLine(s)
+    }
 
     fun setProperty(type: ModuleProperty, value: String) {
         homeModelView.setProperty(type, value)
@@ -164,7 +172,7 @@ abstract class ModuleInstance(mod: ModuleManifest) {
         return Runtime.createJob(serializableModuleInstance, callback)
     }
 
-    fun onFindConnection(onUpdate: JobUpdateCallback = {}) {
+    fun findConnection(onUpdate: JobUpdateCallback = {}) {
         val job = createJob(onUpdate)
         onFindConnection(job.id)
     }
@@ -187,6 +195,6 @@ data class SerializableModuleInstance(
         }
     }
     fun getManifest(): ModuleManifest {
-        return getModuleInstance().module
+        return getModuleInstance().manifest
     }
 }

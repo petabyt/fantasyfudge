@@ -6,6 +6,8 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideIn
@@ -27,11 +29,18 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.Alignment
@@ -40,20 +49,28 @@ import androidx.compose.ui.draw.paint
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.danielc.R
+import dev.danielc.common.screens.Console
 import dev.danielc.common.screens.ConsoleScreen
 import dev.danielc.common.screens.DashboardScreen
 import dev.danielc.common.screens.ModuleCard
+import dev.danielc.common.screens.ModuleList
 import dev.danielc.common.screens.ModuleListScreen
 import dev.danielc.common.screens.PreviewGalleryScreen
 import dev.danielc.common.screens.PreviewDashboardCamera
@@ -221,6 +238,21 @@ fun DeviceListOnCard(innerPadding: PaddingValues, devices: List<ModuleManifest>)
 @Preview(showBackground = true, device = "id:pixel_9a", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun MainScreen(navController: NavHostController = rememberNavController()) {
+    val subNavController = rememberNavController()
+    val haptic = LocalHapticFeedback.current
+    val navBackStackEntry by subNavController.currentBackStackEntryAsState()
+
+    data class NavItem(
+        val icon: Int,
+        val text: String,
+        val route: String,
+    )
+    val items = listOf(
+        NavItem(R.drawable.outline_devices_other_24, "Connect", "connect"),
+        NavItem(R.drawable.outline_deployed_code_24, "Modules", "modules"),
+        NavItem(R.drawable.baseline_terminal_24, "Console", "console"),
+    )
+
     return FudgeTheme {
         Scaffold(
             topBar = {
@@ -245,34 +277,70 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
                     },
                 )
             },
+            bottomBar = {
+                NavigationBar {
+                    items.forEach { item ->
+                        NavigationBarItem(
+                            icon = {
+                                Icon(painter = painterResource(item.icon), contentDescription = null)
+                            },
+                            label = {
+                                Text(item.text)
+                            },
+                            selected = navBackStackEntry?.destination?.hierarchy?.any { it.route == item.route } == true,
+                            onClick = {
+                                subNavController.navigate(item.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                            }
+                        )
+                    }
+                }
+            }
         ) { innerPadding ->
-            Column(Modifier.padding(innerPadding).fillMaxSize(),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally) {
-                Button(onClick = {
-                    navController.navigate("test-dashboard1")
-                }) {
-                    Text("preview dashboard camera")
+            NavHost(
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None },
+                modifier = Modifier.padding(innerPadding),
+                navController = subNavController, startDestination = "connect") {
+                composable("connect") {
+                    Column(Modifier.padding(innerPadding).fillMaxSize(),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally) {
+                        Button(onClick = {
+                            navController.navigate("test-dashboard1")
+                        }) {
+                            Text("preview dashboard camera")
+                        }
+                        Button(onClick = {
+                            navController.navigate("view-dummy-instance")
+                        }) {
+                            Text("Dashboard for dummy instance")
+                        }
+                        Button(onClick = {
+                            navController.navigate("preview-viewer")
+                        }) {
+                            Text("preview viewer")
+                        }
+                        Button(onClick = {
+                            val mod = Runtime.createModuleInstance(Runtime.getManifestFromName("Java Module")!!)
+                            navController.navigate(mod.serializableModuleInstance)
+                        }) {
+                            Text("java module connect")
+                        }
+                    }
                 }
-                Button(onClick = {
-                    navController.navigate("view-dummy-instance")
-                }) {
-                    Text("Dashboard for dummy instance")
+                composable("modules") {
+                    ModuleList()
                 }
-                Button(onClick = {
-                    navController.navigate("preview-viewer")
-                }) {
-                    Text("preview viewer")
-                }
-                Button(onClick = {
-                    navController.navigate("console")
-                }) {
-                    Text("console")
-                }
-                Button(onClick = {
-                    navController.navigate("modules-list")
-                }) {
-                    Text("modules list")
+                composable("console") {
+                    val state by Runtime.mainLog.uiState.collectAsStateWithLifecycle()
+                    Console(state)
                 }
             }
         }
@@ -343,7 +411,7 @@ class MainActivity : ComponentActivity() {
                 composable("view-dummy-instance") { DashboardScreen(Runtime.tempConnection!!) }
                 composable<SerializableModuleInstance> { backStackEntry ->
                     val inst = backStackEntry.toRoute<SerializableModuleInstance>()
-                    ConsoleScreen(navController, Runtime.mainLog)
+                    ConsoleScreen(navController, inst.getModuleInstance().debugLog, title = "Connection Log")
                 }
             }
         }

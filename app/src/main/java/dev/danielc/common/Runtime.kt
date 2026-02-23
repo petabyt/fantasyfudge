@@ -118,14 +118,43 @@ object Runtime {
         return job
     }
 
+    fun createModuleInstance(m: ModuleManifest): ModuleInstance {
+        if (m.moduleType == ModuleManifest.ModuleType.DUMMY_MODULE) {
+            return DummyModule(m)
+        } else if (m.moduleType == ModuleManifest.ModuleType.JAVA_MODULE) {
+            return JavaModule(m)
+        }
+        throw Exception("TODO: Implement moduleType")
+    }
+
+    fun getManifestFromName(name: String): ModuleManifest? {
+        for (m in moduleManifests) {
+            if (m.name == name) return m
+        }
+        return null
+    }
+
     fun loadModulesFromManifests(list: List<String>) {
         moduleManifests += ModuleManifest(
             name = "Dummy Module",
             description = "Test module that calls some internal C code",
+            moduleType = ModuleManifest.ModuleType.DUMMY_MODULE,
             targets = listOf(
                 ModuleManifest.Target(
                     company = "Evilcorp",
                     deviceId = Device.GAME_CONTROLLER
+                )
+            ),
+        )
+
+        moduleManifests += ModuleManifest(
+            name = "Java Module",
+            description = "Test Android APIs",
+            moduleType = ModuleManifest.ModuleType.JAVA_MODULE,
+            targets = listOf(
+                ModuleManifest.Target(
+                    company = "Daniel Cook",
+                    deviceId = Device.GENERIC_FURNITURE
                 )
             ),
         )
