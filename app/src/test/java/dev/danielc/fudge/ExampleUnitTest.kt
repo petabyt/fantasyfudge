@@ -1,4 +1,4 @@
-package dev.danielc.pakit
+package dev.danielc.fudge
 
 import org.junit.Test
 
