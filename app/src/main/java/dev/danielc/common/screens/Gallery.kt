@@ -41,7 +41,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
-import dev.danielc.common.Widgets
+import dev.danielc.common.ui.Iconbutton
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.GoGreen
 import kotlinx.coroutines.Dispatchers
@@ -151,7 +151,7 @@ fun Gallery(navController: NavHostController, innerPadding: PaddingValues, state
                 horizontalArrangement = Arrangement.End,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Widgets.Iconbutton(
+                Iconbutton(
                     modifier = Modifier.size(50.dp),
                     onClick = {
 
@@ -163,7 +163,7 @@ fun Gallery(navController: NavHostController, innerPadding: PaddingValues, state
                         contentDescription = "Grid View"
                     )
                 }
-                Widgets.Iconbutton(
+                Iconbutton(
                     modifier = Modifier.size(50.dp),
                     onClick = {},
                 ) {

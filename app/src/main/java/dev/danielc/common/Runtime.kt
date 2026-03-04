@@ -24,6 +24,7 @@ data class UserSetting(
 
 @Serializable
 enum class Screen(val strId: String, val id: Int) {
+    NONE("none", 0),
     CONNECT("connect", 1),
     CONSOLE("console", 100),
     DASHBOARD("dashboard", 101),
@@ -49,6 +50,7 @@ enum class Screen(val strId: String, val id: Int) {
             Screen.GEOTAGGING -> R.drawable.outline_globe_location_pin_24
             Screen.LIVEVIEW -> R.drawable.outline_smart_display_24
             Screen.LIVE_FEED -> R.drawable.outline_dynamic_feed_24
+            Screen.NONE -> R.drawable.baseline_question_mark_24
         }
     }
 
@@ -62,6 +64,7 @@ enum class Screen(val strId: String, val id: Int) {
             Screen.GEOTAGGING -> "Geotagging"
             Screen.LIVEVIEW -> "Liveview"
             Screen.LIVE_FEED -> "Live feed"
+            Screen.NONE -> "None"
         }
     }
 }
@@ -93,9 +96,9 @@ enum class ModuleProperty(val id: String) {
 
 object Runtime {
     var mainLog = ConsoleStateModel()
-    var moduleManifests: List<ModuleManifest> = emptyList()
-    var moduleInstances: List<ModuleInstance> = emptyList()
-    var jobs: List<Job> = emptyList()
+    var moduleManifests = mutableListOf<ModuleManifest>()
+    var moduleInstances = mutableListOf<ModuleInstance>()
+    var jobs = emptyList<Job>()
     var jobCounter = 0
 
     fun addModuleInstance(mod: ModuleInstance): Int {
@@ -103,9 +106,8 @@ object Runtime {
         return moduleInstances.lastIndex
     }
 
-    var tempConnection: ModuleInstance? = null
-    fun openTempConnection() {
-        tempConnection = DummyModule(moduleManifests[0])
+    fun removeModuleInstance(mod: ModuleInstance) {
+        moduleInstances.remove(mod)
     }
 
     fun createJob(mod: SerializableModuleInstance, onUpdate: JobUpdateCallback): Job {
@@ -123,6 +125,8 @@ object Runtime {
             return DummyModule(m)
         } else if (m.moduleType == ModuleManifest.ModuleType.JAVA_MODULE) {
             return JavaModule(m)
+        } else if (m.moduleType == ModuleManifest.ModuleType.LIBFUJI) {
+            return LibFujiModule(m)
         }
         throw Exception("TODO: Implement moduleType")
     }
@@ -134,6 +138,10 @@ object Runtime {
         return null
     }
 
+    fun refreshManifests() {
+        // TODO:
+    }
+
     fun loadModulesFromManifests(list: List<String>) {
         moduleManifests += ModuleManifest(
             name = "Dummy Module",
@@ -141,7 +149,7 @@ object Runtime {
             moduleType = ModuleManifest.ModuleType.DUMMY_MODULE,
             targets = listOf(
                 ModuleManifest.Target(
-                    company = "Evilcorp",
+                    company = "Dummy Company",
                     deviceId = Device.GAME_CONTROLLER
                 )
             ),
@@ -153,8 +161,21 @@ object Runtime {
             moduleType = ModuleManifest.ModuleType.JAVA_MODULE,
             targets = listOf(
                 ModuleManifest.Target(
-                    company = "Daniel Cook",
+                    company = "Java Company",
                     deviceId = Device.GENERIC_FURNITURE
+                )
+            ),
+        )
+
+        moduleManifests += ModuleManifest(
+            name = "libfuji",
+            description = "Supports Fujifilm cameras",
+            moduleType = ModuleManifest.ModuleType.LIBFUJI,
+            targets = listOf(
+                ModuleManifest.Target(
+                    company = "Fujifilm",
+                    deviceId = Device.PROFESSIONAL_CAMERA,
+                    products = listOf("X-T1", "X-T2", "X-T3", "X-T4", "X-T5")
                 )
             ),
         )

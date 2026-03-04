@@ -7,23 +7,6 @@ import dev.danielc.common.NativeRuntime.*;
 public class NativeModule extends ModuleInstance {
     byte[] struct;
 
-    public enum Error {
-        PERMISSION_DENIED(-1),
-        UNSUPPORTED(-2),
-        UNIMPLEMENTED(-3),
-        NOT_CONNECTED(-4);
-
-        private final int code;
-
-        Error(int code) {
-            this.code = code;
-        }
-
-        public int getCode() {
-            return code;
-        }
-    }
-
     public native int onFindConnection(int job);
     public native int onTryConnectWiFi(@NonNull WiFiAdapter adapter, int job);
     public native int onIdleTick(int usSinceLastTick);

@@ -1,25 +1,21 @@
 package dev.danielc.common.screens
 
 import android.content.res.Configuration
-import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -28,7 +24,7 @@ import androidx.navigation.compose.rememberNavController
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.R
 import androidx.compose.ui.graphics.Color
-import dev.danielc.common.Widgets
+import dev.danielc.common.ui.GrayButton
 
 data class LiveviewState(
     val iso: Int? = null,
@@ -50,7 +46,7 @@ fun PreviewLiveview(navController: NavHostController = rememberNavController()) 
 
 @Composable
 fun RowScope.LiveviewButton(text: String, icon: Int, shortText: String) {
-    Widgets.GrayButton(Modifier.weight(1f), onClick = {
+    GrayButton(Modifier.weight(1f), onClick = {
 
     }) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -82,7 +78,7 @@ fun Liveview(modifier: Modifier = Modifier, navController: NavHostController = r
         )
 
         Row(Modifier.align(Alignment.BottomEnd), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Widgets.GrayButton(onClick = {
+            GrayButton(onClick = {
 
             }) {
                 Text("Capture", color = Color.White)

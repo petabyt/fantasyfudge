@@ -24,23 +24,30 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Button
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemColors
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.Alignment
@@ -52,6 +59,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.IntOffset
@@ -66,181 +74,35 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.danielc.R
+import dev.danielc.common.screens.AboutScreen
 import dev.danielc.common.screens.Console
 import dev.danielc.common.screens.ConsoleScreen
-import dev.danielc.common.screens.DashboardScreen
+import dev.danielc.common.screens.HelpScreen
+import dev.danielc.common.screens.HomeScreen
 import dev.danielc.common.screens.ModuleCard
+import dev.danielc.common.screens.ModuleDeviceList
 import dev.danielc.common.screens.ModuleList
 import dev.danielc.common.screens.ModuleListScreen
 import dev.danielc.common.screens.PreviewGalleryScreen
 import dev.danielc.common.screens.PreviewDashboardCamera
 import dev.danielc.common.screens.PreviewViewer
+import dev.danielc.common.screens.devices
 import dev.danielc.common.ui.theme.FudgeTheme
+import dev.danielc.libpak.Bluetooth
+import dev.danielc.libpak.Pak
+import kotlinx.coroutines.launch
 
 const val TAG = "main";
 
-@Composable
-fun BottomLog(modifier: Modifier, text: String): Unit {
-    if (text.isNotEmpty()) {
-        Text(
-            text.trim(),
-            fontFamily = FontFamily.Monospace,
-            modifier = modifier
-                .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.6f))
-                .padding(5.dp)
-        )
-    }
-}
-
-@Composable
-fun DeviceCard(
-    manifest: ModuleManifest.RememberedDevice,
-) {
-    Box(modifier = Modifier
-        .fillMaxWidth()
-        .clip(RoundedCornerShape(12.dp))
-        .background(MaterialTheme.colorScheme.surfaceContainer)
-        .clickable(onClick = {
-
-        })
-        .padding(16.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = manifest.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                )
-                Text(
-                    text = manifest.uniqueId,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                )
-            }
-        }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-//@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Composable
-fun PreviewSelectorScreen(navController: NavHostController = rememberNavController()) {
-    val devices: List<ModuleManifest> = listOf(
-        ModuleManifest(name = "Fujifilm", description = "Connect to Fujifilm cameras", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA))),
-        ModuleManifest(name = "Canon", description = "Canon DSLRs and mirrorless cameras", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA))),
-        ModuleManifest(name = "Veement", description = "Veement/veecar dashcams", targets = listOf(ModuleManifest.Target(deviceId = Device.DASHCAM))),
-        ModuleManifest(name = "Toyota", description = "Toyota infotainment system", targets = listOf(ModuleManifest.Target(deviceId = Device.AUTOMOTIVE_INFOTAINMENT))),
-        ModuleManifest(name = "Roku", description = "Roku TV and media systems", targets = listOf(ModuleManifest.Target(deviceId = Device.SMART_TV))),
-    )
-
-    return FudgeTheme {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(),
-                    title = {
-                        Text("Select a Device")
-                    },
-                    actions = {
-                        IconButton(onClick = {}) {
-                            Icon(
-                                painter = painterResource(R.drawable.baseline_folder_open_24),
-                                contentDescription = "Localized description"
-                            )
-                        }
-                        IconButton(onClick = {}) {
-                            Icon(
-                                painter = painterResource(R.drawable.baseline_settings_24),
-                                contentDescription = "Localized description"
-                            )
-                        }
-                    },
-                )
-            },
-        ) { innerPadding ->
-            Column {
-                // something here
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier
-                        .padding(innerPadding)
-                        .fillMaxSize()
-                        .padding(10.dp)) {
-                    devices.forEach { dev ->
-                        ModuleCard(dev)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun OldFudgeMenu(navController: NavHostController = rememberNavController()) {
-    val m = Modifier.fillMaxWidth()
-    Widgets.LongClickButton(m, {
-        navController.navigate("gallery")
-    }, {
-        Log.d(TAG, "Long press")
-    }, "Connect to a device")
-    Widgets.GrayButton(modifier = m, text = "Help", onClick = {
-        Log.d(TAG, "Help")
-    })
-    Widgets.GrayButton(modifier = m, text = "Send Feedback", onClick = {})
-
-    Box(modifier = Modifier
-        .fillMaxWidth()
-        .background(MaterialTheme.colorScheme.surfaceContainer)
-        .padding(16.dp)
-    ) {
-
-    }
-}
-
-@Composable
-fun DeviceListOnCard(innerPadding: PaddingValues, devices: List<ModuleManifest>) {
-    Box(modifier = Modifier
-        .padding(innerPadding)
-        .fillMaxSize()
-        .paint(
-            painterResource(id = R.drawable.background),
-            contentScale = ContentScale.Crop,
-            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.background, blendMode = BlendMode.Color)
-        )
-    ) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.padding(10.dp)
-        ) {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(MaterialTheme.colorScheme.background.copy(0.8f))
-                    .padding(10.dp)
-            ) {
-                devices.forEach { dev ->
-                    ModuleCard(dev)
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-@Preview(showBackground = true, device = "id:pixel_9a", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun MainScreen(navController: NavHostController = rememberNavController()) {
     val subNavController = rememberNavController()
     val haptic = LocalHapticFeedback.current
     val navBackStackEntry by subNavController.currentBackStackEntryAsState()
+    val uriHandler = LocalUriHandler.current
+    val scope = rememberCoroutineScope()
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     data class NavItem(
         val icon: Int,
@@ -254,115 +116,225 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
     )
 
     return FudgeTheme {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(),
-                    title = {
-                        Text("FantasyFudge")
-                    },
-                    actions = {
-                        IconButton(onClick = {}) {
-                            Icon(
-                                painter = painterResource(R.drawable.baseline_folder_open_24),
-                                contentDescription = null
-                            )
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet {
+                    Text("FantasyFudge", modifier = Modifier.padding(16.dp))
+                    HorizontalDivider()
+                    NavigationDrawerItem(
+                        icon = {
+                            Icon(painter = painterResource(R.drawable.baseline_help_24), contentDescription = null)
+                        },
+                        label = { Text(text = "Help") },
+                        selected = false,
+                        onClick = {
+                            navController.navigate("help")
                         }
-                        IconButton(onClick = {}) {
-                            Icon(
-                                painter = painterResource(R.drawable.baseline_settings_24),
-                                contentDescription = null
-                            )
+                    )
+                    NavigationDrawerItem(
+                        icon = {
+                            Icon(painter = painterResource(R.drawable.baseline_bug_report_24), contentDescription = null)
+                        },
+                        label = { Text(text = "Send Feedback") },
+                        selected = false,
+                        onClick = {
+                            uriHandler.openUri("https://danielc.dev/")
                         }
-                    },
-                )
-            },
-            bottomBar = {
-                NavigationBar {
-                    items.forEach { item ->
-                        NavigationBarItem(
-                            icon = {
-                                Icon(painter = painterResource(item.icon), contentDescription = null)
-                            },
-                            label = {
-                                Text(item.text)
-                            },
-                            selected = navBackStackEntry?.destination?.hierarchy?.any { it.route == item.route } == true,
-                            onClick = {
-                                subNavController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                            }
-                        )
-                    }
+                    )
+                    NavigationDrawerItem(
+                        icon = {
+                            Icon(painter = painterResource(R.drawable.outline_info_24), contentDescription = null)
+                        },
+                        label = { Text(text = "About") },
+                        selected = false,
+                        onClick = {
+                            navController.navigate("about")
+                        }
+                    )
+                    HorizontalDivider()
+                    NavigationDrawerItem(
+                        label = { Text(text = "Preview viewer") },
+                        selected = false,
+                        onClick = {
+                            navController.navigate("preview-viewer")
+                        }
+                    )
+                    NavigationDrawerItem(
+                        label = { Text(text = "view dashboard") },
+                        selected = false,
+                        onClick = {
+                            navController.navigate("test-dashboard1")
+                        }
+                    )
                 }
             }
-        ) { innerPadding ->
-            NavHost(
-                enterTransition = { EnterTransition.None },
-                exitTransition = { ExitTransition.None },
-                modifier = Modifier.padding(innerPadding),
-                navController = subNavController, startDestination = "connect") {
-                composable("connect") {
-                    Column(Modifier.padding(innerPadding).fillMaxSize(),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally) {
-                        Button(onClick = {
-                            navController.navigate("test-dashboard1")
-                        }) {
-                            Text("preview dashboard camera")
+        ) {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        colors = TopAppBarDefaults.topAppBarColors(),
+                        title = {
+                            Text("FantasyFudge")
+                        },
+                        actions = {
+                            IconButton(onClick = {}) {
+                                Icon(
+                                    painter = painterResource(R.drawable.baseline_folder_open_24),
+                                    contentDescription = null
+                                )
+                            }
+                            IconButton(onClick = {}) {
+                                Icon(
+                                    painter = painterResource(R.drawable.baseline_settings_24),
+                                    contentDescription = null
+                                )
+                            }
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = {
+                                scope.launch {
+                                    if (drawerState.isClosed) {
+                                        drawerState.open()
+                                    } else {
+                                        drawerState.close()
+                                    }
+                                }
+                            }) {
+                                Icon(Icons.Default.Menu, contentDescription = "Menu")
+                            }
                         }
-                        Button(onClick = {
-                            navController.navigate("view-dummy-instance")
-                        }) {
-                            Text("Dashboard for dummy instance")
-                        }
-                        Button(onClick = {
-                            navController.navigate("preview-viewer")
-                        }) {
-                            Text("preview viewer")
-                        }
-                        Button(onClick = {
-                            val mod = Runtime.createModuleInstance(Runtime.getManifestFromName("Java Module")!!)
-                            navController.navigate(mod.serializableModuleInstance)
-                        }) {
-                            Text("java module connect")
+                    )
+                },
+                bottomBar = {
+                    NavigationBar {
+                        items.forEach { item ->
+                            NavigationBarItem(
+                                icon = {
+                                    Icon(
+                                        painter = painterResource(item.icon),
+                                        contentDescription = null
+                                    )
+                                },
+                                label = {
+                                    Text(item.text)
+                                },
+                                selected = navBackStackEntry?.destination?.hierarchy?.any { it.route == item.route } == true,
+                                onClick = {
+                                    subNavController.navigate(item.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                    haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                                }
+                            )
                         }
                     }
                 }
-                composable("modules") {
-                    ModuleList()
-                }
-                composable("console") {
-                    val state by Runtime.mainLog.uiState.collectAsStateWithLifecycle()
-                    Console(state)
+            ) { innerPadding ->
+                NavHost(
+                    enterTransition = { EnterTransition.None },
+                    exitTransition = { ExitTransition.None },
+                    modifier = Modifier.padding(innerPadding),
+                    navController = subNavController, startDestination = "connect"
+                ) {
+                    composable("connect") {
+                        ModuleDeviceList(manifestList = Runtime.moduleManifests, clicked = { manifest, product ->
+                            val mod = Runtime.createModuleInstance(manifest)
+                            navController.navigate(mod.serializableModuleInstance)
+                        })
+                    }
+                    composable("modules") {
+                        ModuleList(manifestList = Runtime.moduleManifests)
+                    }
+                    composable("console") {
+                        val state by Runtime.mainLog.uiState.collectAsStateWithLifecycle()
+                        Console(state)
+                    }
                 }
             }
         }
     }
 }
 
+@Composable
+@Preview(showBackground = true, device = "id:pixel_9a", uiMode = Configuration.UI_MODE_NIGHT_YES)
+fun PreviewMainScreen() {
+    Runtime.moduleManifests = devices as MutableList<ModuleManifest>
+    MainScreen()
+}
+
+@Composable
+fun ModuleInstanceNav(instance: ModuleInstance) {
+    val state by instance.debugLog.uiState.collectAsStateWithLifecycle()
+
+    val duration = 200
+    val navController = rememberNavController()
+    NavHost(
+        enterTransition = {
+            slideIn(
+                initialOffset = { IntOffset(it.width, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        exitTransition = {
+            slideOut(
+                targetOffset = { IntOffset(-it.width / 4, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        popEnterTransition = {
+            slideIn(
+                initialOffset = { IntOffset(-it.width / 4, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        popExitTransition = {
+            slideOut(
+                targetOffset = { IntOffset(it.width, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+
+        navController = navController, startDestination = "home") {
+        composable("home") { backStackEntry ->
+            HomeScreen(instance, navController)
+        }
+    }
+}
+
 class MainActivity : ComponentActivity() {
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String?>,
+        grantResults: IntArray,
+        deviceId: Int
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults, deviceId)
+        if (permissions[0] === "android.permission.BLUETOOTH_CONNECT") {
+            Bluetooth.permissionResult(grantResults[0])
+        }
+        Bluetooth.permissionResult(grantResults[0])
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         NativeRuntime.setupAndroidContext(this)
+        Pak.setupAndroidContext(this)
         if (!NativeRuntime.hasInited) {
-            System.loadLibrary("pakit")
+            System.loadLibrary("fudge")
             NativeRuntime.init()
             val manifests = NativeRuntime.getJsonManifestList()
             Runtime.loadModulesFromManifests(manifests)
-            Runtime.openTempConnection()
             NativeRuntime.hasInited = true
         }
         enableEdgeToEdge()
 
-        val duration = 200
         setContent {
+            val duration = 200
             val navController = rememberNavController()
             NavHost(
                 enterTransition = {
@@ -391,7 +363,15 @@ class MainActivity : ComponentActivity() {
                 },
 
                 navController = navController, startDestination = "home") {
-                composable("home") { MainScreen(navController) }
+                composable("home") {
+                    MainScreen(navController)
+                }
+                composable("help") {
+                    HelpScreen(navController)
+                }
+                composable("about") {
+                    AboutScreen(navController)
+                }
                 composable("modules-list") {
                     ModuleListScreen(navController)
                 }
@@ -399,7 +379,8 @@ class MainActivity : ComponentActivity() {
                 composable("gallery") { PreviewGalleryScreen(navController) }
                 composable("preview-viewer") { PreviewViewer(navController) }
                 composable("console") {
-                    ConsoleScreen(navController, Runtime.mainLog, buttons = {
+                    val state by Runtime.mainLog.uiState.collectAsStateWithLifecycle()
+                    ConsoleScreen(navController, state = state, buttons = {
                         Button(onClick = {
                             Runtime.mainLog.addLine("Hello, World")
                         }) {
@@ -408,10 +389,9 @@ class MainActivity : ComponentActivity() {
                     })
                 }
                 composable("test-dashboard1") { PreviewDashboardCamera(navController) }
-                composable("view-dummy-instance") { DashboardScreen(Runtime.tempConnection!!) }
                 composable<SerializableModuleInstance> { backStackEntry ->
                     val inst = backStackEntry.toRoute<SerializableModuleInstance>()
-                    ConsoleScreen(navController, inst.getModuleInstance().debugLog, title = "Connection Log")
+                    ModuleInstanceNav(inst.getModuleInstance())
                 }
             }
         }

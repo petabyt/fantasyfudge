@@ -1,4 +1,4 @@
-///  Bridge between non-android Kotlin code and native C runtime code
+/// Bridge between non-android Kotlin code and native C runtime code
 /// (allows kotlin code to be used through compose multiplatform)
 package dev.danielc.common;
 
@@ -20,8 +20,8 @@ public class NativeRuntime {
         weakCtx = new WeakReference<>(ctx);
     }
     static native void init();
-    static native NativeModule getDummyModule(ModuleManifest manifest);
     static native int setupDummyNativeModule(NativeModule mod, ModuleManifest manifest);
+    static native int setupLibFujiModule(NativeModule mod, ModuleManifest manifest);
     static native int setupJavascriptModule(NativeModule mod, ModuleManifest manifest, String jsPath);
     static native int getWebassemblyModule(NativeModule mod, ModuleManifest manifest, String jsPath);
 

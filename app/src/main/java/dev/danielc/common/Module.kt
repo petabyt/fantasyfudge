@@ -93,6 +93,7 @@ data class ModuleManifest(
     val version: Int = 0,
     val requiredRuntimeVersion: Int? = null,
     val runtimeVersion: Int = 0,
+    val scriptPath: String? = null,
     val targets: List<Target> = emptyList(),
     val publicKey: String? = null,
     val isDraft: Boolean = false,
@@ -105,6 +106,7 @@ data class ModuleManifest(
         NATIVE,
         DUMMY_MODULE,
         JAVA_MODULE,
+        LIBFUJI,
     }
     data class Target(
         val deviceId: Device = Device.PROFESSIONAL_CAMERA,
@@ -149,10 +151,13 @@ abstract class ModuleInstance(mod: ModuleManifest) {
         debugLog.addLine(s)
     }
 
+    fun deregister() {
+        Runtime.removeModuleInstance(this)
+    }
+
     fun setProperty(type: ModuleProperty, value: String) {
         homeModelView.setProperty(type, value)
     }
-
     fun setProperty(type: String, value: String) {
         homeModelView.setProperty(ModuleProperty.fromId(type)!!, value)
     }
@@ -191,10 +196,22 @@ data class SerializableModuleInstance(
         if (connectionId == null) {
             throw Exception();
         } else {
-            return Runtime.moduleInstances[connectionId]
+            return Runtime.moduleInstances[connectionId] // todo: getOrNull
         }
     }
     fun getManifest(): ModuleManifest {
         return getModuleInstance().manifest
+    }
+}
+
+class DummyModule(manifest: ModuleManifest) : NativeModule(manifest) {
+    init {
+        NativeRuntime.setupDummyNativeModule(this, manifest)
+    }
+}
+
+class LibFujiModule(manifest: ModuleManifest) : NativeModule(manifest) {
+    init {
+        NativeRuntime.setupDummyNativeModule(this, manifest)
     }
 }

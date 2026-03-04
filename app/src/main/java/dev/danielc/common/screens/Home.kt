@@ -3,7 +3,6 @@ package dev.danielc.common.screens
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -11,9 +10,9 @@ import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -33,14 +32,21 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.collections.plus
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
 import dev.danielc.common.ModuleInstance
 import dev.danielc.common.ModuleProperty
 import dev.danielc.common.UserSetting
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 
 data class HomeState(
     val supportedScreenList: List<Screen> = emptyList(),
     val showDisconnectDialog: Boolean = false,
     var pageIndex: Int = 0,
+)
+
+data class UiEvent(
+    val screen: Screen,
 )
 
 class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModuleInstance? = null) : ViewModel() {
@@ -49,8 +55,18 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
     val dashboardCallbacks: DashboardCallbacks = DashboardCallbacks(updateSettingPane = { pane, value ->
         updateSettingPane(pane, value)
     })
+
     private val _homeState = MutableStateFlow(HomeState())
     val homeState = _homeState.asStateFlow()
+
+    private val _uiEvents = Channel<UiEvent>(Channel.CONFLATED)
+    val uiEvents = _uiEvents.receiveAsFlow()
+
+    fun goToScreen(screen: Screen) {
+        viewModelScope.launch {
+            _uiEvents.trySend(UiEvent(screen))
+        }
+    }
 
     fun setPageIndex(i: Int) {
         _homeState.update { homeState ->
@@ -115,16 +131,22 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardScreen(module: ModuleInstance) {
+fun HomeScreen(module: ModuleInstance, hostNavController: NavController) {
     val model = module.homeModelView
     val navController = rememberNavController()
-    val homestate by model.homeState.collectAsStateWithLifecycle()
-    val dashboardstate by model.dashboardState.collectAsStateWithLifecycle()
+    val homeState by model.homeState.collectAsStateWithLifecycle()
+    val dashboardState by model.dashboardState.collectAsStateWithLifecycle()
     val navScreens = mutableListOf(
         Screen.DASHBOARD,
     )
-    if (homestate.supportedScreenList.contains(Screen.FILE_GALLERY)) navScreens += Screen.FILE_GALLERY
-    if (homestate.supportedScreenList.contains(Screen.LIVEVIEW)) navScreens += Screen.LIVEVIEW
+    if (homeState.supportedScreenList.contains(Screen.FILE_GALLERY)) navScreens += Screen.FILE_GALLERY
+    if (homeState.supportedScreenList.contains(Screen.LIVEVIEW)) navScreens += Screen.LIVEVIEW
+
+    LaunchedEffect(Unit) {
+        model.uiEvents.collect { event ->
+            println("UI event")
+        }
+    }
 
     return FudgeTheme {
         Scaffold(
@@ -135,10 +157,11 @@ fun DashboardScreen(module: ModuleInstance) {
                 ) {
                     for (i in navScreens.indices) {
                         NavigationBarItem(
-                            selected = homestate.pageIndex == i,
+                            selected = homeState.pageIndex == i,
                             onClick = {
                                 model.setPageIndex(i)
                                 navController.navigate(route = navScreens[i].strId)
+                                model.goToScreen(Screen.LIVEVIEW)
                             },
                             icon = {
                                 Icon(
@@ -159,7 +182,7 @@ fun DashboardScreen(module: ModuleInstance) {
                 exitTransition = { ExitTransition.None },
                 navController = navController, startDestination = Screen.DASHBOARD.strId) {
                 composable(Screen.DASHBOARD.strId) {
-                    Dashboard(Modifier.padding(innerPadding), navController, state = dashboardstate, callbacks = model.dashboardCallbacks)
+                    Dashboard(Modifier.padding(innerPadding), navController, state = dashboardState, callbacks = model.dashboardCallbacks)
                 }
                 composable(Screen.FILE_GALLERY.strId) {
                     Gallery(navController, innerPadding, GalleryState())
@@ -168,36 +191,7 @@ fun DashboardScreen(module: ModuleInstance) {
                     Liveview(Modifier.padding(innerPadding), navController, LiveviewState())
                 }
             }
-            if (homestate.showDisconnectDialog) {
-                AlertDialog(
-                    title = {
-                        Text(text = "Disconnect")
-                    },
-                    text = {
-                        Text(text = "Disconnect from ${dashboardstate.nameOfDevice}?")
-                    },
-                    onDismissRequest = {
-
-                    },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-
-                            }
-                        ) {
-                            Text("Yes")
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(
-                            onClick = {
-
-                            }
-                        ) {
-                            Text("No")
-                        }
-                    }
-                )
+            if (homeState.showDisconnectDialog) {
             }
         }
     }
