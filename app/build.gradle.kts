@@ -80,6 +80,7 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.activity)
 
     testImplementation(libs.junit)
     debugImplementation(libs.androidx.compose.ui.tooling)

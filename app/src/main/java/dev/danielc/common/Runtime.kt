@@ -32,7 +32,8 @@ enum class Screen(val strId: String, val id: Int) {
     FILE_VIEWER("fileviewer", 103),
     GEOTAGGING("geotagging", 104),
     LIVEVIEW("liveview", 105),
-    LIVE_FEED("livefeed", 106);
+    LIVE_FEED("livefeed", 106),
+    DISCONNECTED("disconnected", 200);
 
     companion object {
         fun fromId(id: Int?): Screen? {
@@ -51,6 +52,7 @@ enum class Screen(val strId: String, val id: Int) {
             Screen.LIVEVIEW -> R.drawable.outline_smart_display_24
             Screen.LIVE_FEED -> R.drawable.outline_dynamic_feed_24
             Screen.NONE -> R.drawable.baseline_question_mark_24
+            else -> R.drawable.baseline_question_mark_24
         }
     }
 
@@ -65,6 +67,7 @@ enum class Screen(val strId: String, val id: Int) {
             Screen.LIVEVIEW -> "Liveview"
             Screen.LIVE_FEED -> "Live feed"
             Screen.NONE -> "None"
+            else -> "?"
         }
     }
 }
@@ -98,7 +101,7 @@ object Runtime {
     var mainLog = ConsoleStateModel()
     var moduleManifests = mutableListOf<ModuleManifest>()
     var moduleInstances = mutableListOf<ModuleInstance>()
-    var jobs = emptyList<Job>()
+    var jobs = mutableListOf<Job>()
     var jobCounter = 0
 
     fun addModuleInstance(mod: ModuleInstance): Int {
@@ -118,6 +121,15 @@ object Runtime {
         )
         jobs += job
         return job
+    }
+
+    fun closeJob(job: Job) {
+        for (e in jobs) {
+            if (e == job) {
+                jobs.remove(e)
+                break
+            }
+        }
     }
 
     fun createModuleInstance(m: ModuleManifest): ModuleInstance {

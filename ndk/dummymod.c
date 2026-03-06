@@ -11,7 +11,7 @@ static int on_find_connection(struct Module *mod, int job) {
 }
 
 static int init(struct Module *mod) {
-	pak_global_log("Hello from module");
+	pak_debug_log(mod, "Hello from dummy module");
 	mod->priv = (struct ModulePriv *)malloc(sizeof(struct ModulePriv));
 	pak_rt_set_session_property(mod, PAK_PROP_NAME, "Dummy Device");
 	pak_rt_set_session_property(mod, PAK_PROP_FW_VER, "v1.2.3");

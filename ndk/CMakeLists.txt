@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
-project(pakit)
+project(fudge)
 
 option(APP_WASM_SUPPORT "" no)
 
@@ -41,6 +41,6 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     module.c
     dummymod.c
 )
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE pak qjs libjpeg-turbo $<$<BOOL:${APP_WASM_SUPPORT}>:vmlib>)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE libfuji pak qjs libjpeg-turbo $<$<BOOL:${APP_WASM_SUPPORT}>:vmlib>)
+target_link_options(${CMAKE_PROJECT_NAME} PRIVATE "-Wl,-z,max-page-size=16384")
 target_link_options(pak PRIVATE "-Wl,-z,max-page-size=16384")
-target_link_options(pakit PRIVATE "-Wl,-z,max-page-size=16384")

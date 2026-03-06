@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -117,15 +118,17 @@ fun Console(state: ConsoleState) {
                         )
                     )
                     if (line.timestamp != null) {
-                        Text(
-                            text = "${line.timestamp.inWholeSeconds}s",
-                            style = TextStyle(
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 10.sp,
-                                color = Color.Gray
-                            ),
-                            modifier = Modifier.alignByBaseline()
-                        )
+                        DisableSelection {
+                            Text(
+                                text = "${line.timestamp.inWholeSeconds}s",
+                                style = TextStyle(
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 10.sp,
+                                    color = Color.Gray
+                                ),
+                                modifier = Modifier.alignByBaseline()
+                            )
+                        }
                     }
                 }
             }
@@ -135,7 +138,7 @@ fun Console(state: ConsoleState) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConsoleScreen(navController: NavHostController = rememberNavController(), state: ConsoleState = ConsoleState(), buttons: @Composable () -> Unit = {}, title: String = "Console") {
+fun ConsoleScreen(navController: NavHostController = rememberNavController(), state: ConsoleState = ConsoleState(), title: String = "Console") {
     val clipboardManager = LocalClipboard.current
     val scope = rememberCoroutineScope()
     return FudgeTheme {
@@ -174,7 +177,6 @@ fun ConsoleScreen(navController: NavHostController = rememberNavController(), st
             Column(
                 modifier = Modifier.padding(innerPadding)
             ) {
-                buttons()
                 Console(state)
             }
         }
@@ -200,5 +202,5 @@ fun PreviewConsoleScreen(navController: NavHostController = rememberNavControlle
         ))
     }
     val state = ConsoleState(initialLines = x)
-    ConsoleScreen(state = state)
+    ConsoleScreen(navController, state = state)
 }

@@ -2,6 +2,10 @@ package dev.danielc.common
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleStateModel
 import dev.danielc.common.screens.HomeViewModel
+import dev.danielc.libpak.Pak
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlin.time.DurationUnit
 import kotlin.time.TimeSource
@@ -162,24 +166,39 @@ abstract class ModuleInstance(mod: ModuleManifest) {
         homeModelView.setProperty(ModuleProperty.fromId(type)!!, value)
     }
 
+    fun initThread() {
+        CoroutineScope(Dispatchers.IO).launch {
+            if (findConnection() == Pak.Error.OK.code) {
+                homeModelView.goToScreen(Screen.DASHBOARD)
+            } else {
+                debugLog("findConnection failed, go to disconnect")
+                homeModelView.goToScreen(Screen.DISCONNECTED)
+            }
+        }
+    }
+
     fun mainLoop() {
-        Thread {
+        CoroutineScope(Dispatchers.IO).launch {
             var curr = TimeSource.Monotonic.markNow()
             while (true) {
                 onIdleTick(curr.elapsedNow().toInt(DurationUnit.MICROSECONDS))
                 curr = TimeSource.Monotonic.markNow()
                 Thread.sleep(currentTickInterval.toLong())
             }
-        }.start()
+        }
     }
 
-    private fun createJob(callback: JobUpdateCallback): Job {
-        return Runtime.createJob(serializableModuleInstance, callback)
+    private fun withJob(callback: JobUpdateCallback, block: (Job) -> Int): Int {
+        val job = Runtime.createJob(serializableModuleInstance, callback)
+        val rc = block(job)
+        Runtime.closeJob(job)
+        return rc
     }
 
-    fun findConnection(onUpdate: JobUpdateCallback = {}) {
-        val job = createJob(onUpdate)
-        onFindConnection(job.id)
+    fun findConnection(onUpdate: JobUpdateCallback = {}): Int {
+        return withJob(onUpdate) { job ->
+            onFindConnection(job.id)
+        }
     }
 
     fun cancelJob(job: Job) {

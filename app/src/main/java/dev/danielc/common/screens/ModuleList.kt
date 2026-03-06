@@ -194,77 +194,41 @@ fun ModuleListScreen(navController: NavHostController = rememberNavController())
 
 @Composable
 fun TargetCard(target: ModuleManifest.Target, clicked: (String?) -> Unit = {}) {
-    if (target.products.isEmpty()) {
-        Box(modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainer)
-            .clickable(onClick = {
-                clicked(null)
-            })
-            .padding(16.dp)
+    Box(modifier = Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(12.dp))
+        .background(MaterialTheme.colorScheme.surfaceContainer)
+        .clickable(onClick = {
+            clicked(null)
+        })
+        .padding(16.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.weight(1f)
             ) {
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Icon(
-                            painterResource(target.deviceId.getIcon()),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = target.company,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                        )
-                    }
-//                    Text(
-//                        text = "desc",
-//                        style = MaterialTheme.typography.bodyMedium,
-//                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-//                        maxLines = 2,
-//                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(
+                        painterResource(target.deviceId.getIcon()),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = target.company,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                    )
                 }
+                Text(
+                    text = target.deviceId.id,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                )
             }
         }
-    } else {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(target.company)
-                HorizontalDivider()
-            }
-            for (p in target.products) {
-                Box(modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainer)
-                    .clickable(onClick = {
-                        clicked(p)
-                    })
-                    .padding(16.dp)
-                ) {
-                    Row(Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            painterResource(target.deviceId.getIcon()),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = p,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                        )
-                    }
-                }
-            }
-        }
-        Spacer(Modifier.height(10.dp))
     }
 }
 

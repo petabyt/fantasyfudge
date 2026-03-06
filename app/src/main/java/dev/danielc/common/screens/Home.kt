@@ -2,6 +2,10 @@ package dev.danielc.common.screens
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideIn
+import androidx.compose.animation.slideOut
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -16,6 +20,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.compose.NavHost
@@ -36,7 +41,10 @@ import androidx.navigation.NavController
 import dev.danielc.common.ModuleInstance
 import dev.danielc.common.ModuleProperty
 import dev.danielc.common.UserSetting
+import dev.danielc.common.ui.DisconnectDialog
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 
 data class HomeState(
@@ -59,12 +67,12 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
     private val _homeState = MutableStateFlow(HomeState())
     val homeState = _homeState.asStateFlow()
 
-    private val _uiEvents = Channel<UiEvent>(Channel.CONFLATED)
-    val uiEvents = _uiEvents.receiveAsFlow()
+    private val _uiEvents = MutableSharedFlow<UiEvent>(replay = 0)
+    val uiEvents = _uiEvents.asSharedFlow()
 
     fun goToScreen(screen: Screen) {
         viewModelScope.launch {
-            _uiEvents.trySend(UiEvent(screen))
+            _uiEvents.emit(UiEvent(screen))
         }
     }
 
@@ -129,6 +137,68 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
     }
 }
 
+@Composable
+fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {}) {
+    val duration = 200
+    val navController = rememberNavController()
+
+    LaunchedEffect(Unit) {
+        instance.homeModelView.uiEvents.collect { event ->
+            if (event.screen == Screen.DASHBOARD) {
+                navController.navigate("home")
+            } else if (event.screen == Screen.DISCONNECTED) {
+                navController.navigate("disconnected") {
+                    // discard entire nav graph
+                    popUpTo(navController.graph.startDestinationId) {
+                        inclusive = true
+                    }
+                    launchSingleTop = true
+                }
+            } else {
+                println("unhandled ui event")
+            }
+        }
+    }
+
+    NavHost(
+        enterTransition = {
+            slideIn(
+                initialOffset = { IntOffset(it.width, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        exitTransition = {
+            slideOut(
+                targetOffset = { IntOffset(-it.width / 4, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        popEnterTransition = {
+            slideIn(
+                initialOffset = { IntOffset(-it.width / 4, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        popExitTransition = {
+            slideOut(
+                targetOffset = { IntOffset(it.width, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        navController = navController, startDestination = "connecting") {
+        composable("connecting") {
+            val state by instance.debugLog.uiState.collectAsStateWithLifecycle()
+            ConsoleScreen(navController, state, title = "Connecting")
+        }
+        composable("home") {
+            HomeScreen(instance, navController)
+        }
+        composable("disconnected") {
+            DisconnectedScreen(navController, backToMainScreen)
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(module: ModuleInstance, hostNavController: NavController) {
@@ -141,12 +211,6 @@ fun HomeScreen(module: ModuleInstance, hostNavController: NavController) {
     )
     if (homeState.supportedScreenList.contains(Screen.FILE_GALLERY)) navScreens += Screen.FILE_GALLERY
     if (homeState.supportedScreenList.contains(Screen.LIVEVIEW)) navScreens += Screen.LIVEVIEW
-
-    LaunchedEffect(Unit) {
-        model.uiEvents.collect { event ->
-            println("UI event")
-        }
-    }
 
     return FudgeTheme {
         Scaffold(
@@ -192,6 +256,7 @@ fun HomeScreen(module: ModuleInstance, hostNavController: NavController) {
                 }
             }
             if (homeState.showDisconnectDialog) {
+                DisconnectDialog("NameOfDevice")
             }
         }
     }

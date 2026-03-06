@@ -15,14 +15,17 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -32,6 +35,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -131,10 +135,11 @@ fun DrawGalleryObject(obj: GalleryObject) {
                 painter = painterResource(icon),
                 contentDescription = null,
             )
-            Text(obj.filename, modifier = Modifier.align(Alignment.BottomStart)
+            Text(obj.filename, modifier = Modifier.align(Alignment.BottomCenter)
                 .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)),
                 color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 10.sp,
+                style = MaterialTheme.typography.labelSmall
             )
         }
     }
@@ -147,31 +152,41 @@ fun Gallery(navController: NavHostController, innerPadding: PaddingValues, state
             .fillMaxSize()
     ) {
         Column {
-            Row(
-                horizontalArrangement = Arrangement.End,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Iconbutton(
-                    modifier = Modifier.size(50.dp),
-                    onClick = {
+            Surface(shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.primaryContainer) {
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth().padding(2.dp),
+                ) {
+                    val iconButtonColors = IconButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary,
+                        disabledContainerColor = MaterialTheme.colorScheme.primary,
+                        disabledContentColor = MaterialTheme.colorScheme.onPrimary,
+                    )
 
-                    },
-                ) {
-                    Icon(
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        painter = painterResource(R.drawable.baseline_grid_view_24),
-                        contentDescription = "Grid View"
-                    )
-                }
-                Iconbutton(
-                    modifier = Modifier.size(50.dp),
-                    onClick = {},
-                ) {
-                    Icon(
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        painter = painterResource(R.drawable.baseline_view_list_24),
-                        contentDescription = "List View"
-                    )
+                    IconButton(
+                        colors = iconButtonColors,
+                        onClick = {},
+                        modifier = Modifier,
+                    ) {
+                        Icon(
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            painter = painterResource(R.drawable.baseline_grid_view_24),
+                            contentDescription = "Grid View"
+                        )
+                    }
+                    IconButton(
+                        colors = iconButtonColors,
+                        onClick = {},
+                        modifier = Modifier,
+                    ) {
+                        Icon(
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            painter = painterResource(R.drawable.baseline_view_list_24),
+                            contentDescription = "List View"
+                        )
+                    }
                 }
             }
 
@@ -195,13 +210,6 @@ fun Gallery(navController: NavHostController, innerPadding: PaddingValues, state
                     }
             }
         }
-        LinearProgressIndicator(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth(),
-            color = GoGreen,
-            progress = { 57f }
-        )
     }
 }
 
@@ -212,14 +220,14 @@ fun PreviewGalleryScreen(navController: NavHostController = rememberNavControlle
     val state = GalleryState(objects = mutableListOf(
         GalleryObject(colorThumb = Color.Red, filename = "DSC1111.JPG", mimeType = MimeType.JPEG),
         GalleryObject(colorThumb = Color.Green, filename = "DSC1112.MOV", mimeType = MimeType.MOV),
-        GalleryObject(colorThumb = Color.Blue),
+        GalleryObject(filename = "DCIM/", mimeType = MimeType.FOLDER),
         GalleryObject(colorThumb = Color.Cyan),
         GalleryObject(colorThumb = Color.Magenta),
         GalleryObject(colorThumb = Color.Yellow),
         GalleryObject(colorThumb = Color.Gray),
         GalleryObject(colorThumb = Color.LightGray),
         GalleryObject(colorThumb = Color.DarkGray),
-        GalleryObject(colorThumb = Color.Red),
+        GalleryObject(colorThumb = Color.Red, filename = "DSC1132.JPG", mimeType = MimeType.JPEG),
         GalleryObject(colorThumb = Color.Green),
         GalleryObject(colorThumb = Color.Blue),
         GalleryObject(colorThumb = Color.Cyan),

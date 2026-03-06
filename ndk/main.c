@@ -11,13 +11,15 @@ struct RuntimePriv {
 	jobject obj;
 };
 
-jobject pak_ndk_create_module(JNIEnv *env, int (*get_fn)(struct Module *mod), jobject manifest) {
+int get_module_dummy(struct Module *mod);
+int setup_quickjs_module(struct Module **mod, const char *filename);
+int get_module_libfuji(struct Module *mod);
+
+int pak_ndk_create_module(JNIEnv *env, jobject o_mod, int (*get_fn)(struct Module *mod), jobject manifest) {
 	struct Module *mod = calloc(1, sizeof(struct Module));
 	mod->rt = malloc(sizeof(struct RuntimePriv));
 
 	jclass class = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
-	jmethodID constructor = (*env)->GetMethodID(env, class, "<init>", "(Ldev/danielc/common/ModuleManifest;)V");
-	jobject o_mod = (*env)->NewObject(env, class, constructor, manifest);
 	mod->rt->obj = o_mod;
 
 	jbyteArray struct_ = (*env)->NewByteArray(env, sizeof(struct Module));
@@ -30,9 +32,7 @@ jobject pak_ndk_create_module(JNIEnv *env, int (*get_fn)(struct Module *mod), jo
 
 	int rc = 0;
 	if (mod->init != NULL) rc = mod->init(mod);
-	if (rc) return NULL;
-
-	return o_mod;
+	return rc;
 }
 
 JNIEXPORT void JNICALL
@@ -54,6 +54,22 @@ void pak_global_log(const char *fmt, ...) {
 	jclass backend_c = (*env)->FindClass(env, "dev/danielc/common/NativeRuntime");
 	jmethodID log_global_m = (*env)->GetStaticMethodID(env, backend_c, "logGlobalLine", "(Ljava/lang/String;)V");
 	(*env)->CallStaticVoidMethod(env, backend_c, log_global_m, buffer_s);
+	(*env)->PopLocalFrame(env, NULL);
+}
+
+void pak_debug_log(struct Module *mod, const char *fmt, ...) {
+	char buffer[512] = {0};
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(buffer, sizeof(buffer), fmt, args);
+	va_end(args);
+
+	JNIEnv *env = get_jni_env();
+	(*env)->PushLocalFrame(env, 10);
+	jstring buffer_s = (*env)->NewStringUTF(env, buffer);
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jmethodID debug_log_m = (*env)->GetMethodID(env, module_c, "debugLog", "(Ljava/lang/String;)V");
+	(*env)->CallVoidMethod(env, mod->rt->obj, debug_log_m, buffer_s);
 	(*env)->PopLocalFrame(env, NULL);
 }
 
@@ -107,39 +123,17 @@ int pak_rt_test_module(struct Module *mod) {
 	return 0;
 }
 
-int get_module_dummy(struct Module *mod);
-
-JNIEXPORT jobject JNICALL
-Java_dev_danielc_common_NativeRuntime_getDummyModule(JNIEnv *env, jclass clazz, jobject manifest) {
+JNIEXPORT int JNICALL
+Java_dev_danielc_common_NativeRuntime_setupLibFujiModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest) {
 	set_jni_env_ctx(env, clazz);
-	return pak_ndk_create_module(env, get_module_dummy, manifest);
+	return pak_ndk_create_module(env, mod_o, get_module_libfuji, manifest);
 }
 
 JNIEXPORT int JNICALL
 Java_dev_danielc_common_NativeRuntime_setupDummyNativeModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest) {
 	set_jni_env_ctx(env, clazz);
-
-	struct Module *mod = calloc(1, sizeof(struct Module));
-	mod->rt = malloc(sizeof(struct RuntimePriv));
-
-	mod->rt->obj = mod_o;
-
-	jbyteArray struct_ = (*env)->NewByteArray(env, sizeof(struct Module));
-	(*env)->SetByteArrayRegion(env, struct_, 0, sizeof(struct Module), (const jbyte *)mod);
-
-	jfieldID struct_field = (*env)->GetFieldID(env, (*env)->FindClass(env, "dev/danielc/common/NativeModule"), "struct", "[B");
-	(*env)->SetObjectField(env, mod_o, struct_field, struct_);
-
-	get_module_dummy(mod);
-
-	int rc = 0;
-	if (mod->init != NULL) rc = mod->init(mod);
-	if (rc) return rc;
-
-	return 0;
+	return pak_ndk_create_module(env, mod_o, get_module_dummy, manifest);
 }
-
-int setup_quickjs_module(struct Module **mod, const char *filename);
 
 JNIEXPORT int JNICALL
 Java_dev_danielc_common_NativeRuntime_setupJavascriptModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest, jstring jsPath) {
