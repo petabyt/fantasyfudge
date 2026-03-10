@@ -1,5 +1,8 @@
 package dev.danielc.common;
 
+import android.annotation.SuppressLint;
+import android.bluetooth.BluetoothDevice;
+
 import org.jetbrains.annotations.NotNull;
 
 import dev.danielc.libpak.Bluetooth;
@@ -11,16 +14,21 @@ public class JavaModule extends ModuleInstance {
         debugLog("Hello, Java Module");
     }
 
+    @SuppressLint("MissingPermission")
     @Override
     public int onFindConnection(int job) {
-
         Bluetooth.requestConnectPermission();
+        Bluetooth.getDefaultAdapter().isEnabled();
         //debugLog(String.format("adapter name: %s", Bluetooth.adapterName()));
 
-        Bluetooth.BtFilter filter = new Bluetooth.BtFilter();
-        filter.isClassic = false;
+        for (BluetoothDevice e:  Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())) {
+            debugLog(e.getName());
+        }
 
-        //Bluetooth.pairWithDeviceCompanion(Pak.getActivity(), filter, "device");
+        Bluetooth.BtFilter filter = new Bluetooth.BtFilter();
+        //filter.isClassic = true;
+
+        Bluetooth.pairWithDeviceCompanion(Pak.getActivity(), filter, "device");
 
         return -1;
     }

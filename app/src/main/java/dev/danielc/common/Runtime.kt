@@ -181,7 +181,7 @@ object Runtime {
 
         moduleManifests += ModuleManifest(
             name = "libfuji",
-            description = "Supports Fujifilm cameras",
+            description = "All Fujifilm cameras",
             moduleType = ModuleManifest.ModuleType.LIBFUJI,
             targets = listOf(
                 ModuleManifest.Target(

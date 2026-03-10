@@ -4,12 +4,14 @@
 #include <jni.h>
 #include <pak.h>
 #include <runtime.h>
+#include "thread.h"
 
 struct TempStruct {
 	jobject byte_array;
 	jbyte *data;
 };
 struct Module *get_mod(JNIEnv *env, jobject thiz, struct TempStruct *info) {
+	set_jni_env_ctx(env, NULL);
 	jclass thiz_c = (*env)->GetObjectClass(env, thiz);
 	jfieldID struct_id = (*env)->GetFieldID(env, thiz_c, "struct", "[B");
 	if (struct_id == NULL) abort();
@@ -37,7 +39,7 @@ Java_dev_danielc_common_NativeModule_onFindConnection(JNIEnv *env, jobject thiz,
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
 
-	int rc = 0;
+	int rc = PAK_UNIMPLEMENTED;
 	if (mod->on_find_connection) rc = mod->on_find_connection(mod, job);
 
 	release_mod(env, &info);

@@ -84,7 +84,7 @@ fun budsState(): DashboardState {
     return state
 }
 fun cameraState(): DashboardState {
-    val manifest = ModuleManifest(name = "Fujifilm", description = "Connect to Fujifilm cameras", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA)))
+    val manifest = ModuleManifest(name = "Fujifilm", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA)))
     return DashboardState(
         manifest = manifest,
         nameOfDevice = "Fujifilm X100VI",

@@ -104,13 +104,23 @@ data class ModuleManifest(
     val moduleType: ModuleType = ModuleType.NATIVE,
     //    val instanceInitializer: (ModuleManifest) -> ModuleInstance = { throw Exception("no instanceInitializer") }
     ) {
-    enum class ModuleType {
+    enum class ModuleType() {
         QUICKJS,
         WEBASSEMBLY,
         NATIVE,
         DUMMY_MODULE,
         JAVA_MODULE,
-        LIBFUJI,
+        LIBFUJI;
+        fun getDesc(): String {
+            return when (this) {
+                ModuleType.QUICKJS -> "Javascript"
+                ModuleType.WEBASSEMBLY -> "Webassembly"
+                ModuleType.NATIVE -> "Native (statically compiled)"
+                ModuleType.DUMMY_MODULE -> "DummyModule"
+                ModuleType.JAVA_MODULE -> "JavaDummyModule"
+                ModuleType.LIBFUJI -> "libfuji (statically compiled)"
+            }
+        }
     }
     data class Target(
         val deviceId: Device = Device.PROFESSIONAL_CAMERA,
@@ -171,7 +181,7 @@ abstract class ModuleInstance(mod: ModuleManifest) {
             if (findConnection() == Pak.Error.OK.code) {
                 homeModelView.goToScreen(Screen.DASHBOARD)
             } else {
-                debugLog("findConnection failed, go to disconnect")
+                debugLog("Failed to find connection")
                 homeModelView.goToScreen(Screen.DISCONNECTED)
             }
         }
@@ -231,6 +241,6 @@ class DummyModule(manifest: ModuleManifest) : NativeModule(manifest) {
 
 class LibFujiModule(manifest: ModuleManifest) : NativeModule(manifest) {
     init {
-        NativeRuntime.setupDummyNativeModule(this, manifest)
+        NativeRuntime.setupLibFujiModule(this, manifest)
     }
 }

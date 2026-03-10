@@ -20,7 +20,12 @@ int pak_ndk_create_module(JNIEnv *env, jobject o_mod, int (*get_fn)(struct Modul
 	mod->rt = malloc(sizeof(struct RuntimePriv));
 
 	jclass class = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
-	mod->rt->obj = o_mod;
+	mod->rt->obj = (*env)->NewGlobalRef(env, o_mod);
+
+	get_fn(mod);
+
+	int rc = 0;
+	if (mod->init != NULL) rc = mod->init(mod);
 
 	jbyteArray struct_ = (*env)->NewByteArray(env, sizeof(struct Module));
 	(*env)->SetByteArrayRegion(env, struct_, 0, sizeof(struct Module), (const jbyte *)mod);
@@ -28,10 +33,6 @@ int pak_ndk_create_module(JNIEnv *env, jobject o_mod, int (*get_fn)(struct Modul
 	jfieldID struct_field = (*env)->GetFieldID(env, class, "struct", "[B");
 	(*env)->SetObjectField(env, o_mod, struct_field, struct_);
 
-	get_fn(mod);
-
-	int rc = 0;
-	if (mod->init != NULL) rc = mod->init(mod);
 	return rc;
 }
 

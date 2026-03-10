@@ -67,8 +67,11 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
     private val _homeState = MutableStateFlow(HomeState())
     val homeState = _homeState.asStateFlow()
 
-    private val _uiEvents = MutableSharedFlow<UiEvent>(replay = 0)
+    private val _uiEvents = MutableSharedFlow<UiEvent>(replay = 1)
     val uiEvents = _uiEvents.asSharedFlow()
+
+//    private val _uiEvents = Channel<UiEvent>(capacity = 0)
+//    val uiEvents = _uiEvents.receiveAsFlow()
 
     fun goToScreen(screen: Screen) {
         viewModelScope.launch {
@@ -145,14 +148,17 @@ fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {
     LaunchedEffect(Unit) {
         instance.homeModelView.uiEvents.collect { event ->
             if (event.screen == Screen.DASHBOARD) {
-                navController.navigate("home")
-            } else if (event.screen == Screen.DISCONNECTED) {
-                navController.navigate("disconnected") {
+                navController.navigate("home") {
                     // discard entire nav graph
                     popUpTo(navController.graph.startDestinationId) {
                         inclusive = true
                     }
-                    launchSingleTop = true
+                }
+            } else if (event.screen == Screen.DISCONNECTED) {
+                navController.navigate("disconnected") {
+                    popUpTo(navController.graph.startDestinationId) {
+                        inclusive = true
+                    }
                 }
             } else {
                 println("unhandled ui event")
@@ -194,7 +200,10 @@ fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {
             HomeScreen(instance, navController)
         }
         composable("disconnected") {
-            DisconnectedScreen(navController, backToMainScreen)
+            val state by instance.debugLog.uiState.collectAsStateWithLifecycle()
+            DisconnectedScreen(navController, backToMainScreen, info = {
+                Console(state)
+            })
         }
     }
 }

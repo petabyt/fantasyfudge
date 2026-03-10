@@ -7,6 +7,7 @@ struct ModulePriv {
 };
 
 static int on_find_connection(struct Module *mod, int job) {
+	pak_debug_log(mod, "Connection established");
 	return 0;
 }
 
@@ -66,6 +67,7 @@ static int on_custom_command(struct Module *mod, const char *request) {
 int get_module_dummy(struct Module *mod) {
 	mod->init = init;
 	mod->on_try_connect_wifi = on_try_connect_wifi;
+	mod->on_find_connection = on_find_connection;
 	mod->on_idle_tick = on_idle_tick;
 	mod->on_disconnect = on_disconnect;
 	mod->on_switch_screen = on_switch_screen;

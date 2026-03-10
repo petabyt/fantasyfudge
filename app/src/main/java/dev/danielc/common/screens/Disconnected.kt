@@ -1,6 +1,7 @@
 package dev.danielc.common.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,7 +33,7 @@ import dev.danielc.common.ui.theme.Typography
 @OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
 @Composable
-fun DisconnectedScreen(navController: NavHostController = rememberNavController(), backToMainScreen: () -> Unit = {}) {
+fun DisconnectedScreen(navController: NavHostController = rememberNavController(), backToMainScreen: () -> Unit = {}, info: @Composable () -> Unit = {}) {
     return FudgeTheme {
         BackHandler {
             backToMainScreen()
@@ -58,14 +59,15 @@ fun DisconnectedScreen(navController: NavHostController = rememberNavController(
             },
         ) { innerPadding ->
             Box(Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
-                Column(Modifier.padding(10.dp)) {
+                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text("Disconnected", style = MaterialTheme.typography.titleLarge)
                     Text("Reason: XXX", style = MaterialTheme.typography.labelMedium)
                     Button(onClick = {
-                        backToMainScreen
+                        backToMainScreen()
                     }) {
                         Text("Exit")
                     }
+                    info()
                 }
             }
         }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,6 +25,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -53,11 +55,12 @@ import dev.danielc.common.Runtime
 import dev.danielc.common.ui.theme.FudgeTheme
 import kotlinx.coroutines.NonCancellable.key
 import kotlinx.coroutines.delay
+import dev.danielc.R
 import kotlinx.coroutines.launch
 
 val devices: List<ModuleManifest> = listOf(
-    ModuleManifest(name = "libfuji", description = "Connect to Fujifilm cameras", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA, company = "Fujifilm", listOf("x-t1", "x-t2", "x-t3", "x-t4", "x-t5")))),
-    ModuleManifest(name = "canon", description = "Canon DSLRs and mirrorless cameras", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA, company = "Canon", listOf("EOS 5D", "EOS 5D II", "EOS 5D III")))),
+    ModuleManifest(name = "libfuji", description = "All Fujifilm cameras", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA, company = "Fujifilm", listOf("x-t1", "x-t2", "x-t3", "x-t4", "x-t5")))),
+    ModuleManifest(name = "canon", description = "Canon DSLRs and mirrorless camerasbalblahblahblablabhb", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA, company = "Canon", listOf("EOS 5D", "EOS 5D II", "EOS 5D III")))),
     ModuleManifest(name = "veement", description = "Veement/veecar dashcams", targets = listOf(ModuleManifest.Target(deviceId = Device.DASHCAM, company = "Veement"))),
     ModuleManifest(name = "toyota", description = "Toyota infotainment system", targets = listOf(ModuleManifest.Target(deviceId = Device.AUTOMOTIVE_INFOTAINMENT, company = "Toyota"))),
     ModuleManifest(name = "libroku", description = "Roku TV and media systems", targets = listOf(ModuleManifest.Target(deviceId = Device.SMART_TV, company = "Roku"))),
@@ -77,45 +80,72 @@ fun ModuleCard(
         })
         .padding(16.dp)
     ) {
-        Column {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                for (e in manifest.targets) {
-                    Icon(
-                        painter = painterResource(e.deviceId.getIcon()),
-                        contentDescription = null,
-                        modifier = Modifier.size(32.dp),
-                        tint = MaterialTheme.colorScheme.primary,
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        text = manifest.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                    )
-                    if (manifest.description != null) {
-                        Text(
-                            text = manifest.description,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    for (e in manifest.targets) {
+                        Icon(
+                            painter = painterResource(e.deviceId.getIcon()),
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = MaterialTheme.colorScheme.primary,
                         )
                     }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = manifest.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                        )
+                        if (manifest.description != null) {
+                            Text(
+                                text = manifest.description,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Column {
+                    Text(
+                        text = "Author: ${manifest.author}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = "Type: ${manifest.moduleType.getDesc()}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(
-                text = "Author: ${manifest.author}\n",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                IconButton(colors = IconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    disabledContentColor = MaterialTheme.colorScheme.primary
+                ), onClick = {
+
+                }) {
+                    Icon(painterResource(R.drawable.outline_info_24), contentDescription = null)
+                }
+                IconButton(onClick = {}, colors = IconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.error,
+                    disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    disabledContentColor = MaterialTheme.colorScheme.primary
+                )) {
+                    Icon(painterResource(R.drawable.outline_delete_24), contentDescription = null)
+                }
+            }
         }
     }
 }
@@ -153,7 +183,7 @@ fun ModuleList(modifier: Modifier = Modifier, manifestList: List<ModuleManifest>
     }
 }
 
-//@Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
+@Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
 @Composable
 fun PreviewModuleList() {
     FudgeTheme {
@@ -193,7 +223,7 @@ fun ModuleListScreen(navController: NavHostController = rememberNavController())
 }
 
 @Composable
-fun TargetCard(target: ModuleManifest.Target, clicked: (String?) -> Unit = {}) {
+fun TargetCard(target: ModuleManifest.Target, manifest: ModuleManifest, clicked: (String?) -> Unit = {}) {
     Box(modifier = Modifier
         .fillMaxWidth()
         .clip(RoundedCornerShape(12.dp))
@@ -221,12 +251,14 @@ fun TargetCard(target: ModuleManifest.Target, clicked: (String?) -> Unit = {}) {
                         maxLines = 1,
                     )
                 }
-                Text(
-                    text = target.deviceId.id,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                )
+                if (manifest.description != null) {
+                    Text(
+                        text = manifest.description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                    )
+                }
             }
         }
     }
@@ -253,15 +285,18 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, manifestList: List<ModuleMan
         modifier = modifier
     ) {
         key(refreshTrigger) {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize().padding(10.dp)
-            ) {
-                items(manifestList) { dev ->
-                    for (target in dev.targets) {
-                        TargetCard(target, clicked = { product ->
-                            clicked(dev, product)
-                        })
+            Column(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Select a device to connect to:")
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(manifestList) { manifest ->
+                        for (target in manifest.targets) {
+                            TargetCard(target, manifest, clicked = { product ->
+                                clicked(manifest, product)
+                            })
+                        }
                     }
                 }
             }

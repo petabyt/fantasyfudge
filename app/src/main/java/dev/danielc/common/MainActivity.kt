@@ -1,5 +1,7 @@
 package dev.danielc.common
 
+import android.app.ComponentCaller
+import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.util.Log
@@ -46,6 +48,16 @@ class MainActivity : ComponentActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults, deviceId)
         Pak.onPermissionResult(requestCode, permissions, grantResults);
+    }
+
+    override fun onActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: Intent?,
+        caller: ComponentCaller
+    ) {
+        super.onActivityResult(requestCode, resultCode, data, caller)
+        Pak.onActivityResult(requestCode, resultCode)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

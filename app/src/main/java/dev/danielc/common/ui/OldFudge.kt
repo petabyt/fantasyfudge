@@ -40,8 +40,6 @@ val padding = 10.dp
 
 @Composable
 fun longPress(onClick: () -> Unit, onLongClick: () -> Unit): MutableInteractionSource {
-    val context = LocalContext.current
-
     val interactionSource = remember { MutableInteractionSource() }
 
     val viewConfiguration = LocalViewConfiguration.current
@@ -69,27 +67,6 @@ fun longPress(onClick: () -> Unit, onLongClick: () -> Unit): MutableInteractionS
     }
 
     return interactionSource
-}
-
-@Composable
-fun Button2(
-    modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    onClick: (Int) -> Unit,
-    content: @Composable () -> Unit,
-    ctx: Int
-) {
-    Button(
-        onClick = {
-            onClick(ctx)
-        },
-        colors = ButtonDefaults.buttonColors(containerColor = Teal700),
-        modifier = modifier.padding(padding).fillMaxWidth(),
-        shape = RectangleShape,
-        enabled = enabled,
-    ) {
-        content()
-    }
 }
 
 @Composable
