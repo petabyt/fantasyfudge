@@ -47,7 +47,7 @@ fun HelpScreen(navController: NavHostController = rememberNavController()) {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(),
                     title = {
-                        "Help"
+                        Text("Help")
                     },
                     navigationIcon = {
                         IconButton(onClick = {

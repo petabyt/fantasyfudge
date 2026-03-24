@@ -72,12 +72,12 @@ enum class Screen(val strId: String, val id: Int) {
     }
 }
 
-typealias JobUpdateCallback = (Job) -> Unit
+typealias JobUpdateCallback = (ModuleJob) -> Unit
 
 /// A job id is passed each time a module function is called. A job can be cancelled
 /// at any time by the user, and the percent finished value can be updated by the module.
 @Serializable
-data class Job(
+data class ModuleJob(
     val onUpdate: JobUpdateCallback,
     val moduleInstance: SerializableModuleInstance,
     val id: Int,
@@ -100,8 +100,8 @@ enum class ModuleProperty(val id: String) {
 object Runtime {
     var mainLog = ConsoleStateModel()
     var moduleManifests = mutableListOf<ModuleManifest>()
-    var moduleInstances = mutableListOf<ModuleInstance>()
-    var jobs = mutableListOf<Job>()
+    var moduleInstances = mutableListOf<ModuleInstance>() // TODO: Switch to map
+    var jobs = mutableListOf<ModuleJob>()
     var jobCounter = 0
 
     fun addModuleInstance(mod: ModuleInstance): Int {
@@ -113,8 +113,8 @@ object Runtime {
         moduleInstances.remove(mod)
     }
 
-    fun createJob(mod: SerializableModuleInstance, onUpdate: JobUpdateCallback): Job {
-        val job = Job(
+    fun createJob(mod: SerializableModuleInstance, onUpdate: JobUpdateCallback): ModuleJob {
+        val job = ModuleJob(
             moduleInstance = mod,
             id = jobCounter++,
             onUpdate = onUpdate
@@ -123,7 +123,7 @@ object Runtime {
         return job
     }
 
-    fun closeJob(job: Job) {
+    fun closeJob(job: ModuleJob) {
         for (e in jobs) {
             if (e == job) {
                 jobs.remove(e)

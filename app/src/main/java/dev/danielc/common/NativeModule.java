@@ -17,22 +17,6 @@ public class NativeModule extends ModuleInstance {
     public native int onRequestFileMetadata(int job, FileHandle file);
     public native void free();
 
-    public void setScreenSupported(int screen, boolean v) {
-        getHomeModelView().addSupportedScreen(screen);
-    }
-
-    public void addUserSetting(UserSetting setting) {
-        getHomeModelView().addSettingPane(setting);
-    }
-
-    public void setProgressBar(NativeRuntime rt, int job) {
-
-    }
-
-    public void isJobCancelled(int job) {
-
-    }
-
     NativeModule(ModuleManifest manifest) {
         super(manifest);
     }

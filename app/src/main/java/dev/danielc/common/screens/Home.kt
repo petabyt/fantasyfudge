@@ -1,5 +1,6 @@
 package dev.danielc.common.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -55,14 +56,20 @@ data class HomeState(
 
 data class UiEvent(
     val screen: Screen,
+    val isInHome: Boolean,
 )
 
 class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModuleInstance? = null) : ViewModel() {
     private val _dashboardState = MutableStateFlow(DashboardState(manifest))
     val dashboardState = _dashboardState.asStateFlow()
-    val dashboardCallbacks: DashboardCallbacks = DashboardCallbacks(updateSettingPane = { pane, value ->
-        updateSettingPane(pane, value)
-    })
+    val dashboardCallbacks: DashboardCallbacks = DashboardCallbacks(
+        updateSettingPane = { pane, value ->
+            updateSettingPane(pane, value)
+        },
+        disconnect = {
+            showDisconectDialog(true)
+        }
+    )
 
     private val _homeState = MutableStateFlow(HomeState())
     val homeState = _homeState.asStateFlow()
@@ -73,9 +80,17 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
 //    private val _uiEvents = Channel<UiEvent>(capacity = 0)
 //    val uiEvents = _uiEvents.receiveAsFlow()
 
-    fun goToScreen(screen: Screen) {
+    fun showDisconectDialog(v: Boolean) {
+        _homeState.update { homeState ->
+            homeState.copy(
+                showDisconnectDialog = v
+            )
+        }
+    }
+
+    fun goToScreen(screen: Screen, isInHome: Boolean = false) {
         viewModelScope.launch {
-            _uiEvents.emit(UiEvent(screen))
+            _uiEvents.emit(UiEvent(screen, isInHome))
         }
     }
 
@@ -108,9 +123,18 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
         }
     }
 
-    fun addSupportedScreen(s: Int) {
-        val screen = Screen.fromId(s)
-        if (screen != null) addSupportedScreen(screen)
+    fun setSupportedScreen(s: Screen, v: Boolean) {
+        viewModelScope.launch(Dispatchers.Default) {
+            _homeState.update { currentState ->
+                if (!v && currentState.supportedScreenList.contains(s)) {
+                    currentState.copy(supportedScreenList = currentState.supportedScreenList.filter { x -> x != s })
+                } else if (v && !currentState.supportedScreenList.contains(s)) {
+                    currentState.copy(supportedScreenList = currentState.supportedScreenList + s)
+                } else {
+                    currentState
+                }
+            }
+        }
     }
 
     fun addSettingPane(pane: UserSetting) {
@@ -142,30 +166,30 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
 
 @Composable
 fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {}) {
-    val duration = 200
     val navController = rememberNavController()
 
     LaunchedEffect(Unit) {
         instance.homeModelView.uiEvents.collect { event ->
-            if (event.screen == Screen.DASHBOARD) {
-                navController.navigate("home") {
-                    // discard entire nav graph
-                    popUpTo(navController.graph.startDestinationId) {
-                        inclusive = true
+            if (!event.isInHome) {
+                if (event.screen == Screen.DASHBOARD) {
+                    navController.navigate("home") {
+                        // discard entire nav graph
+                        popUpTo(navController.graph.startDestinationId) {
+                            inclusive = true
+                        }
+                    }
+                } else if (event.screen == Screen.DISCONNECTED) {
+                    navController.navigate("disconnected") {
+                        popUpTo(navController.graph.startDestinationId) {
+                            inclusive = true
+                        }
                     }
                 }
-            } else if (event.screen == Screen.DISCONNECTED) {
-                navController.navigate("disconnected") {
-                    popUpTo(navController.graph.startDestinationId) {
-                        inclusive = true
-                    }
-                }
-            } else {
-                println("unhandled ui event")
             }
         }
     }
 
+    val duration = 200
     NavHost(
         enterTransition = {
             slideIn(
@@ -215,13 +239,27 @@ fun HomeScreen(module: ModuleInstance, hostNavController: NavController) {
     val navController = rememberNavController()
     val homeState by model.homeState.collectAsStateWithLifecycle()
     val dashboardState by model.dashboardState.collectAsStateWithLifecycle()
+    val galleryState by module.galleryViewModel.uiState.collectAsStateWithLifecycle()
     val navScreens = mutableListOf(
         Screen.DASHBOARD,
     )
     if (homeState.supportedScreenList.contains(Screen.FILE_GALLERY)) navScreens += Screen.FILE_GALLERY
     if (homeState.supportedScreenList.contains(Screen.LIVEVIEW)) navScreens += Screen.LIVEVIEW
 
+    LaunchedEffect(Unit) {
+        module.homeModelView.uiEvents.collect { event ->
+            if (event.isInHome) {
+                if (event.screen == Screen.FILE_GALLERY || event.screen == Screen.DASHBOARD) {
+                    navController.navigate(route = event.screen.strId)
+                }
+            }
+        }
+    }
+
     return FudgeTheme {
+        BackHandler {
+            model.showDisconectDialog(false)
+        }
         Scaffold(
             bottomBar = {
                 NavigationBar(
@@ -233,8 +271,7 @@ fun HomeScreen(module: ModuleInstance, hostNavController: NavController) {
                             selected = homeState.pageIndex == i,
                             onClick = {
                                 model.setPageIndex(i)
-                                navController.navigate(route = navScreens[i].strId)
-                                model.goToScreen(Screen.LIVEVIEW)
+                                model.goToScreen(navScreens[i], isInHome = true)
                             },
                             icon = {
                                 Icon(
@@ -258,14 +295,20 @@ fun HomeScreen(module: ModuleInstance, hostNavController: NavController) {
                     Dashboard(Modifier.padding(innerPadding), navController, state = dashboardState, callbacks = model.dashboardCallbacks)
                 }
                 composable(Screen.FILE_GALLERY.strId) {
-                    Gallery(navController, innerPadding, GalleryState())
+                    Gallery(navController, innerPadding, galleryState, requestLoad = {})
                 }
                 composable(Screen.LIVEVIEW.strId) {
                     Liveview(Modifier.padding(innerPadding), navController, LiveviewState())
                 }
             }
             if (homeState.showDisconnectDialog) {
-                DisconnectDialog("NameOfDevice")
+                DisconnectDialog(dashboardState.nameOfDevice ?:  "Device", yes = {
+                    module.disconnect("Manual disconnect")
+                    model.showDisconectDialog(false)
+                },
+                no = {
+                    model.showDisconectDialog(false)
+                })
             }
         }
     }

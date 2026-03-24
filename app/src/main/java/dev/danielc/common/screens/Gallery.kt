@@ -1,6 +1,9 @@
 package dev.danielc.common.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,24 +21,31 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.ripple.RippleAlpha
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -45,11 +55,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
-import dev.danielc.common.ui.Iconbutton
 import dev.danielc.common.ui.theme.FudgeTheme
-import dev.danielc.common.ui.theme.GoGreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -72,7 +81,7 @@ data class GalleryObject(
     val isFulfilled: Boolean = false,
     val filename: String? = null,
     val jpegThumb: ByteArray? = null,
-    val colorThumb: Color? = null,
+    val colorThumb: Int? = null,
     val mimeType: MimeType? = null,
     val createdDate: String? = null,
 )
@@ -84,12 +93,13 @@ data class GalleryObjectReference(
 
 data class GalleryState(
     val displayType: DisplayType = DisplayType.THUMBNAILS,
-    val objects: MutableList<GalleryObject> = mutableListOf(),
+    val objects: MutableList<GalleryObject?> = mutableListOf(),
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
 )
 
 class GalleryViewModel() : ViewModel() {
     private val _uiState = MutableStateFlow(GalleryState())
+    val uiState = _uiState.asStateFlow()
 
     fun reset() {
         viewModelScope.launch() {
@@ -103,7 +113,8 @@ class GalleryViewModel() : ViewModel() {
 
     fun setObject(i: Int, obj: GalleryObject) {
         viewModelScope.launch(Dispatchers.Default) {
-            val list = _uiState.value.objects.toMutableList()
+            val list = _uiState.value.objects
+            while (list.size <= i) list.add(null)
             list[i] = obj
             _uiState.update { currentState ->
                 currentState.copy(objects = list)
@@ -116,31 +127,50 @@ class GalleryViewModel() : ViewModel() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DrawGalleryObject(obj: GalleryObject) {
+fun DrawGalleryObject(obj: GalleryObject, onClick: () -> Unit = {}) {
     var mod = Modifier.aspectRatio(1f)
-    if (obj.colorThumb != null) mod = mod.background(obj.colorThumb)
-    Box(modifier = mod.padding(2.dp)) {
-        if (obj.filename != null) {
-            val icon = when (obj.mimeType) {
-                MimeType.FILE -> R.drawable.baseline_question_mark_24
-                MimeType.FOLDER -> R.drawable.baseline_folder_open_24
-                MimeType.JPEG -> R.drawable.baseline_landscape_24
-                MimeType.PNG -> R.drawable.baseline_landscape_24
-                MimeType.MOV -> R.drawable.baseline_movie_24
-                null -> R.drawable.baseline_landscape_24
+    if (obj.colorThumb != null) mod = mod.background(Color(0xff000000 or obj.colorThumb.toLong()))
+
+    val rippleConfiguration = RippleConfiguration(color = Color.White, rippleAlpha = RippleAlpha(
+        0.16f,
+        0.1f,
+        0.08f,
+        0.4f
+    ))
+
+    CompositionLocalProvider(LocalRippleConfiguration provides rippleConfiguration) {
+        Box(
+            mod.clickable(onClick = onClick)
+            .indication(
+                indication = ripple(),
+                interactionSource = remember { MutableInteractionSource() }
+            )
+            .padding(2.dp)
+        ) {
+            if (obj.filename != null) {
+                val icon = when (obj.mimeType) {
+                    MimeType.FILE -> R.drawable.baseline_question_mark_24
+                    MimeType.FOLDER -> R.drawable.baseline_folder_open_24
+                    MimeType.JPEG -> R.drawable.baseline_landscape_24
+                    MimeType.PNG -> R.drawable.baseline_landscape_24
+                    MimeType.MOV -> R.drawable.baseline_movie_24
+                    null -> R.drawable.baseline_landscape_24
+                }
+                Icon(
+                    modifier = Modifier.align(Alignment.TopEnd),
+                    painter = painterResource(icon),
+                    contentDescription = null,
+                )
+                Text(
+                    obj.filename, modifier = Modifier.align(Alignment.BottomCenter)
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 10.sp,
+                    style = MaterialTheme.typography.labelSmall
+                )
             }
-            Icon(
-                modifier = Modifier.align(Alignment.TopEnd),
-                painter = painterResource(icon),
-                contentDescription = null,
-            )
-            Text(obj.filename, modifier = Modifier.align(Alignment.BottomCenter)
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)),
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 10.sp,
-                style = MaterialTheme.typography.labelSmall
-            )
         }
     }
 }
@@ -196,7 +226,17 @@ fun Gallery(navController: NavHostController, innerPadding: PaddingValues, state
                 columns = GridCells.Fixed(4)
             ) {
                 items(state.objects) { obj ->
-                    DrawGalleryObject(obj)
+                    if (obj != null) {
+                        DrawGalleryObject(obj)
+                    } else {
+                        Box(Modifier.padding(2.dp)) {
+                            Icon(
+                                modifier = Modifier.align(Alignment.Center),
+                                painter = painterResource(R.drawable.baseline_question_mark_24),
+                                contentDescription = null,
+                            )
+                        }
+                    }
                 }
             }
 
@@ -218,19 +258,20 @@ fun Gallery(navController: NavHostController, innerPadding: PaddingValues, state
 @Composable
 fun PreviewGalleryScreen(navController: NavHostController = rememberNavController()) {
     val state = GalleryState(objects = mutableListOf(
-        GalleryObject(colorThumb = Color.Red, filename = "DSC1111.JPG", mimeType = MimeType.JPEG),
-        GalleryObject(colorThumb = Color.Green, filename = "DSC1112.MOV", mimeType = MimeType.MOV),
+        GalleryObject(colorThumb = Color.Red.toArgb(), filename = "DSC1111.JPG", mimeType = MimeType.JPEG),
+        GalleryObject(colorThumb = Color.Green.toArgb(), filename = "DSC1112.MOV", mimeType = MimeType.MOV),
         GalleryObject(filename = "DCIM/", mimeType = MimeType.FOLDER),
-        GalleryObject(colorThumb = Color.Cyan),
-        GalleryObject(colorThumb = Color.Magenta),
-        GalleryObject(colorThumb = Color.Yellow),
-        GalleryObject(colorThumb = Color.Gray),
-        GalleryObject(colorThumb = Color.LightGray),
-        GalleryObject(colorThumb = Color.DarkGray),
-        GalleryObject(colorThumb = Color.Red, filename = "DSC1132.JPG", mimeType = MimeType.JPEG),
-        GalleryObject(colorThumb = Color.Green),
-        GalleryObject(colorThumb = Color.Blue),
-        GalleryObject(colorThumb = Color.Cyan),
+        GalleryObject(colorThumb = Color.Cyan.toArgb()),
+        GalleryObject(colorThumb = Color.Magenta.toArgb()),
+        GalleryObject(colorThumb = Color.Yellow.toArgb()),
+        null,
+        GalleryObject(colorThumb = Color.Gray.toArgb()),
+        GalleryObject(colorThumb = Color.LightGray.toArgb()),
+        GalleryObject(colorThumb = Color.DarkGray.toArgb()),
+        GalleryObject(colorThumb = Color.Red.toArgb(), filename = "DSC1132.JPG", mimeType = MimeType.JPEG),
+        GalleryObject(colorThumb = Color.Green.toArgb()),
+        GalleryObject(colorThumb = Color.Blue.toArgb()),
+        GalleryObject(colorThumb = Color.Cyan.toArgb()),
     ))
 
     return FudgeTheme {

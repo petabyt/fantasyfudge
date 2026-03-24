@@ -3,12 +3,12 @@ package dev.danielc.common.screens
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,13 +16,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonColors
@@ -53,19 +51,17 @@ import dev.danielc.common.Device
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Runtime
 import dev.danielc.common.ui.theme.FudgeTheme
-import kotlinx.coroutines.NonCancellable.key
 import kotlinx.coroutines.delay
 import dev.danielc.R
 import kotlinx.coroutines.launch
 
-val devices: List<ModuleManifest> = listOf(
+val dummyManifestList: List<ModuleManifest> = listOf(
     ModuleManifest(name = "libfuji", description = "All Fujifilm cameras", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA, company = "Fujifilm", listOf("x-t1", "x-t2", "x-t3", "x-t4", "x-t5")))),
     ModuleManifest(name = "canon", description = "Canon DSLRs and mirrorless camerasbalblahblahblablabhb", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA, company = "Canon", listOf("EOS 5D", "EOS 5D II", "EOS 5D III")))),
     ModuleManifest(name = "veement", description = "Veement/veecar dashcams", targets = listOf(ModuleManifest.Target(deviceId = Device.DASHCAM, company = "Veement"))),
     ModuleManifest(name = "toyota", description = "Toyota infotainment system", targets = listOf(ModuleManifest.Target(deviceId = Device.AUTOMOTIVE_INFOTAINMENT, company = "Toyota"))),
     ModuleManifest(name = "libroku", description = "Roku TV and media systems", targets = listOf(ModuleManifest.Target(deviceId = Device.SMART_TV, company = "Roku"))),
 )
-
 
 @Composable
 fun ModuleCard(
@@ -173,7 +169,9 @@ fun ModuleList(modifier: Modifier = Modifier, manifestList: List<ModuleManifest>
         key(refreshTrigger) {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize().padding(10.dp)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(10.dp)
             ) {
                 items(manifestList) { dev ->
                     ModuleCard(dev)
@@ -188,7 +186,9 @@ fun ModuleList(modifier: Modifier = Modifier, manifestList: List<ModuleManifest>
 fun PreviewModuleList() {
     FudgeTheme {
         Scaffold { innerPadding ->
-            ModuleList(Modifier.fillMaxSize().padding(innerPadding), devices)
+            ModuleList(Modifier
+                .fillMaxSize()
+                .padding(innerPadding), dummyManifestList)
         }
     }
 }
@@ -228,10 +228,15 @@ fun TargetCard(target: ModuleManifest.Target, manifest: ModuleManifest, clicked:
         .fillMaxWidth()
         .clip(RoundedCornerShape(12.dp))
         .background(MaterialTheme.colorScheme.surfaceContainer)
-        .clickable(onClick = {
-            clicked(null)
-        })
-        .padding(16.dp)
+        .combinedClickable(
+            onClick = {
+                clicked(null)
+            },
+            onLongClick = {
+                clicked(null)
+            }
+        )
+        .padding(16.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically
@@ -285,7 +290,9 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, manifestList: List<ModuleMan
         modifier = modifier
     ) {
         key(refreshTrigger) {
-            Column(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier
+                .fillMaxSize()
+                .padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Select a device to connect to:")
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -309,7 +316,9 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, manifestList: List<ModuleMan
 fun PreviewModuleDeviceList() {
     FudgeTheme {
         Scaffold { innerPadding ->
-            ModuleDeviceList(Modifier.fillMaxSize().padding(innerPadding), devices)
+            ModuleDeviceList(Modifier
+                .fillMaxSize()
+                .padding(innerPadding), dummyManifestList)
         }
     }
 }

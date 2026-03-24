@@ -1,6 +1,8 @@
 package dev.danielc.common
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleStateModel
+import dev.danielc.common.screens.GalleryObject
+import dev.danielc.common.screens.GalleryViewModel
 import dev.danielc.common.screens.HomeViewModel
 import dev.danielc.libpak.Pak
 import kotlinx.coroutines.CoroutineScope
@@ -154,31 +156,55 @@ abstract class ModuleInstance(mod: ModuleManifest) {
     val manifest: ModuleManifest = mod
     var debugLog = ConsoleStateModel()
     val homeModelView = HomeViewModel(mod)
-    var currentTickInterval: Int = 100000
+    val galleryViewModel = GalleryViewModel()
+    var currentTickIntervalUs: Int = 100000
     val serializableModuleInstance: SerializableModuleInstance = SerializableModuleInstance(Runtime.addModuleInstance(this))
+    var mainLoopJob: kotlinx.coroutines.Job? = null
+    var currentScreen: Screen = Screen.NONE
 
     abstract fun onFindConnection(job: Int): Int
     abstract fun onTryConnectWiFi(a: NativeRuntime.WiFiAdapter, job: Int): Int
     abstract fun onIdleTick(usSinceLast: Int): Int
+    abstract fun onSwitchScreen(job: Int, oldScreen: Int, newScreen: Int): Int
 
     fun debugLog(s: String) {
         debugLog.addLine(s)
     }
-
     fun deregister() {
-        Runtime.removeModuleInstance(this)
+        mainLoopJob?.cancel()
     }
-
+    fun disconnect(reason: String) {
+        homeModelView.goToScreen(Screen.DISCONNECTED)
+    }
     fun setProperty(type: ModuleProperty, value: String) {
         homeModelView.setProperty(type, value)
     }
     fun setProperty(type: String, value: String) {
         homeModelView.setProperty(ModuleProperty.fromId(type)!!, value)
     }
+    fun setScreenSupported(id: Int, v: Boolean) {
+        homeModelView.setSupportedScreen(Screen.fromId(id)!!, v)
+    }
+    fun addUserSetting(pane: UserSetting) {
+        homeModelView.addSettingPane(pane)
+    }
+    fun setProgressBar(job: Int, v: Int) {
+        // ...
+    }
+    fun isJobCancelled(job: Int): Boolean {
+        return false
+    }
+    fun addFileMetadata(i: Int, v: GalleryObject) {
+        galleryViewModel.setObject(i, v)
+    }
 
     fun initThread() {
-        CoroutineScope(Dispatchers.IO).launch {
+        val job = CoroutineScope(Dispatchers.IO).launch {
             if (findConnection() == Pak.Error.OK.code) {
+                startMainLoop()
+                withJob({}) { job ->
+                    onSwitchScreen(job.id, Screen.NONE.id, Screen.DASHBOARD.id)
+                }
                 homeModelView.goToScreen(Screen.DASHBOARD)
             } else {
                 debugLog("Failed to find connection")
@@ -187,22 +213,41 @@ abstract class ModuleInstance(mod: ModuleManifest) {
         }
     }
 
-    fun mainLoop() {
-        CoroutineScope(Dispatchers.IO).launch {
+    fun startMainLoop() {
+        val module = this
+        mainLoopJob = CoroutineScope(Dispatchers.IO).launch {
+            val job = mainLoopJob
             var curr = TimeSource.Monotonic.markNow()
-            while (true) {
-                onIdleTick(curr.elapsedNow().toInt(DurationUnit.MICROSECONDS))
+            while (job != null && !job.isCancelled) {
+                val rc = module.onIdleTick(curr.elapsedNow().toInt(DurationUnit.MICROSECONDS))
+                if (rc != 0) {
+                    module.reportFatalError(rc, "onIdleTick")
+                    break
+                }
                 curr = TimeSource.Monotonic.markNow()
-                Thread.sleep(currentTickInterval.toLong())
+                Thread.sleep(currentTickIntervalUs.toLong() / 1000)
             }
+            Runtime.removeModuleInstance(module)
         }
     }
 
-    private fun withJob(callback: JobUpdateCallback, block: (Job) -> Int): Int {
+    private fun withJob(callback: JobUpdateCallback, block: (ModuleJob) -> Int): Int {
         val job = Runtime.createJob(serializableModuleInstance, callback)
         val rc = block(job)
         Runtime.closeJob(job)
         return rc
+    }
+
+    private fun reportFatalError(code: Int, message: String) {
+
+    }
+
+    fun switchScreen(screen: Screen) {
+        withJob({}) { job ->
+            onSwitchScreen(job.id, currentScreen.id, screen.id)
+        }
+        currentScreen = screen
+        homeModelView.goToScreen(Screen.DASHBOARD)
     }
 
     fun findConnection(onUpdate: JobUpdateCallback = {}): Int {
@@ -211,7 +256,7 @@ abstract class ModuleInstance(mod: ModuleManifest) {
         }
     }
 
-    fun cancelJob(job: Job) {
+    fun cancelJob(job: ModuleJob) {
         job.isCancelled = true
     }
 }
@@ -225,7 +270,7 @@ data class SerializableModuleInstance(
         if (connectionId == null) {
             throw Exception();
         } else {
-            return Runtime.moduleInstances[connectionId] // todo: getOrNull
+            return Runtime.moduleInstances[connectionId]
         }
     }
     fun getManifest(): ModuleManifest {

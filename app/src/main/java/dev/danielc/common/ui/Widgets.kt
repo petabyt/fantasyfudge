@@ -55,7 +55,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun JobProgressbar(modifier: Modifier) {
+fun JobProgressBar(modifier: Modifier) {
     LinearProgressIndicator(
         modifier = modifier.fillMaxWidth(),
         color = GoGreen,
@@ -65,7 +65,7 @@ fun JobProgressbar(modifier: Modifier) {
 
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
-fun DisconnectDialog(nameOfDevice: String = "FooBar") {
+fun DisconnectDialog(nameOfDevice: String = "FooBar", yes: () -> Unit = {}, no: () -> Unit = {}) {
     AlertDialog(
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         title = {
@@ -75,12 +75,12 @@ fun DisconnectDialog(nameOfDevice: String = "FooBar") {
             Text(text = "Disconnect from ${nameOfDevice}?")
         },
         onDismissRequest = {
-
+            no()
         },
         confirmButton = {
             TextButton(
                 onClick = {
-
+                    yes()
                 }
             ) {
                 Text("Yes")
@@ -89,7 +89,7 @@ fun DisconnectDialog(nameOfDevice: String = "FooBar") {
         dismissButton = {
             TextButton(
                 onClick = {
-
+                    no()
                 }
             ) {
                 Text("No")
@@ -102,7 +102,7 @@ fun DisconnectDialog(nameOfDevice: String = "FooBar") {
 @Composable
 fun PermissionDialog(proceed: () -> Unit = {}, reject: () -> Unit = {}) {
     Dialog(onDismissRequest = {
-
+        reject()
     }) {
         Card(
             modifier = Modifier
@@ -126,7 +126,7 @@ fun PermissionDialog(proceed: () -> Unit = {}, reject: () -> Unit = {}) {
                     textAlign = TextAlign.Center,
                 )
                 Button(onClick = {
-
+                    proceed()
                 }) {
                     Text("Grant")
                 }

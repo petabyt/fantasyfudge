@@ -217,6 +217,6 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
 @Composable
 @Preview(showBackground = true, device = "id:pixel_9a", uiMode = Configuration.UI_MODE_NIGHT_YES)
 fun PreviewMainScreen() {
-    Runtime.moduleManifests = devices as MutableList<ModuleManifest>
+    Runtime.moduleManifests = dummyManifestList as MutableList<ModuleManifest>
     MainScreen()
 }

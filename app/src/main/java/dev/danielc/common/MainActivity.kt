@@ -20,24 +20,14 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.danielc.R
 import dev.danielc.common.screens.AboutScreen
-import dev.danielc.common.screens.Console
-import dev.danielc.common.screens.ConsoleScreen
 import dev.danielc.common.screens.HelpScreen
-import dev.danielc.common.screens.HomeScreen
 import dev.danielc.common.screens.MainScreen
-import dev.danielc.common.screens.ModuleCard
-import dev.danielc.common.screens.ModuleDeviceList
 import dev.danielc.common.screens.ModuleInstanceNav
-import dev.danielc.common.screens.ModuleList
 import dev.danielc.common.screens.ModuleListScreen
 import dev.danielc.common.screens.PreviewGalleryScreen
 import dev.danielc.common.screens.PreviewDashboardCamera
 import dev.danielc.common.screens.PreviewViewer
-import dev.danielc.common.screens.devices
-import dev.danielc.common.ui.theme.FudgeTheme
-import dev.danielc.libpak.Bluetooth
 import dev.danielc.libpak.Pak
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onRequestPermissionsResult(
@@ -117,11 +107,12 @@ class MainActivity : ComponentActivity() {
                 }
                 composable<SerializableModuleInstance> { backStackEntry ->
                     val inst = backStackEntry.toRoute<SerializableModuleInstance>()
-                    ModuleInstanceNav(inst.getModuleInstance(), backToMainScreen = {
+                    val module = inst.getModuleInstance()
+                    ModuleInstanceNav(module, backToMainScreen = {
                         navController.popBackStack()
+                        module.deregister()
                     })
                 }
-
                 composable("gallery") { PreviewGalleryScreen(navController) }
                 composable("preview-viewer") { PreviewViewer(navController) }
                 composable("test-dashboard1") { PreviewDashboardCamera(navController) }

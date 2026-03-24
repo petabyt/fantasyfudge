@@ -61,7 +61,8 @@ data class DashboardState(
 )
 
 data class DashboardCallbacks(
-    val updateSettingPane: (UserSetting, Any) -> Unit = { pane, value -> }
+    val updateSettingPane: (UserSetting, Any) -> Unit = { pane, value -> },
+    val disconnect: () -> Unit = { },
 )
 
 fun budsState(): DashboardState {
@@ -249,7 +250,9 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
             maxItemsInEachRow = 2) {
             PaneButton("Settings", R.drawable.baseline_settings_24, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.onSecondary)
             PaneButton("Save", R.drawable.outline_save_24, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.onSecondary)
-            PaneButton("Disconnect", R.drawable.outline_close_24, MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.onError)
+            PaneButton("Disconnect", R.drawable.outline_close_24, MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.onError, onClick = {
+                callbacks.disconnect()
+            })
             if (state.supportsGeoTag) {
                 PaneButton("Geotagging", R.drawable.outline_globe_location_pin_24, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
             }

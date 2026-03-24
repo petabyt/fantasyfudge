@@ -9,8 +9,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,11 +27,31 @@ import androidx.navigation.compose.rememberNavController
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.R
 import androidx.compose.ui.graphics.Color
-import dev.danielc.common.ui.GrayButton
+import androidx.compose.ui.graphics.RectangleShape
+import dev.danielc.common.ui.theme.LightGray
 
 data class LiveviewState(
     val iso: Int? = null,
 )
+
+@Composable
+fun GrayButton(
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+    text: String = "",
+    content: @Composable () -> Unit = {Text(text, color = Color.White, modifier = Modifier.padding(10.dp))},
+) {
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(containerColor = LightGray),
+        modifier = modifier,
+        shape = RectangleShape,
+        enabled = enabled,
+    ) {
+        content()
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true, device = "id:pixel_9a", uiMode = Configuration.UI_MODE_NIGHT_YES)
@@ -55,7 +78,7 @@ fun RowScope.LiveviewButton(text: String, icon: Int, shortText: String) {
                 tint = Color.White,
                 contentDescription = text
             )
-            //Text(text, color = Color.White, style = MaterialTheme.typography.bodySmall)
+            //Text(text, color = Color.White, style = MaterialTheme.typography.labelSmall)
         }
     }
 }
