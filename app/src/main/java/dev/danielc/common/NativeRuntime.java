@@ -23,7 +23,7 @@ public class NativeRuntime {
     static native int setupDummyNativeModule(NativeModule mod, ModuleManifest manifest);
     static native int setupLibFujiModule(NativeModule mod, ModuleManifest manifest);
     static native int setupJavascriptModule(NativeModule mod, ModuleManifest manifest, String jsPath);
-    static native int getWebassemblyModule(NativeModule mod, ModuleManifest manifest, String jsPath);
+    static native int setupWebassemblyModule(NativeModule mod, ModuleManifest manifest, String wasmPath);
 
     public static class WiFiAdapter {
         Network net;

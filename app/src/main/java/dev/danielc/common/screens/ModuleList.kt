@@ -125,9 +125,9 @@ fun ModuleCard(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 IconButton(colors = IconButtonColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                    disabledContentColor = MaterialTheme.colorScheme.primary
+                    disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ), onClick = {
 
                 }) {
@@ -135,9 +135,9 @@ fun ModuleCard(
                 }
                 IconButton(onClick = {}, colors = IconButtonColors(
                     containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
                     disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                    disabledContentColor = MaterialTheme.colorScheme.primary
+                    disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )) {
                     Icon(painterResource(R.drawable.outline_delete_24), contentDescription = null)
                 }

@@ -10,18 +10,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.FlowRowScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.ripple.RippleAlpha
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -47,10 +46,12 @@ import androidx.compose.ui.graphics.Color
 import dev.danielc.common.Device
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.UserSetting
+import dev.danielc.common.ui.theme.FudgeRippleConfig
 
 data class DashboardState(
     val manifest: ModuleManifest?,
     val customSettings: List<UserSetting> = emptyList(),
+    val batteryLevel: Int? = null,
     val nameOfDevice: String? = null,
     val filesOnStorage: Int? = null,
     val firmwareVersion: String? = null,
@@ -64,6 +65,51 @@ data class DashboardCallbacks(
     val updateSettingPane: (UserSetting, Any) -> Unit = { pane, value -> },
     val disconnect: () -> Unit = { },
 )
+
+data class Pane(
+    val color: Pane.Color = Pane.Color.SECONDARY,
+    val text: String? = null,
+    val icon: Int? = null,
+    val onClick: () -> Unit = {},
+    val content: (@Composable () -> Unit)? = null,
+) {
+    enum class Color {
+        PRIMARY,
+        SECONDARY,
+        TERTIARY,
+        ERROR,
+        NEUTRAL,
+    }
+}
+
+fun cameraState(): DashboardState {
+    val manifest = ModuleManifest(name = "Fujifilm", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA)))
+    return DashboardState(
+        manifest = manifest,
+        nameOfDevice = "Fujifilm X100VI",
+        filesOnStorage = 321,
+        batteryLevel = 78,
+        firmwareVersion = "0.1.0",
+        supportsLiveView = true,
+        supportsGallery = true,
+        supportsFirmwareUpdate = true,
+        supportsGeoTag = true,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+fun PreviewDashboardCamera() {
+    var state by remember { mutableStateOf(cameraState()) }
+    return FudgeTheme {
+        Scaffold(
+            content = { innerPadding ->
+                Dashboard(Modifier.padding(innerPadding), state = state, callbacks = DashboardCallbacks())
+            }
+        )
+    }
+}
 
 fun budsState(): DashboardState {
     val manifest = ModuleManifest(name = "CMF Nothing", description = "Supports ", targets = listOf(ModuleManifest.Target(deviceId = Device.EARBUDS)))
@@ -79,43 +125,20 @@ fun budsState(): DashboardState {
             UserSetting(
                 "Bass enhancement",
                 currentBooleanValue = false
+            ),
+            UserSetting(
+                "Something",
+                currentIntValue = 123
             )
         )
     )
     return state
 }
-fun cameraState(): DashboardState {
-    val manifest = ModuleManifest(name = "Fujifilm", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA)))
-    return DashboardState(
-        manifest = manifest,
-        nameOfDevice = "Fujifilm X100VI",
-        filesOnStorage = 321,
-        firmwareVersion = "0.1.0",
-        supportsLiveView = true,
-        supportsGallery = true,
-        supportsFirmwareUpdate = true,
-        supportsGeoTag = true,
-    )
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
-fun PreviewDashboardCamera(navController: NavHostController = rememberNavController()) {
-    var state by remember { mutableStateOf(cameraState()) }
-    return FudgeTheme {
-        Scaffold(
-            content = { innerPadding ->
-                Dashboard(Modifier.padding(innerPadding), state = state, callbacks = DashboardCallbacks())
-            }
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Composable
-fun PreviewDashboardBuds(navController: NavHostController = rememberNavController()) {
+fun PreviewDashboardBuds() {
     var state by remember { mutableStateOf(budsState()) }
     return FudgeTheme {
         Scaffold(
@@ -126,21 +149,13 @@ fun PreviewDashboardBuds(navController: NavHostController = rememberNavControlle
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 @SuppressLint("ModifierParameter")
-fun FlowRowScope.PaneButton(text: String, icon: Int, bg: Color, fg: Color, onClick: () -> Unit = {}, modifier: Modifier = Modifier) {
-    val rippleConfiguration = RippleConfiguration(color = fg, rippleAlpha = RippleAlpha(
-        0.16f,
-        0.1f,
-        0.08f,
-        0.4f
-    ))
-
-    CompositionLocalProvider(LocalRippleConfiguration provides rippleConfiguration) {
+fun DashboardPane(modifier: Modifier = Modifier, bg: Color, fg: Color, content: @Composable () -> Unit, onClick: () -> Unit) {
+    CompositionLocalProvider(LocalRippleConfiguration provides FudgeRippleConfig(fg)) {
         Box(
             modifier = modifier
-                .weight(1f)
                 .clip(RoundedCornerShape(12.dp))
                 .background(bg)
                 .clickable(onClick = onClick)
@@ -149,47 +164,7 @@ fun FlowRowScope.PaneButton(text: String, icon: Int, bg: Color, fg: Color, onCli
                     interactionSource = remember { MutableInteractionSource() }
                 )
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    painter = painterResource(icon),
-                    contentDescription = null,
-                    tint = fg,
-                    modifier = Modifier.padding(20.dp)
-                )
-                Text(text, color = fg)
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable
-@SuppressLint("ModifierParameter")
-fun FlowRowScope.CustomPane(modifier: Modifier = Modifier, bg: Color = MaterialTheme.colorScheme.surfaceContainerHigh, fg: Color = MaterialTheme.colorScheme.onSurface, content: @Composable () -> Unit) {
-    val rippleConfiguration = RippleConfiguration(color = fg, rippleAlpha = RippleAlpha(
-        0.16f,
-        0.1f,
-        0.08f,
-        0.4f
-    ))
-
-    CompositionLocalProvider(LocalRippleConfiguration provides rippleConfiguration) {
-        Box(
-            modifier = modifier
-                .weight(1f)
-                //.aspectRatio(1.5f)
-                .fillMaxRowHeight()
-                .clip(RoundedCornerShape(12.dp))
-                .background(bg)
-                .clickable(onClick = {})
-                .indication(
-                    indication = ripple(),
-                    interactionSource = remember { MutableInteractionSource() }
-                )
-        ) {
-            Column(Modifier.padding(20.dp)) {
-                content()
-            }
+            content()
         }
     }
 }
@@ -220,10 +195,23 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                         )
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, alignment = Alignment.End)) {
-                        Icon(
-                            painter = painterResource(R.drawable.outline_battery_android_frame_1_24),
-                            contentDescription = null,
-                        )
+                        if (state.batteryLevel != null) {
+                            val icon = when (state.batteryLevel) {
+                                0 -> R.drawable.outline_battery_android_0_24
+                                in 1..13 -> R.drawable.outline_battery_android_frame_1_24
+                                in 14..44 -> R.drawable.outline_battery_android_frame_2_24
+                                in 45..58 -> R.drawable.outline_battery_android_frame_3_24
+                                in 59..72 -> R.drawable.outline_battery_android_frame_4_24
+                                in 73..86 -> R.drawable.outline_battery_android_frame_5_24
+                                in 87..99 -> R.drawable.outline_battery_android_frame_6_24
+                                100 -> R.drawable.outline_battery_android_frame_full_24
+                                else -> R.drawable.outline_battery_android_0_24
+                            }
+                            Icon(
+                                painter = painterResource(icon),
+                                contentDescription = null,
+                            )
+                        }
                         Icon(
                             painter = painterResource(R.drawable.outline_wifi_24),
                             contentDescription = null,
@@ -244,35 +232,91 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                 }
             }
         }
-        FlowRow(modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            maxItemsInEachRow = 2) {
-            PaneButton("Settings", R.drawable.baseline_settings_24, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.onSecondary)
-            PaneButton("Save", R.drawable.outline_save_24, MaterialTheme.colorScheme.secondary, MaterialTheme.colorScheme.onSecondary)
-            PaneButton("Disconnect", R.drawable.outline_close_24, MaterialTheme.colorScheme.error, MaterialTheme.colorScheme.onError, onClick = {
-                callbacks.disconnect()
-            })
-            if (state.supportsGeoTag) {
-                PaneButton("Geotagging", R.drawable.outline_globe_location_pin_24, MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
-            }
-            if (state.supportsFirmwareUpdate) {
-                PaneButton("Update Firmware", R.drawable.outline_developer_board_24, MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.onTertiary)
-            }
 
-            for (pane in state.customSettings) {
-                val booleanValue = pane.currentBooleanValue
-                if (booleanValue != null) {
-                    CustomPane(content = {
-                        Text(pane.name, color = MaterialTheme.colorScheme.onSurface)
-                        Switch(booleanValue,
-                            onCheckedChange = {
-                                callbacks.updateSettingPane(pane, !booleanValue)
-                            }
-                        )
-                    })
-                }
+        val panes = mutableListOf(
+            Pane(Pane.Color.SECONDARY, "Settings", R.drawable.baseline_settings_24),
+            Pane(Pane.Color.SECONDARY, "Save", R.drawable.outline_save_24),
+            Pane(Pane.Color.ERROR, "Disconnect", R.drawable.outline_close_24, onClick = {
+                callbacks.disconnect()
+            }),
+        )
+
+        if (state.supportsGeoTag) {
+            panes += Pane(Pane.Color.TERTIARY, "Geotagging", R.drawable.outline_globe_location_pin_24)
+        }
+        if (state.supportsFirmwareUpdate) {
+            panes += Pane(Pane.Color.TERTIARY, "Update Firmware", R.drawable.outline_developer_board_24)
+        }
+
+        for (pane in state.customSettings) {
+            val booleanValue = pane.currentBooleanValue
+            if (booleanValue != null) {
+                panes += Pane(Pane.Color.NEUTRAL, content = {
+                    Text(pane.name, color = MaterialTheme.colorScheme.onSurface)
+                    Switch(booleanValue,
+                        onCheckedChange = {
+                            callbacks.updateSettingPane(pane, !booleanValue)
+                        }
+                    )
+                })
             }
         }
+
+        LazyVerticalStaggeredGrid(
+            columns = StaggeredGridCells.Adaptive(150.dp), // Adjust size as needed
+            verticalItemSpacing = 8.dp,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            content = {
+                items(panes) { pane ->
+                    var bg: Color
+                    var fg: Color
+                    when (pane.color) {
+                        Pane.Color.PRIMARY -> {
+                            bg = MaterialTheme.colorScheme.primary
+                            fg = MaterialTheme.colorScheme.onPrimary
+                        }
+                        Pane.Color.SECONDARY -> {
+                            bg = MaterialTheme.colorScheme.secondary
+                            fg = MaterialTheme.colorScheme.onSecondary
+                        }
+                        Pane.Color.ERROR -> {
+                            bg = MaterialTheme.colorScheme.error
+                            fg = MaterialTheme.colorScheme.onError
+                        }
+                        Pane.Color.NEUTRAL -> {
+                            bg = MaterialTheme.colorScheme.surfaceContainer
+                            fg = MaterialTheme.colorScheme.onSurface
+                        }
+                        Pane.Color.TERTIARY -> {
+                            bg = MaterialTheme.colorScheme.tertiary
+                            fg = MaterialTheme.colorScheme.onTertiary
+                        }
+                    }
+                    DashboardPane(
+                        bg = bg,
+                        fg = fg,
+                        onClick = pane.onClick,
+                        content = {
+                            if (pane.content == null) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        painter = painterResource(pane.icon!!),
+                                        contentDescription = null,
+                                        tint = fg,
+                                        modifier = Modifier.padding(20.dp)
+                                    )
+                                    Text(pane.text!!, color = fg)
+                                }
+                            } else {
+                                Column(Modifier.padding(20.dp)) {
+                                    pane.content()
+                                }
+                            }
+                        }
+                    )
+
+                }
+            }
+        )
     }
 }

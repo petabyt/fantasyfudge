@@ -28,6 +28,7 @@ import dev.danielc.common.screens.PreviewGalleryScreen
 import dev.danielc.common.screens.PreviewDashboardCamera
 import dev.danielc.common.screens.PreviewViewer
 import dev.danielc.libpak.Pak
+import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity() {
     override fun onRequestPermissionsResult(
@@ -110,12 +111,11 @@ class MainActivity : ComponentActivity() {
                     val module = inst.getModuleInstance()
                     ModuleInstanceNav(module, backToMainScreen = {
                         navController.popBackStack()
-                        module.deregister()
                     })
                 }
                 composable("gallery") { PreviewGalleryScreen(navController) }
                 composable("preview-viewer") { PreviewViewer(navController) }
-                composable("test-dashboard1") { PreviewDashboardCamera(navController) }
+                composable("test-dashboard1") { PreviewDashboardCamera() }
             }
         }
     }

@@ -17,9 +17,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.ViewModel
@@ -39,6 +42,9 @@ import kotlinx.coroutines.launch
 import kotlin.collections.plus
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.currentBackStackEntryAsState
 import dev.danielc.common.ModuleInstance
 import dev.danielc.common.ModuleProperty
 import dev.danielc.common.UserSetting
@@ -47,6 +53,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.runBlocking
 
 data class HomeState(
     val supportedScreenList: List<Screen> = emptyList(),
@@ -164,74 +171,7 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
     }
 }
 
-@Composable
-fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {}) {
-    val navController = rememberNavController()
-
-    LaunchedEffect(Unit) {
-        instance.homeModelView.uiEvents.collect { event ->
-            if (!event.isInHome) {
-                if (event.screen == Screen.DASHBOARD) {
-                    navController.navigate("home") {
-                        // discard entire nav graph
-                        popUpTo(navController.graph.startDestinationId) {
-                            inclusive = true
-                        }
-                    }
-                } else if (event.screen == Screen.DISCONNECTED) {
-                    navController.navigate("disconnected") {
-                        popUpTo(navController.graph.startDestinationId) {
-                            inclusive = true
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    val duration = 200
-    NavHost(
-        enterTransition = {
-            slideIn(
-                initialOffset = { IntOffset(it.width, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-        exitTransition = {
-            slideOut(
-                targetOffset = { IntOffset(-it.width / 4, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-        popEnterTransition = {
-            slideIn(
-                initialOffset = { IntOffset(-it.width / 4, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-        popExitTransition = {
-            slideOut(
-                targetOffset = { IntOffset(it.width, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-        navController = navController, startDestination = "connecting") {
-        composable("connecting") {
-            val state by instance.debugLog.uiState.collectAsStateWithLifecycle()
-            ConsoleScreen(navController, state, title = "Connecting")
-        }
-        composable("home") {
-            HomeScreen(instance, navController)
-        }
-        composable("disconnected") {
-            val state by instance.debugLog.uiState.collectAsStateWithLifecycle()
-            DisconnectedScreen(navController, backToMainScreen, info = {
-                Console(state)
-            })
-        }
-    }
-}
-
+/// Contains main instance navigation bar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(module: ModuleInstance, hostNavController: NavController) {
@@ -256,9 +196,11 @@ fun HomeScreen(module: ModuleInstance, hostNavController: NavController) {
         }
     }
 
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val haptic = LocalHapticFeedback.current
     return FudgeTheme {
         BackHandler {
-            model.showDisconectDialog(false)
+            model.showDisconectDialog(true)
         }
         Scaffold(
             bottomBar = {
@@ -268,8 +210,9 @@ fun HomeScreen(module: ModuleInstance, hostNavController: NavController) {
                 ) {
                     for (i in navScreens.indices) {
                         NavigationBarItem(
-                            selected = homeState.pageIndex == i,
+                            selected = navBackStackEntry?.destination?.hierarchy?.any { it.route == navScreens[i].strId } == true,
                             onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
                                 model.setPageIndex(i)
                                 model.goToScreen(navScreens[i], isInHome = true)
                             },
@@ -310,6 +253,84 @@ fun HomeScreen(module: ModuleInstance, hostNavController: NavController) {
                     model.showDisconectDialog(false)
                 })
             }
+        }
+    }
+}
+
+/// Main navigation graph of module instance UI
+/// Instance will deregister from runtime once the composable exits (onDispose)
+@Composable
+fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {}) {
+    val navController = rememberNavController()
+
+    LaunchedEffect(Unit) {
+        instance.homeModelView.uiEvents.collect { event ->
+            if (!event.isInHome) {
+                if (event.screen == Screen.DASHBOARD) {
+                    navController.navigate("home") {
+                        // discard entire nav graph
+                        popUpTo(navController.graph.startDestinationId) {
+                            inclusive = true
+                        }
+                    }
+                } else if (event.screen == Screen.DISCONNECTED) {
+                    navController.navigate("disconnected") {
+                        popUpTo(navController.graph.startDestinationId) {
+                            inclusive = true
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            runBlocking {
+                instance.deregister()
+            }
+        }
+    }
+
+    val duration = 200
+    NavHost(
+        enterTransition = {
+            slideIn(
+                initialOffset = { IntOffset(it.width, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        exitTransition = {
+            slideOut(
+                targetOffset = { IntOffset(-it.width / 4, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        popEnterTransition = {
+            slideIn(
+                initialOffset = { IntOffset(-it.width / 4, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        popExitTransition = {
+            slideOut(
+                targetOffset = { IntOffset(it.width, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        navController = navController, startDestination = "connecting") {
+        composable("connecting") {
+            val state by instance.debugLog.uiState.collectAsStateWithLifecycle()
+            ConsoleScreen(navController, state, title = "Connecting")
+        }
+        composable("home") {
+            HomeScreen(instance, navController)
+        }
+        composable("disconnected") {
+            val state by instance.debugLog.uiState.collectAsStateWithLifecycle()
+            DisconnectedScreen(reason = "Reason: TODO", backToMainScreen, info = {
+                Console(state)
+            })
         }
     }
 }

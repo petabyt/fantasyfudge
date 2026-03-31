@@ -137,6 +137,12 @@ Java_dev_danielc_common_NativeRuntime_setupDummyNativeModule(JNIEnv *env, jclass
 }
 
 JNIEXPORT int JNICALL
+Java_dev_danielc_common_NativeRuntime_setupWebassemblyModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest, jstring path) {
+	abort();
+	return -1;
+}
+
+JNIEXPORT int JNICALL
 Java_dev_danielc_common_NativeRuntime_setupJavascriptModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest, jstring jsPath) {
 	set_jni_env_ctx(env, clazz);
 

@@ -2,9 +2,10 @@ package dev.danielc.common.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ripple.RippleAlpha
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Shapes
+import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -12,7 +13,16 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
+
+@OptIn(ExperimentalMaterial3Api::class)
+fun FudgeRippleConfig(fg: Color = Color.White): RippleConfiguration {
+    return RippleConfiguration(color = fg, rippleAlpha = RippleAlpha(
+        0.16f,
+        0.1f,
+        0.08f,
+        0.4f
+    ))
+}
 
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,

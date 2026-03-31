@@ -30,10 +30,16 @@ import androidx.navigation.compose.rememberNavController
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.Typography
 
+@Composable
+fun PreviewConsole() {
+    val state = ConsoleState(initialLines = listOf())
+    Console(state)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
 @Composable
-fun DisconnectedScreen(navController: NavHostController = rememberNavController(), backToMainScreen: () -> Unit = {}, info: @Composable () -> Unit = {}) {
+fun DisconnectedScreen(reason: String = "Reason: XXX", backToMainScreen: () -> Unit = {}, info: @Composable () -> Unit = { PreviewConsole() }) {
     return FudgeTheme {
         BackHandler {
             backToMainScreen()
@@ -61,7 +67,7 @@ fun DisconnectedScreen(navController: NavHostController = rememberNavController(
             Box(Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
                 Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     Text("Disconnected", style = MaterialTheme.typography.titleLarge)
-                    Text("Reason: XXX", style = MaterialTheme.typography.labelMedium)
+                    Text(reason, style = MaterialTheme.typography.labelMedium)
                     Button(onClick = {
                         backToMainScreen()
                     }) {

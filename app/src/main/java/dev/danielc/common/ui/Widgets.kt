@@ -54,15 +54,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-@Composable
-fun JobProgressBar(modifier: Modifier) {
-    LinearProgressIndicator(
-        modifier = modifier.fillMaxWidth(),
-        color = GoGreen,
-        progress = { 57f }
-    )
-}
-
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun DisconnectDialog(nameOfDevice: String = "FooBar", yes: () -> Unit = {}, no: () -> Unit = {}) {

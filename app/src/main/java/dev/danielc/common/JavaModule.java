@@ -37,8 +37,10 @@ public class JavaModule extends ModuleInstance {
         debugLog("Faking connection");
         setScreenSupported(Screen.FILE_GALLERY.getId(), true);
 
-        GalleryObject md = new GalleryObject(false, "DSC1001.JPG", null, 0xff0000, null, null);
-        addFileMetadata(1, md);
+        setFileListLength(4);
+
+//        GalleryObject md = new GalleryObject(false, "DSC1001.JPG", null, 0xff0000, null, null);
+//        addFileMetadata(1, md);
 
         return 0;
     }

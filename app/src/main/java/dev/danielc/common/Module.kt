@@ -91,6 +91,13 @@ enum class Device(val id: String) {
     }
 }
 
+/**
+ * Constructed manually or loaded from json in modules folder.
+ *
+ * This may have 'discovery info', which can be used to dynamically match
+ * available devices (advertisements, paired devices) to modules without having
+ * to initialize a module instance and use a lot of ram
+ */
 data class ModuleManifest(
     val name: String,
     val description: String? = null,
@@ -104,7 +111,6 @@ data class ModuleManifest(
     val publicKey: String? = null,
     val isDraft: Boolean = false,
     val moduleType: ModuleType = ModuleType.NATIVE,
-    //    val instanceInitializer: (ModuleManifest) -> ModuleInstance = { throw Exception("no instanceInitializer") }
     ) {
     enum class ModuleType() {
         QUICKJS,
@@ -115,12 +121,12 @@ data class ModuleManifest(
         LIBFUJI;
         fun getDesc(): String {
             return when (this) {
-                ModuleType.QUICKJS -> "Javascript"
-                ModuleType.WEBASSEMBLY -> "Webassembly"
-                ModuleType.NATIVE -> "Native (statically compiled)"
-                ModuleType.DUMMY_MODULE -> "DummyModule"
-                ModuleType.JAVA_MODULE -> "JavaDummyModule"
-                ModuleType.LIBFUJI -> "libfuji (statically compiled)"
+                QUICKJS -> "Javascript"
+                WEBASSEMBLY -> "Webassembly"
+                NATIVE -> "Native (statically compiled)"
+                DUMMY_MODULE -> "DummyModule"
+                JAVA_MODULE -> "JavaDummyModule"
+                LIBFUJI -> "libfuji (statically compiled)"
             }
         }
     }
@@ -151,7 +157,9 @@ data class ModuleManifest(
     )
 }
 
-// Instance of a module with a single connection
+/**
+ * Instance of a module with a single connection
+ */
 abstract class ModuleInstance(mod: ModuleManifest) {
     val manifest: ModuleManifest = mod
     var debugLog = ConsoleStateModel()
@@ -160,6 +168,7 @@ abstract class ModuleInstance(mod: ModuleManifest) {
     var currentTickIntervalUs: Int = 100000
     val serializableModuleInstance: SerializableModuleInstance = SerializableModuleInstance(Runtime.addModuleInstance(this))
     var mainLoopJob: kotlinx.coroutines.Job? = null
+    var initJob: kotlinx.coroutines.Job? = null
     var currentScreen: Screen = Screen.NONE
 
     abstract fun onFindConnection(job: Int): Int
@@ -170,8 +179,13 @@ abstract class ModuleInstance(mod: ModuleManifest) {
     fun debugLog(s: String) {
         debugLog.addLine(s)
     }
-    fun deregister() {
+    suspend fun deregister() {
+        println("Deregistering module")
+        initJob?.cancel()
+        initJob?.join()
         mainLoopJob?.cancel()
+        mainLoopJob?.join()
+        Runtime.removeModuleInstance(this)
     }
     fun disconnect(reason: String) {
         homeModelView.goToScreen(Screen.DISCONNECTED)
@@ -197,9 +211,12 @@ abstract class ModuleInstance(mod: ModuleManifest) {
     fun addFileMetadata(i: Int, v: GalleryObject) {
         galleryViewModel.setObject(i, v)
     }
+    fun setFileListLength(length: Int) {
+        galleryViewModel.setListLength(length)
+    }
 
     fun initThread() {
-        val job = CoroutineScope(Dispatchers.IO).launch {
+        initJob = CoroutineScope(Dispatchers.IO).launch {
             if (findConnection() == Pak.Error.OK.code) {
                 startMainLoop()
                 withJob({}) { job ->
@@ -227,7 +244,6 @@ abstract class ModuleInstance(mod: ModuleManifest) {
                 curr = TimeSource.Monotonic.markNow()
                 Thread.sleep(currentTickIntervalUs.toLong() / 1000)
             }
-            Runtime.removeModuleInstance(module)
         }
     }
 
@@ -272,9 +288,6 @@ data class SerializableModuleInstance(
         } else {
             return Runtime.moduleInstances[connectionId]
         }
-    }
-    fun getManifest(): ModuleManifest {
-        return getModuleInstance().manifest
     }
 }
 
