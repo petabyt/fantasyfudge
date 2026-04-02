@@ -66,8 +66,8 @@ data class DashboardCallbacks(
     val disconnect: () -> Unit = { },
 )
 
-data class Pane(
-    val color: Pane.Color = Pane.Color.SECONDARY,
+data class PaneState(
+    val color: PaneState.Color = PaneState.Color.SECONDARY,
     val text: String? = null,
     val icon: Int? = null,
     val onClick: () -> Unit = {},
@@ -234,24 +234,24 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
         }
 
         val panes = mutableListOf(
-            Pane(Pane.Color.SECONDARY, "Settings", R.drawable.baseline_settings_24),
-            Pane(Pane.Color.SECONDARY, "Save", R.drawable.outline_save_24),
-            Pane(Pane.Color.ERROR, "Disconnect", R.drawable.outline_close_24, onClick = {
+            PaneState(PaneState.Color.SECONDARY, "Settings", R.drawable.baseline_settings_24),
+            PaneState(PaneState.Color.SECONDARY, "Save", R.drawable.outline_save_24),
+            PaneState(PaneState.Color.ERROR, "Disconnect", R.drawable.outline_close_24, onClick = {
                 callbacks.disconnect()
             }),
         )
 
         if (state.supportsGeoTag) {
-            panes += Pane(Pane.Color.TERTIARY, "Geotagging", R.drawable.outline_globe_location_pin_24)
+            panes += PaneState(PaneState.Color.TERTIARY, "Geotagging", R.drawable.outline_globe_location_pin_24)
         }
         if (state.supportsFirmwareUpdate) {
-            panes += Pane(Pane.Color.TERTIARY, "Update Firmware", R.drawable.outline_developer_board_24)
+            panes += PaneState(PaneState.Color.TERTIARY, "Update Firmware", R.drawable.outline_developer_board_24)
         }
 
         for (pane in state.customSettings) {
             val booleanValue = pane.currentBooleanValue
             if (booleanValue != null) {
-                panes += Pane(Pane.Color.NEUTRAL, content = {
+                panes += PaneState(PaneState.Color.NEUTRAL, content = {
                     Text(pane.name, color = MaterialTheme.colorScheme.onSurface)
                     Switch(booleanValue,
                         onCheckedChange = {
@@ -271,23 +271,23 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                     var bg: Color
                     var fg: Color
                     when (pane.color) {
-                        Pane.Color.PRIMARY -> {
+                        PaneState.Color.PRIMARY -> {
                             bg = MaterialTheme.colorScheme.primary
                             fg = MaterialTheme.colorScheme.onPrimary
                         }
-                        Pane.Color.SECONDARY -> {
+                        PaneState.Color.SECONDARY -> {
                             bg = MaterialTheme.colorScheme.secondary
                             fg = MaterialTheme.colorScheme.onSecondary
                         }
-                        Pane.Color.ERROR -> {
+                        PaneState.Color.ERROR -> {
                             bg = MaterialTheme.colorScheme.error
                             fg = MaterialTheme.colorScheme.onError
                         }
-                        Pane.Color.NEUTRAL -> {
+                        PaneState.Color.NEUTRAL -> {
                             bg = MaterialTheme.colorScheme.surfaceContainer
                             fg = MaterialTheme.colorScheme.onSurface
                         }
-                        Pane.Color.TERTIARY -> {
+                        PaneState.Color.TERTIARY -> {
                             bg = MaterialTheme.colorScheme.tertiary
                             fg = MaterialTheme.colorScheme.onTertiary
                         }

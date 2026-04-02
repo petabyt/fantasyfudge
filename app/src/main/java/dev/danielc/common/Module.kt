@@ -171,6 +171,7 @@ abstract class ModuleInstance(mod: ModuleManifest) {
     var initJob: kotlinx.coroutines.Job? = null
     var currentScreen: Screen = Screen.NONE
 
+    abstract fun free()
     abstract fun onFindConnection(job: Int): Int
     abstract fun onTryConnectWiFi(a: NativeRuntime.WiFiAdapter, job: Int): Int
     abstract fun onIdleTick(usSinceLast: Int): Int
@@ -186,6 +187,7 @@ abstract class ModuleInstance(mod: ModuleManifest) {
         mainLoopJob?.cancel()
         mainLoopJob?.join()
         Runtime.removeModuleInstance(this)
+        free()
     }
     fun disconnect(reason: String) {
         homeModelView.goToScreen(Screen.DISCONNECTED)

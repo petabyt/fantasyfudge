@@ -1,6 +1,7 @@
 package dev.danielc.common
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleStateModel
+import dev.danielc.libpak.Bluetooth
 import kotlinx.serialization.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -11,7 +12,9 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-/// Module defined setting that can be updated by the user or the module
+/**
+ * Module defined setting that can be updated by the user or the module
+  */
 data class UserSetting(
     val name: String,
     var currentBooleanValue: Boolean? = null,
@@ -74,8 +77,10 @@ enum class Screen(val strId: String, val id: Int) {
 
 typealias JobUpdateCallback = (ModuleJob) -> Unit
 
-/// A job id is passed each time a module function is called. A job can be cancelled
-/// at any time by the user, and the percent finished value can be updated by the module.
+/**
+ * A job id is passed each time a module function is called. A job can be cancelled
+ * at any time by the user, and the percent finished value can be updated by the module.
+ */
 @Serializable
 data class ModuleJob(
     val onUpdate: JobUpdateCallback,
@@ -86,7 +91,9 @@ data class ModuleJob(
     var isFinished: Boolean = false,
 )
 
-/// Property IDs for the module instance
+/**
+ * Property IDs for the module instance
+ */
 enum class ModuleProperty(val id: String) {
     NAME_OF_DEVICE("name"),
     FIRMWARE_VERSION("firmware-version");
@@ -97,10 +104,22 @@ enum class ModuleProperty(val id: String) {
     }
 }
 
+/**
+ *
+ */
+data class ConnectableDevice(
+    val name: String,
+    // null if not supported or no target found
+    val target: ModuleManifest.Target? = null,
+    val manifest: ModuleManifest? = null,
+    val isConnected: Boolean,
+)
+
 object Runtime {
     var mainLog = ConsoleStateModel()
+    var connectableDevices = listOf<ConnectableDevice>()
     var moduleManifests = mutableListOf<ModuleManifest>()
-    var moduleInstances = mutableListOf<ModuleInstance>() // TODO: Switch to map
+    var moduleInstances = mutableListOf<ModuleInstance>() // TODO: should this use hash map
     var jobs = mutableListOf<ModuleJob>()
     var jobCounter = 0
 
@@ -111,6 +130,11 @@ object Runtime {
 
     fun removeModuleInstance(mod: ModuleInstance) {
         moduleInstances.remove(mod)
+    }
+
+    fun refreshConnectableDevices() {
+        Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())
+        connectableDevices = listOf()
     }
 
     fun createJob(mod: SerializableModuleInstance, onUpdate: JobUpdateCallback): ModuleJob {
@@ -152,6 +176,10 @@ object Runtime {
 
     fun refreshManifests() {
         // TODO:
+    }
+
+    fun logGlobalLine(s: String) {
+        mainLog.addLine(s)
     }
 
     fun loadModulesFromManifests(list: List<String>) {

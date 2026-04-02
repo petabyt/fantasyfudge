@@ -19,8 +19,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -353,9 +351,9 @@ fun Gallery(navController: NavHostController, innerPadding: PaddingValues, state
 @Composable
 fun PreviewGalleryScreen(navController: NavHostController = rememberNavController()) {
     val state = GalleryState(objects = mutableListOf(
+        GalleryObject(filename = "DCIM/", mimeType = MimeType.FOLDER),
         GalleryObject(colorThumb = Color.Red.toArgb(), filename = "DSC1111.JPG", mimeType = MimeType.JPEG),
         GalleryObject(colorThumb = Color.Green.toArgb(), filename = "DSC1112.MOV", mimeType = MimeType.MOV),
-        GalleryObject(filename = "DCIM/", mimeType = MimeType.FOLDER),
         GalleryObject(colorThumb = Color.Cyan.toArgb()),
         GalleryObject(colorThumb = Color.Magenta.toArgb()),
         GalleryObject(colorThumb = Color.Yellow.toArgb()),
@@ -381,10 +379,7 @@ fun PreviewGalleryScreen(navController: NavHostController = rememberNavControlle
                         IconButton(onClick = {
                             navController.navigateUp()
                         }) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = null
-                            )
+                            Icon(painterResource(R.drawable.outline_arrow_back_24), contentDescription = null)
                         }
                     },
                 )

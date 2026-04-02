@@ -22,9 +22,9 @@ public class JavaModule extends ModuleInstance {
         Bluetooth.getDefaultAdapter().isEnabled();
         //debugLog(String.format("adapter name: %s", Bluetooth.adapterName()));
 
-        for (BluetoothDevice e: Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())) {
-            debugLog(e.getName());
-        }
+//        for (Device e: Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())) {
+//            debugLog(e.name());
+//        }
 
         Bluetooth.BtFilter filter = new Bluetooth.BtFilter();
         //filter.isClassic = true;
@@ -64,4 +64,7 @@ public class JavaModule extends ModuleInstance {
     public int onSwitchScreen(int job, int oldScreen, int newScreen) {
         return 0;
     }
+
+    @Override
+    public void free() {}
 }

@@ -18,8 +18,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +51,7 @@ import dev.danielc.common.Runtime
 import dev.danielc.common.ui.theme.FudgeTheme
 import kotlinx.coroutines.delay
 import dev.danielc.R
+import dev.danielc.common.ConnectableDevice
 import kotlinx.coroutines.launch
 
 val dummyManifestList: List<ModuleManifest> = listOf(
@@ -209,7 +208,7 @@ fun ModuleListScreen(navController: NavHostController = rememberNavController())
                             navController.navigateUp()
                         }) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                painter = painterResource(R.drawable.outline_arrow_back_24),
                                 contentDescription = "Back"
                             )
                         }
@@ -265,60 +264,6 @@ fun TargetCard(target: ModuleManifest.Target, manifest: ModuleManifest, clicked:
                     )
                 }
             }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-@Composable
-fun ModuleDeviceList(modifier: Modifier = Modifier, manifestList: List<ModuleManifest>, clicked: (ModuleManifest, String?) -> Unit = {manifest, product -> }) {
-    var isRefreshing by remember { mutableStateOf(false) }
-    var refreshTrigger by remember { mutableIntStateOf(0) }
-    val scope = rememberCoroutineScope()
-    PullToRefreshBox(
-        state = rememberPullToRefreshState(),
-        isRefreshing = isRefreshing,
-        onRefresh = {
-            scope.launch {
-                isRefreshing = true
-                Runtime.refreshManifests()
-                refreshTrigger++
-                delay(10)
-                isRefreshing = false
-            }
-        },
-        modifier = modifier
-    ) {
-        key(refreshTrigger) {
-            Column(Modifier
-                .fillMaxSize()
-                .padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Select a device to connect to:")
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    items(manifestList) { manifest ->
-                        for (target in manifest.targets) {
-                            TargetCard(target, manifest, clicked = { product ->
-                                clicked(manifest, product)
-                            })
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
-@Composable
-fun PreviewModuleDeviceList() {
-    FudgeTheme {
-        Scaffold { innerPadding ->
-            ModuleDeviceList(Modifier
-                .fillMaxSize()
-                .padding(innerPadding), dummyManifestList)
         }
     }
 }
