@@ -98,8 +98,10 @@ int pak_rt_add_user_setting(struct Module *mod, const struct PakUserSetting *s) 
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
 	jclass setting_c = (*env)->FindClass(env, "dev/danielc/common/UserSetting");
-	jmethodID constructor = (*env)->GetMethodID(env, setting_c, "<init>", "(Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/Integer;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/util/List;)V");
+	jmethodID constructor = (*env)->GetMethodID(env, setting_c, "<init>",
+												"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/Integer;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/util/List;)V");
 	jstring name_s = (*env)->NewStringUTF(env, s->name);
+	jstring title_s = (*env)->NewStringUTF(env, s->title);
 	jobject boolv = NULL;
 	jobject intv = NULL;
 	jobject stringv = NULL;
@@ -110,7 +112,7 @@ int pak_rt_add_user_setting(struct Module *mod, const struct PakUserSetting *s) 
 		jclass clazz = (*env)->FindClass(env, "java/lang/Boolean");
 		boolv = (*env)->NewObject(env, clazz, (*env)->GetMethodID(env, clazz, "<init>", "(Z)V"), s->u.boolv.v);
 	}
-	jobject setting_o = (*env)->NewObject(env, setting_c, constructor, name_s, boolv, intv, stringv, min_o, max_o, dropdownlist_o);
+	jobject setting_o = (*env)->NewObject(env, setting_c, constructor, name_s, title_s, boolv, intv, stringv, min_o, max_o, dropdownlist_o);
 
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
 	jmethodID add_setting = (*env)->GetMethodID(env, module_c, "addUserSetting", "(Ldev/danielc/common/UserSetting;)V");

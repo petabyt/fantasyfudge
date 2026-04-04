@@ -43,6 +43,8 @@ import androidx.navigation.compose.rememberNavController
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.R
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
 import dev.danielc.common.Device
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.UserSetting
@@ -98,7 +100,7 @@ fun cameraState(): DashboardState {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(showBackground = true, device = "id:pixel_9_pro", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun PreviewDashboardCamera() {
     var state by remember { mutableStateOf(cameraState()) }
@@ -119,15 +121,15 @@ fun budsState(): DashboardState {
         firmwareVersion = "5.0",
         customSettings = listOf(
             UserSetting(
-                "Noise cancellation",
+                "nc", "Noise cancellation",
                 currentBooleanValue = true
             ),
             UserSetting(
-                "Bass enhancement",
+                "be", "Bass enhancement",
                 currentBooleanValue = false
             ),
             UserSetting(
-                "Something",
+               "s", "Something",
                 currentIntValue = 123
             )
         )
@@ -136,7 +138,7 @@ fun budsState(): DashboardState {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(showBackground = true, device = "id:tv_1080p", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun PreviewDashboardBuds() {
     var state by remember { mutableStateOf(budsState()) }
@@ -169,11 +171,44 @@ fun DashboardPane(modifier: Modifier = Modifier, bg: Color, fg: Color, content: 
     }
 }
 
+fun getBatteryStatusIcon(percent: Int): Int {
+    return when (percent) {
+        0 -> R.drawable.outline_battery_android_0_24
+        in 1..13 -> R.drawable.outline_battery_android_frame_1_24
+        in 14..44 -> R.drawable.outline_battery_android_frame_2_24
+        in 45..58 -> R.drawable.outline_battery_android_frame_3_24
+        in 59..72 -> R.drawable.outline_battery_android_frame_4_24
+        in 73..86 -> R.drawable.outline_battery_android_frame_5_24
+        in 87..99 -> R.drawable.outline_battery_android_frame_6_24
+        100 -> R.drawable.outline_battery_android_frame_full_24
+        else -> R.drawable.outline_battery_android_0_24
+    }
+}
+
+data class PaneBatteryStatus(
+    val name: String,
+    val percent: Int,
+)
+
+fun BatteryListPane(batteries: List<PaneBatteryStatus>): PaneState {
+    return PaneState(PaneState.Color.NEUTRAL, content = {
+        Text("Battery Status", color = MaterialTheme.colorScheme.onSurface)
+        Row(Modifier.fillMaxWidth()) {
+            for (b in batteries) {
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(painterResource(getBatteryStatusIcon(b.percent)), contentDescription = null)
+                    Text("${b.percent}%", style = MaterialTheme.typography.labelSmall)
+                    Text(b.name, style = MaterialTheme.typography.labelSmall, fontStyle = FontStyle.Italic)
+                }
+            }
+        }
+    })
+}
+
 @Composable
 fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = rememberNavController(), state: DashboardState, callbacks: DashboardCallbacks) {
     Column(
-        modifier = modifier
-            .padding(10.dp),
+        modifier = modifier.padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Box(modifier = Modifier
@@ -196,19 +231,8 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, alignment = Alignment.End)) {
                         if (state.batteryLevel != null) {
-                            val icon = when (state.batteryLevel) {
-                                0 -> R.drawable.outline_battery_android_0_24
-                                in 1..13 -> R.drawable.outline_battery_android_frame_1_24
-                                in 14..44 -> R.drawable.outline_battery_android_frame_2_24
-                                in 45..58 -> R.drawable.outline_battery_android_frame_3_24
-                                in 59..72 -> R.drawable.outline_battery_android_frame_4_24
-                                in 73..86 -> R.drawable.outline_battery_android_frame_5_24
-                                in 87..99 -> R.drawable.outline_battery_android_frame_6_24
-                                100 -> R.drawable.outline_battery_android_frame_full_24
-                                else -> R.drawable.outline_battery_android_0_24
-                            }
                             Icon(
-                                painter = painterResource(icon),
+                                painter = painterResource(getBatteryStatusIcon(state.batteryLevel)),
                                 contentDescription = null,
                             )
                         }
@@ -248,6 +272,12 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
             panes += PaneState(PaneState.Color.TERTIARY, "Update Firmware", R.drawable.outline_developer_board_24)
         }
 
+        panes += BatteryListPane(listOf(
+            PaneBatteryStatus("Left", 47),
+            PaneBatteryStatus("Base", 81),
+            PaneBatteryStatus("Right", 46)
+        ))
+
         for (pane in state.customSettings) {
             val booleanValue = pane.currentBooleanValue
             if (booleanValue != null) {
@@ -263,7 +293,7 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
         }
 
         LazyVerticalStaggeredGrid(
-            columns = StaggeredGridCells.Adaptive(150.dp), // Adjust size as needed
+            columns = StaggeredGridCells.Adaptive(160.dp),
             verticalItemSpacing = 8.dp,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             content = {
@@ -305,7 +335,7 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                                         tint = fg,
                                         modifier = Modifier.padding(20.dp)
                                     )
-                                    Text(pane.text!!, color = fg)
+                                    Text(pane.text.orEmpty(), color = fg)
                                 }
                             } else {
                                 Column(Modifier.padding(20.dp)) {

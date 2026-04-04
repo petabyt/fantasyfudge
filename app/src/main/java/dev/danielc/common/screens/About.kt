@@ -47,6 +47,7 @@ fun About() {
         Dep("libfuji", "https://github.com/petabyt/libfuji", "MIT License"),
         Dep("ezxml", "https://ezxml.sourceforge.net/", "MIT License"),
         Dep("libjpeg-turbo", "https://github.com/libjpeg-turbo/libjpeg-turbo", "IJG License, Modified (3-clause) BSD License"),
+        Dep("app icon courtesy of Sincerely Media", "https://unsplash.com/photos/a-stack-of-three-pieces-of-food-sitting-on-top-of-a-table-D1zuILDUNzc", "Upsplash License"),
         // TODO: Automate adding android deps
     )
 

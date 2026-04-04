@@ -3,7 +3,8 @@ import dev.danielc.R
 import dev.danielc.common.screens.ConsoleStateModel
 import dev.danielc.common.screens.GalleryObject
 import dev.danielc.common.screens.GalleryViewModel
-import dev.danielc.common.screens.HomeViewModel
+import dev.danielc.common.screens.ModuleHomeModel
+import dev.danielc.common.screens.SortBy
 import dev.danielc.libpak.Pak
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -163,7 +164,7 @@ data class ModuleManifest(
 abstract class ModuleInstance(mod: ModuleManifest) {
     val manifest: ModuleManifest = mod
     var debugLog = ConsoleStateModel()
-    val homeModelView = HomeViewModel(mod)
+    val homeModelView = ModuleHomeModel(mod, this)
     val galleryViewModel = GalleryViewModel()
     var currentTickIntervalUs: Int = 100000
     val serializableModuleInstance: SerializableModuleInstance = SerializableModuleInstance(Runtime.addModuleInstance(this))
@@ -212,6 +213,9 @@ abstract class ModuleInstance(mod: ModuleManifest) {
     }
     fun addFileMetadata(i: Int, v: GalleryObject) {
         galleryViewModel.setObject(i, v)
+    }
+    fun setStorageInfo(nItems: Int, name: String, sortBy: SortBy) {
+        galleryViewModel.setProperties(nItems, name, sortBy)
     }
     fun setFileListLength(length: Int) {
         galleryViewModel.setListLength(length)
@@ -282,14 +286,14 @@ abstract class ModuleInstance(mod: ModuleManifest) {
 // Serializable ID of connection instance that can be passed between activities
 @Serializable
 data class SerializableModuleInstance(
-    val connectionId: Int?,
+    val connectionId: Int,
 ) {
     fun getModuleInstance(): ModuleInstance {
-        if (connectionId == null) {
-            throw Exception();
-        } else {
-            return Runtime.moduleInstances[connectionId]
+        val mod = Runtime.moduleInstances[connectionId]
+        if (mod == null) {
+            throw Exception("Couldn't find module instance from key")
         }
+        return mod
     }
 }
 

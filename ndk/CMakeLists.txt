@@ -32,15 +32,16 @@ option(PAK_INCLUDE_WIFI "WiFi APIs" ON)
 option(PAK_INCLUDE_BT "Bluetooth APIs" ON)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../libpak ${CMAKE_CURRENT_BINARY_DIR}/libpak)
 
-# Include libfuji manually
+# libfuji static module
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/libfuji ${CMAKE_CURRENT_BINARY_DIR}/libfuji)
+# dummy static module
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/dummy ${CMAKE_CURRENT_BINARY_DIR}/dummy)
 
 add_library(${CMAKE_PROJECT_NAME} SHARED
     main.c
     thread.c
     module.c
-    dummymod.c
 )
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE libfuji pak qjs libjpeg-turbo $<$<BOOL:${APP_WASM_SUPPORT}>:vmlib>)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE libfuji dummy pak qjs libjpeg-turbo $<$<BOOL:${APP_WASM_SUPPORT}>:vmlib>)
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE "-Wl,-z,max-page-size=16384")
 target_link_options(pak PRIVATE "-Wl,-z,max-page-size=16384")

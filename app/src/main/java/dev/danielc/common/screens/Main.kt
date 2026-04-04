@@ -1,8 +1,13 @@
 /// Main app start screen
 package dev.danielc.common.screens
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -140,9 +145,8 @@ fun ConnectableDeviceCard(dev: ConnectableDevice, clicked: (String?) -> Unit = {
 @Composable
 fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<ConnectableDevice>, manifestList: List<ModuleManifest>, clicked: (ModuleManifest, String?) -> Unit) {
     var isRefreshing by remember { mutableStateOf(false) }
-
-    var list by remember { mutableStateOf(deviceList) }
-
+    var mutManifestList by remember { mutableStateOf(manifestList) }
+    var mutDevList by remember { mutableStateOf(deviceList) }
     val scope = rememberCoroutineScope()
     PullToRefreshBox(
         state = rememberPullToRefreshState(),
@@ -151,7 +155,9 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
             scope.launch {
                 isRefreshing = true
                 Runtime.refreshManifests()
-                list = listOf(ConnectableDevice("asd", isConnected = false))
+                mutManifestList = Runtime.moduleManifests
+                Runtime.refreshConnectableDevices()
+                mutDevList = Runtime.connectableDevices
                 isRefreshing = false
             }
         },
@@ -160,25 +166,39 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
         Column(Modifier
             .fillMaxSize()
             .padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (list.isNotEmpty()) {
+            if (mutDevList.isNotEmpty()) {
                 Text("Found the following devices nearby:")
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    items(list) { dev ->
-                        ConnectableDeviceCard(dev)
+                AnimatedContent(
+                    targetState = mutDevList,
+                    transitionSpec = {
+                        fadeIn(animationSpec = tween(3000)
+                        )togetherWith fadeOut(animationSpec = tween(3000))
+                    },
+                    label = "ContentRefresh"
+                ) { targetItems ->
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(targetItems) { dev ->
+                            ConnectableDeviceCard(dev)
+                        }
                     }
                 }
             }
             Text("Select a type of device to connect to:")
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                items(manifestList) { manifest ->
-                    for (target in manifest.targets) {
-                        TargetCard(target, manifest, clicked = { product ->
-                            clicked(manifest, product)
-                        })
+            AnimatedContent(
+                targetState = mutManifestList,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(3000)
+                    ) togetherWith fadeOut(animationSpec = tween(3000))
+                },
+                label = "ContentRefresh"
+            ) { targetItems ->
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(targetItems) { manifest ->
+                        for (target in manifest.targets) {
+                            TargetCard(target, manifest, clicked = { product ->
+                                clicked(manifest, product)
+                            })
+                        }
                     }
                 }
             }

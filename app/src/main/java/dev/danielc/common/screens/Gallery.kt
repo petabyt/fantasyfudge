@@ -74,10 +74,10 @@ enum class DisplayType {
 
 enum class SortBy {
     DEFAULT,
-    NEWEST,
-    OLDEST,
-    LARGEST,
-    SMALLEST,
+    NEWEST_FIRST,
+    OLDEST_FIRST,
+    LARGEST_FIRST,
+    SMALLEST_FIRST,
 }
 
 @Suppress("ArrayInDataClass")
@@ -96,9 +96,10 @@ data class GalleryObjectReference(
 )
 
 data class GalleryState(
-    val userSortBy: SortBy = SortBy.NEWEST,
+    val storageName: String? = null,
+    val userSortBy: SortBy = SortBy.NEWEST_FIRST,
     val displayType: DisplayType = DisplayType.THUMBNAILS,
-    val objectListSortedOrder: SortBy = SortBy.NEWEST,
+    val objectListSortedOrder: SortBy = SortBy.NEWEST_FIRST,
     val objects: MutableList<GalleryObject?> = mutableListOf(),
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
 )
@@ -113,6 +114,20 @@ class GalleryViewModel() : ViewModel() {
                 _uiState.update { currentState ->
                     currentState.copy(objects = mutableListOf())
                 }
+            }
+        }
+    }
+
+    fun setProperties(nItems: Int, name: String, sortBy: SortBy) {
+        viewModelScope.launch(Dispatchers.Default) {
+            val list = _uiState.value.objects
+            while (list.size < nItems) list.add(null)
+            _uiState.update { currentState ->
+                currentState.copy(
+                    objects = list,
+                    storageName = name,
+                    objectListSortedOrder = sortBy,
+                )
             }
         }
     }

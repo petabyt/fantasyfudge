@@ -1,8 +1,9 @@
 package dev.danielc.common
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleStateModel
+import dev.danielc.common.screens.dummyManifestList
 import dev.danielc.libpak.Bluetooth
-import kotlinx.serialization.*
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.booleanOrNull
@@ -17,6 +18,7 @@ import kotlinx.serialization.json.jsonPrimitive
   */
 data class UserSetting(
     val name: String,
+    val title: String,
     var currentBooleanValue: Boolean? = null,
     val currentIntValue: Int? = null,
     val currentStringValue: String? = null,
@@ -75,6 +77,23 @@ enum class Screen(val strId: String, val id: Int) {
     }
 }
 
+/**
+ * struct FileHandle
+ */
+data class FileHandle(
+    var index: Int = 0,
+    var storageName: String? = null,
+    var filename: String? = null,
+)
+
+/**
+ * struct FileMetadata
+ */
+data class FileMetadata(
+    var filename: String? = null,
+    var mimeType: String? = null,
+)
+
 typealias JobUpdateCallback = (ModuleJob) -> Unit
 
 /**
@@ -105,7 +124,7 @@ enum class ModuleProperty(val id: String) {
 }
 
 /**
- *
+ * A connectable device found or exposed by the device
  */
 data class ConnectableDevice(
     val name: String,
@@ -119,40 +138,46 @@ object Runtime {
     var mainLog = ConsoleStateModel()
     var connectableDevices = listOf<ConnectableDevice>()
     var moduleManifests = mutableListOf<ModuleManifest>()
-    var moduleInstances = mutableListOf<ModuleInstance>() // TODO: should this use hash map
-    var jobs = mutableListOf<ModuleJob>()
-    var jobCounter = 0
+    var moduleInstances = mutableMapOf<Int, ModuleInstance>()
+    private var moduleCounter = 0
+    private var jobs = mutableMapOf<Int, ModuleJob>()
+    private var jobCounter = 0
 
     fun addModuleInstance(mod: ModuleInstance): Int {
-        moduleInstances += mod
-        return moduleInstances.lastIndex
+        moduleInstances.put(++moduleCounter, mod)
+        return moduleCounter
     }
 
     fun removeModuleInstance(mod: ModuleInstance) {
-        moduleInstances.remove(mod)
+        val key = moduleInstances.entries.find { it.value == mod }?.key
+        if (key != null) {
+            moduleInstances.remove(key)
+        }
     }
 
     fun refreshConnectableDevices() {
         Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())
-        connectableDevices = listOf()
+        // TODO
+        connectableDevices = listOf(
+            ConnectableDevice("FooBar", dummyManifestList[0].targets[0], dummyManifestList[0], false)
+        )
     }
 
     fun createJob(mod: SerializableModuleInstance, onUpdate: JobUpdateCallback): ModuleJob {
+        val id = ++jobCounter
         val job = ModuleJob(
             moduleInstance = mod,
-            id = jobCounter++,
+            id = id,
             onUpdate = onUpdate
         )
-        jobs += job
+        jobs.put(id, job)
         return job
     }
 
     fun closeJob(job: ModuleJob) {
-        for (e in jobs) {
-            if (e == job) {
-                jobs.remove(e)
-                break
-            }
+        val key = jobs.entries.find { it.value == job }?.key
+        if (key != null) {
+            jobs.remove(key)
         }
     }
 

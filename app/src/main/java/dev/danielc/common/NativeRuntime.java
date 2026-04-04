@@ -28,14 +28,6 @@ public class NativeRuntime {
     public static class WiFiAdapter {
         Network net;
     }
-    public static class FileHandle {
-        int index;
-        String filename;
-    }
-    public static class FileMetadata {
-        String filename;
-        String mimeType;
-    }
 
     public static List<String> getJsonManifestList() {
         Context ctx = weakCtx.get();

@@ -17,9 +17,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -32,7 +34,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Screen
-import dev.danielc.common.SerializableModuleInstance
 import dev.danielc.common.ui.theme.FudgeTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,16 +44,13 @@ import kotlin.collections.plus
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import dev.danielc.common.ModuleInstance
 import dev.danielc.common.ModuleProperty
 import dev.danielc.common.UserSetting
 import dev.danielc.common.ui.DisconnectDialog
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.runBlocking
 
 data class HomeState(
@@ -66,7 +64,14 @@ data class UiEvent(
     val isInHome: Boolean,
 )
 
-class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModuleInstance? = null) : ViewModel() {
+class ModuleHomeModel(val manifest: ModuleManifest, val module: ModuleInstance) : ViewModel() {
+    override fun onCleared() {
+        super.onCleared()
+        runBlocking {
+            module.deregister()
+        }
+    }
+
     private val _dashboardState = MutableStateFlow(DashboardState(manifest))
     val dashboardState = _dashboardState.asStateFlow()
     val dashboardCallbacks: DashboardCallbacks = DashboardCallbacks(
@@ -78,14 +83,14 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
         }
     )
 
+    private val _viewerState = MutableStateFlow(ViewerState())
+    val viewerState = _viewerState.asStateFlow()
+
     private val _homeState = MutableStateFlow(HomeState())
     val homeState = _homeState.asStateFlow()
 
     private val _uiEvents = MutableSharedFlow<UiEvent>(replay = 1)
     val uiEvents = _uiEvents.asSharedFlow()
-
-//    private val _uiEvents = Channel<UiEvent>(capacity = 0)
-//    val uiEvents = _uiEvents.receiveAsFlow()
 
     fun showDisconectDialog(v: Boolean) {
         _homeState.update { homeState ->
@@ -174,7 +179,7 @@ class HomeViewModel(val manifest: ModuleManifest, val module: SerializableModule
 /// Contains main instance navigation bar
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(module: ModuleInstance, hostNavController: NavController) {
+fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
     val model = module.homeModelView
     val navController = rememberNavController()
     val homeState by model.homeState.collectAsStateWithLifecycle()
@@ -257,11 +262,13 @@ fun HomeScreen(module: ModuleInstance, hostNavController: NavController) {
     }
 }
 
-/// Main navigation graph of module instance UI
-/// Instance will deregister from runtime once the composable exits (onDispose)
+/**
+ * Main navigation graph of module instance UI
+ */
 @Composable
 fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {}) {
     val navController = rememberNavController()
+    val viewerState = instance.homeModelView.viewerState.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         instance.homeModelView.uiEvents.collect { event ->
@@ -280,14 +287,6 @@ fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {
                         }
                     }
                 }
-            }
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            runBlocking {
-                instance.deregister()
             }
         }
     }
@@ -324,7 +323,19 @@ fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {
             ConsoleScreen(navController, state, title = "Connecting")
         }
         composable("home") {
-            HomeScreen(instance, navController)
+            ModuleHomeScreen(instance, navController)
+        }
+        composable("viewer") {
+            ViewerScreen(viewerState.value, switchTo = { i ->
+                println("switching to ${i}")
+                state = state.copy(
+                    filename = "DSCF0002.JPG",
+                    indexInItems = i,
+                    isLoading = true
+                )
+            }, close = {
+                navController.navigateUp()
+            })
         }
         composable("disconnected") {
             val state by instance.debugLog.uiState.collectAsStateWithLifecycle()

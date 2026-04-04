@@ -1,5 +1,6 @@
 package dev.danielc.common.screens
 
+import android.content.res.Configuration
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,9 +16,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,8 +45,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.common.Device
@@ -62,10 +72,49 @@ val dummyManifestList: List<ModuleManifest> = listOf(
     ModuleManifest(name = "libroku", description = "Roku TV and media systems", targets = listOf(ModuleManifest.Target(deviceId = Device.SMART_TV, company = "Roku"))),
 )
 
+@Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
 @Composable
-fun ModuleCard(
-    manifest: ModuleManifest,
-) {
+fun ManifestInfoDialog(manifest: ModuleManifest = dummyManifestList[0], close: () -> Unit = {}) {
+    Dialog(onDismissRequest = {
+        close()
+    }) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+                .padding(16.dp),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(Modifier.fillMaxSize().padding(10.dp)) {
+                Text(
+                    text = manifest.name,
+                    modifier = Modifier,
+                    style = TextStyle(
+                        fontSize = 20.sp
+                    ),
+                )
+                Text("Author: ${manifest.author}")
+                if (manifest.authorUrl != null) Text("Author URL: ${manifest.authorUrl}")
+                Text("Description: ${manifest.description}")
+                if (manifest.targets.isNotEmpty()) {
+                    Text("Targets:")
+                    Column(Modifier.padding(horizontal = 5.dp)) {
+                        for (e in manifest.targets) {
+                            Text("Company: ${e.company}")
+                            Text("Type: ${e.deviceId.id}")
+                            if (e.products.isNotEmpty()) {
+                                Text("Products: " + e.products.joinToString(", "), overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ModuleCard(manifest: ModuleManifest, info: () -> Unit, delete: () -> Unit) {
     Box(modifier = Modifier
         .fillMaxWidth()
         .clip(RoundedCornerShape(12.dp))
@@ -128,11 +177,13 @@ fun ModuleCard(
                     disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
                     disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ), onClick = {
-
+                    info()
                 }) {
                     Icon(painterResource(R.drawable.outline_info_24), contentDescription = null)
                 }
-                IconButton(onClick = {}, colors = IconButtonColors(
+                IconButton(onClick = {
+                    delete()
+                }, colors = IconButtonColors(
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer,
                     disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -149,8 +200,17 @@ fun ModuleCard(
 @Composable
 fun ModuleList(modifier: Modifier = Modifier, manifestList: List<ModuleManifest>) {
     var isRefreshing by remember { mutableStateOf(false) }
+    var selectedManifest by remember { mutableStateOf<ModuleManifest?>(null) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
+
+    val manifest = selectedManifest
+    if (manifest != null) {
+        ManifestInfoDialog(manifest, {
+            selectedManifest = null
+        })
+    }
+
     PullToRefreshBox(
         state = rememberPullToRefreshState(),
         isRefreshing = isRefreshing,
@@ -172,8 +232,15 @@ fun ModuleList(modifier: Modifier = Modifier, manifestList: List<ModuleManifest>
                     .fillMaxSize()
                     .padding(10.dp)
             ) {
-                items(manifestList) { dev ->
-                    ModuleCard(dev)
+                items(manifestList) { manifest ->
+                    ModuleCard(manifest,
+                        info = {
+                            selectedManifest = manifest
+                        },
+                        delete = {
+
+                        }
+                    )
                 }
             }
         }
