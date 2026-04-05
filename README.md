@@ -2,8 +2,10 @@
 
 This is an app that can connect to various gadgets and devices, serving as an alternative to the vendor-provided app.
 
-This app includes a Javascript module system. Like the Linux kernel module system, modules implement support for controlling various devices, and can be installed on the fly.
-A module can connect to a device through WiFi or Bluetooth, and implement any proprietary protocols needed to communicate with and control it.
+<img src='https://s1.danielc.dev/screenshots/Screenshot_20260402-224446.png' width='250'><img src='https://s1.danielc.dev/screenshots/Screenshot_20260128-140111.png' width='250'>
+
+This app includes a Javascript module system. Like the Linux kernel module system, modules use low level Bluetooth or WiFi APIs to directly communicate with devices
+through their proprietary protocols. Modules can be installed on the fly through a QR code without recompiling the app.
 
 Modules can control the UI and handle switching between various 'screens', such as a dashboard, photo gallery, or liveview.
 

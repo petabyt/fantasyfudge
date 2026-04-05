@@ -1,8 +1,10 @@
 package dev.danielc.common.screens
 
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +22,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -41,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
@@ -59,6 +63,8 @@ import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.GoGreen
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import net.engawapg.lib.zoomable.rememberZoomState
 import net.engawapg.lib.zoomable.zoomable
@@ -74,43 +80,6 @@ data class ViewerState(
     var indexInItems: Int = 5,
 )
 
-//@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Composable
-fun DownloadingDialog(speed: String = "2mb/s", percent: Int = 57, text: String = "Downloading") {
-    Dialog(onDismissRequest = {
-
-    }) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .padding(16.dp),
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            Box(Modifier.fillMaxSize()) {
-                Column(Modifier.align(Alignment.Center), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = text,
-                        modifier = Modifier,
-                        style = TextStyle(
-                            fontSize = 20.sp
-                        ),
-                    )
-                    LinearProgressIndicator(
-                        modifier = Modifier,
-                        color = MaterialTheme.colorScheme.primary,
-                        progress = { percent.toFloat() / 100 }
-                    )
-                    Text(
-                        text = speed,
-                        modifier = Modifier,
-                    )
-                }
-            }
-        }
-    }
-}
-
 @Composable
 fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) -> Unit, close: () -> Unit) {
     val filename = state.filename ?: "File"
@@ -121,7 +90,44 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
             MimeType.MOV -> "movie"
             else -> "file"
         }
-        DownloadingDialog(state.currentDownloadSpeed, state.currentDownloadProgress, text)
+
+        Dialog(onDismissRequest = {
+
+        }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Box(Modifier.fillMaxSize()) {
+                    Column(Modifier.align(Alignment.Center), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = text,
+                            modifier = Modifier,
+                            style = TextStyle(
+                                fontSize = 20.sp
+                            ),
+                        )
+                        LinearProgressIndicator(
+                            modifier = Modifier,
+                            color = MaterialTheme.colorScheme.primary,
+                            progress = { state.currentDownloadProgress.toFloat() / 100 }
+                        )
+                        Text(
+                            text = state.currentDownloadSpeed,
+                            modifier = Modifier,
+                        )
+                        Button(onClick = {
+                            close()
+                        }) {
+                            Text("Cancel")
+                        }
+                    }
+                }
+            }
+        }
         return
     }
 
@@ -134,9 +140,10 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
         Animatable(1f)
     }
 
+    // Swipe image box down to exit the viewer screen
     val scope = rememberCoroutineScope()
     val screenHeightDp = LocalWindowInfo.current.containerSize.height
-    val minOffsetToClose = screenHeightDp / 8
+    val minOffsetToClose = screenHeightDp / 10
     val swipeToCloseGesture = Modifier.pointerInput(Unit) {
         detectDragGestures(
             onDrag = { _, dragAmount ->
@@ -157,7 +164,7 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
                 }
             },
             onDragEnd = {
-                if (imageYOffset.value >= minOffsetToClose) {
+                if (imageYOffset.value >= 100) {
                     close()
                 } else {
                     scope.launch {
@@ -192,7 +199,6 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
         HorizontalPager(
             state = pagerState, modifier = Modifier.fillMaxSize().align(Alignment.Center)) { page ->
             if (page == state.indexInItems) {
-                println("render image")
                 val zoomState = rememberZoomState(contentSize = painter.intrinsicSize)
                 Image(
                     modifier = Modifier.align(Alignment.Center).zoomable(zoomState),
@@ -214,6 +220,7 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
 @Composable
 fun PreviewViewer(navController: NavController = rememberNavController()) {
     val painter = painterResource(R.drawable.image)
+    val scope = rememberCoroutineScope()
     var state by remember { mutableStateOf(ViewerState(
         filename = "DSCF0001.JPG",
         painter = painter,
@@ -226,12 +233,19 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
         numberOfItems = 30,
     )) }
     ViewerScreen(state, switchTo = { i ->
-        println("switching to ${i}")
         state = state.copy(
+            currentDownloadProgress = 0,
             filename = "DSCF0002.JPG",
             indexInItems = i,
             isLoading = true
         )
+        scope.launch {
+            while (state.currentDownloadProgress < 100) {
+                state = state.copy(currentDownloadProgress = state.currentDownloadProgress + 1)
+                delay(1)
+            }
+            state = state.copy(isLoading = false)
+        }
     }, close = {
         navController.navigateUp()
     })
@@ -241,6 +255,9 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
 @Composable
 fun ViewerScreen(state: ViewerState, switchTo: (Int) -> Unit, close: () -> Unit) {
     return FudgeTheme {
+        BackHandler {
+            close()
+        }
         Scaffold(
             topBar = {
                 TopAppBar(

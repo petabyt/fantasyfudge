@@ -125,7 +125,7 @@ data class ModuleManifest(
                 QUICKJS -> "Javascript"
                 WEBASSEMBLY -> "Webassembly"
                 NATIVE -> "Native (statically compiled)"
-                DUMMY_MODULE -> "DummyModule"
+                DUMMY_MODULE -> "DummyModule (statically compiled)"
                 JAVA_MODULE -> "JavaDummyModule"
                 LIBFUJI -> "libfuji (statically compiled)"
             }
@@ -170,13 +170,13 @@ abstract class ModuleInstance(mod: ModuleManifest) {
     val serializableModuleInstance: SerializableModuleInstance = SerializableModuleInstance(Runtime.addModuleInstance(this))
     var mainLoopJob: kotlinx.coroutines.Job? = null
     var initJob: kotlinx.coroutines.Job? = null
-    var currentScreen: Screen = Screen.NONE
+    var currentScreen: Screen = Screen.CONNECT
 
     abstract fun free()
     abstract fun onFindConnection(job: Int): Int
     abstract fun onTryConnectWiFi(a: NativeRuntime.WiFiAdapter, job: Int): Int
     abstract fun onIdleTick(usSinceLast: Int): Int
-    abstract fun onSwitchScreen(job: Int, oldScreen: Int, newScreen: Int): Int
+    abstract fun onSwitchScreen(oldScreen: Int, newScreen: Int, job: Int): Int
 
     fun debugLog(s: String) {
         debugLog.addLine(s)
@@ -225,13 +225,10 @@ abstract class ModuleInstance(mod: ModuleManifest) {
         initJob = CoroutineScope(Dispatchers.IO).launch {
             if (findConnection() == Pak.Error.OK.code) {
                 startMainLoop()
-                withJob({}) { job ->
-                    onSwitchScreen(job.id, Screen.NONE.id, Screen.DASHBOARD.id)
-                }
-                homeModelView.goToScreen(Screen.DASHBOARD)
+                switchScreen(Screen.DASHBOARD, false)
             } else {
                 debugLog("Failed to find connection")
-                homeModelView.goToScreen(Screen.DISCONNECTED)
+                switchScreen(Screen.DISCONNECTED, false)
             }
         }
     }
@@ -264,12 +261,20 @@ abstract class ModuleInstance(mod: ModuleManifest) {
 
     }
 
-    fun switchScreen(screen: Screen) {
+    fun switchScreen(screen: Screen, isInNavBar: Boolean) {
         withJob({}) { job ->
-            onSwitchScreen(job.id, currentScreen.id, screen.id)
+            onSwitchScreen(currentScreen.id, screen.id, job.id)
         }
         currentScreen = screen
-        homeModelView.goToScreen(Screen.DASHBOARD)
+        homeModelView.goToScreen(screen, isInNavBar)
+    }
+
+    fun goBack(previous: Screen, isInNavBar: Boolean) {
+        withJob({}) { job ->
+            onSwitchScreen(currentScreen.id, previous.id, job.id)
+        }
+        currentScreen = previous
+        homeModelView.back(isInNavBar)
     }
 
     fun findConnection(onUpdate: JobUpdateCallback = {}): Int {

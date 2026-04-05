@@ -58,6 +58,7 @@ public class NativeRuntime {
     }
 
     public static void logGlobalLine(String s) {
+        Log.d("logGlobalLine", s);
         Runtime.INSTANCE.getMainLog().addLine(s);
     }
 }

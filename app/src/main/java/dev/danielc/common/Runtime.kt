@@ -44,6 +44,9 @@ enum class Screen(val strId: String, val id: Int) {
         fun fromId(id: Int?): Screen? {
             return Screen.entries.find { it.id == id }
         }
+        fun fromStrId(id: String): Screen? {
+            return Screen.entries.find { it.strId == id }
+        }
     }
 
     fun getIcon(): Int {

@@ -19,9 +19,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -54,15 +51,22 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.runBlocking
 
 data class HomeState(
-    val supportedScreenList: List<Screen> = emptyList(),
+    val supportedNavBarScreenList: List<Screen> = emptyList(),
+    val supportedMainScreenList: List<Screen> = emptyList(),
     val showDisconnectDialog: Boolean = false,
-    var pageIndex: Int = 0,
 )
 
 data class UiEvent(
-    val screen: Screen,
-    val isInHome: Boolean,
-)
+    val type: UiEventType,
+    val screen: Screen = Screen.NONE,
+) {
+    enum class UiEventType {
+        SWITCH_SCREEN,
+        SWITCH_NAV,
+        GO_BACK_SCREEN,
+        GO_BACK_NAV,
+    }
+}
 
 class ModuleHomeModel(val manifest: ModuleManifest, val module: ModuleInstance) : ViewModel() {
     override fun onCleared() {
@@ -74,6 +78,7 @@ class ModuleHomeModel(val manifest: ModuleManifest, val module: ModuleInstance) 
 
     private val _dashboardState = MutableStateFlow(DashboardState(manifest))
     val dashboardState = _dashboardState.asStateFlow()
+
     val dashboardCallbacks: DashboardCallbacks = DashboardCallbacks(
         updateSettingPane = { pane, value ->
             updateSettingPane(pane, value)
@@ -100,18 +105,25 @@ class ModuleHomeModel(val manifest: ModuleManifest, val module: ModuleInstance) 
         }
     }
 
-    fun goToScreen(screen: Screen, isInHome: Boolean = false) {
-        viewModelScope.launch {
-            _uiEvents.emit(UiEvent(screen, isInHome))
+    fun isScreenInNavBar(s: Screen): Boolean {
+        return when (s) {
+            Screen.DASHBOARD, Screen.FILE_GALLERY, Screen.LIVEVIEW -> true
+            else -> false
         }
     }
 
-    fun setPageIndex(i: Int) {
-        _homeState.update { homeState ->
-            homeState.copy(
-                pageIndex = i
-            )
+    fun uiEvent(type: UiEvent.UiEventType, screen: Screen = Screen.NONE) {
+        viewModelScope.launch {
+            _uiEvents.emit(UiEvent(type, screen))
         }
+    }
+
+    fun goToScreen(screen: Screen, isInHome: Boolean = false) {
+        uiEvent(if (isInHome) UiEvent.UiEventType.SWITCH_NAV else UiEvent.UiEventType.SWITCH_SCREEN, screen)
+    }
+
+    fun back(isInNavBar: Boolean = false) {
+        uiEvent(if (isInNavBar) UiEvent.UiEventType.GO_BACK_NAV else UiEvent.UiEventType.GO_BACK_SCREEN, Screen.NONE)
     }
 
     fun setProperty(type: ModuleProperty, value: String) {
@@ -125,23 +137,13 @@ class ModuleHomeModel(val manifest: ModuleManifest, val module: ModuleInstance) 
         }
     }
 
-    fun addSupportedScreen(s: Screen) {
-        viewModelScope.launch(Dispatchers.Default) {
-            _homeState.update { currentState ->
-                currentState.copy(
-                    supportedScreenList = currentState.supportedScreenList + s
-                )
-            }
-        }
-    }
-
     fun setSupportedScreen(s: Screen, v: Boolean) {
         viewModelScope.launch(Dispatchers.Default) {
             _homeState.update { currentState ->
-                if (!v && currentState.supportedScreenList.contains(s)) {
-                    currentState.copy(supportedScreenList = currentState.supportedScreenList.filter { x -> x != s })
-                } else if (v && !currentState.supportedScreenList.contains(s)) {
-                    currentState.copy(supportedScreenList = currentState.supportedScreenList + s)
+                if (!v && currentState.supportedNavBarScreenList.contains(s)) {
+                    currentState.copy(supportedNavBarScreenList = currentState.supportedNavBarScreenList.filter { x -> x != s })
+                } else if (v && !currentState.supportedNavBarScreenList.contains(s)) {
+                    currentState.copy(supportedNavBarScreenList = currentState.supportedNavBarScreenList + s)
                 } else {
                     currentState
                 }
@@ -188,15 +190,17 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
     val navScreens = mutableListOf(
         Screen.DASHBOARD,
     )
-    if (homeState.supportedScreenList.contains(Screen.FILE_GALLERY)) navScreens += Screen.FILE_GALLERY
-    if (homeState.supportedScreenList.contains(Screen.LIVEVIEW)) navScreens += Screen.LIVEVIEW
+    if (homeState.supportedNavBarScreenList.contains(Screen.FILE_GALLERY)) navScreens += Screen.FILE_GALLERY
+    if (homeState.supportedNavBarScreenList.contains(Screen.LIVEVIEW)) navScreens += Screen.LIVEVIEW
 
     LaunchedEffect(Unit) {
         module.homeModelView.uiEvents.collect { event ->
-            if (event.isInHome) {
-                if (event.screen == Screen.FILE_GALLERY || event.screen == Screen.DASHBOARD) {
-                    navController.navigate(route = event.screen.strId)
-                }
+            if (event.type == UiEvent.UiEventType.SWITCH_NAV) {
+                //if (event.screen == Screen.FILE_GALLERY || event.screen == Screen.DASHBOARD) {
+                navController.navigate(route = event.screen.strId)
+                //}
+            } else if (event.type == UiEvent.UiEventType.GO_BACK_NAV) {
+                navController.navigateUp()
             }
         }
     }
@@ -204,9 +208,6 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val haptic = LocalHapticFeedback.current
     return FudgeTheme {
-        BackHandler {
-            model.showDisconectDialog(true)
-        }
         Scaffold(
             bottomBar = {
                 NavigationBar(
@@ -218,8 +219,7 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                             selected = navBackStackEntry?.destination?.hierarchy?.any { it.route == navScreens[i].strId } == true,
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                                model.setPageIndex(i)
-                                model.goToScreen(navScreens[i], isInHome = true)
+                                module.switchScreen(navScreens[i], isInNavBar = true)
                             },
                             icon = {
                                 Icon(
@@ -235,22 +235,34 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                 }
             }
         ) { innerPadding ->
+            fun goBack() {
+                val previousRoute = navController.previousBackStackEntry?.destination?.route
+                if (previousRoute == null) {
+                    model.showDisconectDialog(true)
+                } else {
+                    val previous = Screen.fromStrId(previousRoute)!!
+                    module.goBack(previous, isInNavBar = true)
+                }
+            }
             NavHost(
                 enterTransition = { EnterTransition.None },
                 exitTransition = { ExitTransition.None },
                 navController = navController, startDestination = Screen.DASHBOARD.strId) {
                 composable(Screen.DASHBOARD.strId) {
+                    BackHandler { goBack() }
                     Dashboard(Modifier.padding(innerPadding), navController, state = dashboardState, callbacks = model.dashboardCallbacks)
                 }
                 composable(Screen.FILE_GALLERY.strId) {
+                    BackHandler { goBack() }
                     Gallery(navController, innerPadding, galleryState, requestLoad = {})
                 }
                 composable(Screen.LIVEVIEW.strId) {
+                    BackHandler { goBack() }
                     Liveview(Modifier.padding(innerPadding), navController, LiveviewState())
                 }
             }
             if (homeState.showDisconnectDialog) {
-                DisconnectDialog(dashboardState.nameOfDevice ?:  "Device", yes = {
+                DisconnectDialog(dashboardState.nameOfDevice ?: "Device", yes = {
                     module.disconnect("Manual disconnect")
                     model.showDisconectDialog(false)
                 },
@@ -272,7 +284,7 @@ fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {
 
     LaunchedEffect(Unit) {
         instance.homeModelView.uiEvents.collect { event ->
-            if (!event.isInHome) {
+            if (event.type == UiEvent.UiEventType.SWITCH_SCREEN) {
                 if (event.screen == Screen.DASHBOARD) {
                     navController.navigate("home") {
                         // discard entire nav graph
@@ -328,11 +340,11 @@ fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {
         composable("viewer") {
             ViewerScreen(viewerState.value, switchTo = { i ->
                 println("switching to ${i}")
-                state = state.copy(
-                    filename = "DSCF0002.JPG",
-                    indexInItems = i,
-                    isLoading = true
-                )
+//                state = state.copy(
+//                    filename = "DSCF0002.JPG",
+//                    indexInItems = i,
+//                    isLoading = true
+//                )
             }, close = {
                 navController.navigateUp()
             })
