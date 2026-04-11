@@ -5,13 +5,33 @@ import dev.danielc.common.screens.GalleryObject
 import dev.danielc.common.screens.GalleryViewModel
 import dev.danielc.common.screens.ModuleHomeModel
 import dev.danielc.common.screens.SortBy
+import dev.danielc.common.screens.ViewerModel
 import dev.danielc.libpak.Pak
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import kotlin.collections.remove
+import kotlin.inc
 import kotlin.time.DurationUnit
 import kotlin.time.TimeSource
+
+typealias JobUpdateCallback = (ModuleJob) -> Unit
+
+/**
+ * A job id is passed each time a module function is called. A job can be cancelled
+ * at any time by the user, and the percent finished value can be updated by the module.
+ */
+@Serializable
+data class ModuleJob(
+    val onUpdate: JobUpdateCallback,
+    val moduleInstance: SerializableModuleInstance,
+    val id: Int,
+    var progressBarValue: Int? = null,
+    var isCancelled: Boolean = false,
+    var isFinished: Boolean = false,
+)
 
 enum class Device(val id: String) {
     // Photo class
@@ -161,25 +181,59 @@ data class ModuleManifest(
 /**
  * Instance of a module with a single connection
  */
-abstract class ModuleInstance(mod: ModuleManifest) {
-    val manifest: ModuleManifest = mod
-    var debugLog = ConsoleStateModel()
-    val homeModelView = ModuleHomeModel(mod, this)
+abstract class ModuleInstance(manifest: ModuleManifest) {
+    var debugLogModel = ConsoleStateModel()
+    val homeModelView = ModuleHomeModel(manifest, this)
     val galleryViewModel = GalleryViewModel()
-    var currentTickIntervalUs: Int = 100000
+    val viewerViewModel = ViewerModel()
+    var currentTickIntervalUs: Int = (100 * 1000)
     val serializableModuleInstance: SerializableModuleInstance = SerializableModuleInstance(Runtime.addModuleInstance(this))
-    var mainLoopJob: kotlinx.coroutines.Job? = null
-    var initJob: kotlinx.coroutines.Job? = null
-    var currentScreen: Screen = Screen.CONNECT
+    private var mainLoopJob: kotlinx.coroutines.Job? = null
+    private var initJob: kotlinx.coroutines.Job? = null
+    private var currentScreen: Screen = Screen.CONNECT
+    var isConnected = false
+    var disconnectReason: String? = null
+    var disconnectedErrorCode: Int? = null
+    private var jobs = mutableMapOf<Int, ModuleJob>()
+    private var jobCounter = 0
+
+    fun createJob(mod: SerializableModuleInstance, onUpdate: JobUpdateCallback): ModuleJob {
+        val id = ++jobCounter
+        val job = ModuleJob(
+            moduleInstance = mod,
+            id = id,
+            onUpdate = onUpdate
+        )
+        jobs.put(id, job)
+        return job
+    }
+
+    fun closeJob(job: ModuleJob) {
+        val key = jobs.entries.find { it.value == job }?.key
+        if (key != null) {
+            jobs.remove(key)
+        }
+    }
+
+    fun getJob(job: Int): ModuleJob? {
+        return jobs.entries.find { it.key == job }?.value
+    }
 
     abstract fun free()
     abstract fun onFindConnection(job: Int): Int
     abstract fun onTryConnectWiFi(a: NativeRuntime.WiFiAdapter, job: Int): Int
+    abstract fun onDisconnect(): Int
     abstract fun onIdleTick(usSinceLast: Int): Int
     abstract fun onSwitchScreen(oldScreen: Int, newScreen: Int, job: Int): Int
+    abstract fun onRequestFileContents(job: Int, file: FileHandle): Int
+    abstract fun onRequestFileThumbnail(job: Int, file: FileHandle): Int
+    abstract fun onRequestFileMetadata(job: Int, file: FileHandle): Int
 
+    fun setTickRate(us: Int) {
+        currentTickIntervalUs = us
+    }
     fun debugLog(s: String) {
-        debugLog.addLine(s)
+        debugLogModel.addLine(s)
     }
     suspend fun deregister() {
         println("Deregistering module")
@@ -189,9 +243,6 @@ abstract class ModuleInstance(mod: ModuleManifest) {
         mainLoopJob?.join()
         Runtime.removeModuleInstance(this)
         free()
-    }
-    fun disconnect(reason: String) {
-        homeModelView.goToScreen(Screen.DISCONNECTED)
     }
     fun setProperty(type: ModuleProperty, value: String) {
         homeModelView.setProperty(type, value)
@@ -206,16 +257,45 @@ abstract class ModuleInstance(mod: ModuleManifest) {
         homeModelView.addSettingPane(pane)
     }
     fun setProgressBar(job: Int, v: Int) {
-        // ...
+        val jobObj = getJob(job)
+        if (jobObj != null) {
+            // Do on separate thread?
+            jobObj.progressBarValue = v
+            jobObj.onUpdate(jobObj)
+        }
+        // throw err?
     }
     fun isJobCancelled(job: Int): Boolean {
+        val jobObj = getJob(job)
+        if (jobObj != null) {
+            return jobObj.isCancelled
+        }
+        // throw err?
         return false
     }
-    fun addFileMetadata(i: Int, v: GalleryObject) {
-        galleryViewModel.setObject(i, v)
+    fun addFileMetadata(file: FileHandle, v: FileMetadata) {
+        galleryViewModel.updateObject(file.index, v, null)
+        // Update the image viewer state if it doesn't already have the metadata
+        val viewerState = viewerViewModel.viewerState.value
+        if (viewerState != null) {
+            if (viewerState.handle.index == file.index && viewerState.handle.storageName == file.storageName) {
+                viewerViewModel.update(file, galleryViewModel.uiState.value.objects.size)
+            }
+        }
     }
-    fun setStorageInfo(nItems: Int, name: String, sortBy: SortBy) {
-        galleryViewModel.setProperties(nItems, name, sortBy)
+    fun setFileContents(file: FileHandle, data: ByteArray) {
+        viewerViewModel.setFileContents(data)
+    }
+    fun addFileThumbnail(file: FileHandle, data: ByteArray) {
+        galleryViewModel.updateObject(file.index, null, data)
+    }
+    fun setStorageInfo(nItems: Int, name: String, sortBy: Int) {
+        // TODO: Manage multiple storage devices
+        galleryViewModel.setProperties(nItems, name, SortBy.fromId(sortBy)!!)
+        // TODO: Count total files if needed
+        homeModelView.dashboardState.value.copy(
+            filesOnStorage = nItems
+        )
     }
     fun setFileListLength(length: Int) {
         galleryViewModel.setListLength(length)
@@ -224,6 +304,7 @@ abstract class ModuleInstance(mod: ModuleManifest) {
     fun initThread() {
         initJob = CoroutineScope(Dispatchers.IO).launch {
             if (findConnection() == Pak.Error.OK.code) {
+                isConnected = true
                 startMainLoop()
                 switchScreen(Screen.DASHBOARD, false)
             } else {
@@ -251,26 +332,39 @@ abstract class ModuleInstance(mod: ModuleManifest) {
     }
 
     private fun withJob(callback: JobUpdateCallback, block: (ModuleJob) -> Int): Int {
-        val job = Runtime.createJob(serializableModuleInstance, callback)
+        val job = createJob(serializableModuleInstance, callback)
         val rc = block(job)
-        Runtime.closeJob(job)
+        job.progressBarValue = null
+        job.isFinished = true
+        callback(job)
+        closeJob(job)
         return rc
     }
 
-    private fun reportFatalError(code: Int, message: String) {
-
+    private fun reportFatalError(code: Int, reason: String) {
+        disconnectedErrorCode = code
+        disconnect(reason)
     }
 
-    fun switchScreen(screen: Screen, isInNavBar: Boolean) {
+    fun disconnect(reason: String) {
         withJob({}) { job ->
+            onDisconnect()
+        }
+        isConnected = false
+        disconnectReason = reason
+        homeModelView.goToScreen(Screen.DISCONNECTED)
+    }
+
+    fun switchScreen(screen: Screen, isInNavBar: Boolean, callback: JobUpdateCallback = {}) {
+        withJob(callback) { job ->
             onSwitchScreen(currentScreen.id, screen.id, job.id)
         }
         currentScreen = screen
         homeModelView.goToScreen(screen, isInNavBar)
     }
 
-    fun goBack(previous: Screen, isInNavBar: Boolean) {
-        withJob({}) { job ->
+    fun goBack(previous: Screen, isInNavBar: Boolean, callback: JobUpdateCallback = {}) {
+        withJob(callback) { job ->
             onSwitchScreen(currentScreen.id, previous.id, job.id)
         }
         currentScreen = previous
@@ -280,6 +374,18 @@ abstract class ModuleInstance(mod: ModuleManifest) {
     fun findConnection(onUpdate: JobUpdateCallback = {}): Int {
         return withJob(onUpdate) { job ->
             onFindConnection(job.id)
+        }
+    }
+
+    fun getFileMetadata(onUpdate: JobUpdateCallback = {}, file: FileHandle): Int {
+        return withJob(onUpdate) { job ->
+            onRequestFileMetadata(job.id, file)
+        }
+    }
+
+    fun getFileContents(onUpdate: JobUpdateCallback = {}, file: FileHandle): Int {
+        return withJob(onUpdate) { job ->
+            onRequestFileContents(job.id, file)
         }
     }
 

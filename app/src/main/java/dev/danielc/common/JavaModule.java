@@ -3,10 +3,9 @@ package dev.danielc.common;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothDevice;
 import android.util.Log;
-
 import org.jetbrains.annotations.NotNull;
-
 import dev.danielc.common.screens.GalleryObject;
+import dev.danielc.common.screens.SortBy;
 import dev.danielc.libpak.Bluetooth;
 import dev.danielc.libpak.Pak;
 
@@ -37,7 +36,7 @@ public class JavaModule extends ModuleInstance {
         debugLog("Faking connection");
         setScreenSupported(Screen.FILE_GALLERY.getId(), true);
 
-        setFileListLength(4);
+        setStorageInfo(4, "sdcard", SortBy.DEFAULT.getId());
 
 //        GalleryObject md = new GalleryObject(false, "DSC1001.JPG", null, 0xff0000, null, null);
 //        addFileMetadata(1, md);
@@ -66,5 +65,27 @@ public class JavaModule extends ModuleInstance {
     }
 
     @Override
-    public void free() {}
+    public void free() {
+
+    }
+
+    @Override
+    public int onDisconnect() {
+        return 0;
+    }
+
+    @Override
+    public int onRequestFileContents(int job, @NotNull FileHandle file) {
+        return 0;
+    }
+
+    @Override
+    public int onRequestFileThumbnail(int job, @NotNull FileHandle file) {
+        return 0;
+    }
+
+    @Override
+    public int onRequestFileMetadata(int job, @NotNull FileHandle file) {
+        return 0;
+    }
 }

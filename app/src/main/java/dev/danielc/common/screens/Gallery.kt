@@ -1,5 +1,6 @@
 package dev.danielc.common.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.indication
@@ -39,7 +40,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.paint
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -50,6 +53,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
+import dev.danielc.common.FileMetadata
+import dev.danielc.common.Runtime
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.FudgeRippleConfig
 import kotlinx.coroutines.Dispatchers
@@ -72,22 +77,24 @@ enum class DisplayType {
     VERTICAL_TABLE,
 }
 
-enum class SortBy {
-    DEFAULT,
-    NEWEST_FIRST,
-    OLDEST_FIRST,
-    LARGEST_FIRST,
-    SMALLEST_FIRST,
+enum class SortBy(val id: Int) {
+    DEFAULT(0),
+    NEWEST_FIRST(1),
+    OLDEST_FIRST(2),
+    LARGEST_FIRST(3),
+    SMALLEST_FIRST(4);
+
+    companion object {
+        fun fromId(id: Int): SortBy? {
+            return entries.find { it.id == id }
+        }
+    }
 }
 
-@Suppress("ArrayInDataClass")
 data class GalleryObject(
-    val filename: String? = null,
-    val fileSize: Int? = null,
-    val jpegThumb: ByteArray? = null,
+    val metadata: FileMetadata? = null,
+    var thumbnail: ImageBitmap? = null,
     val colorThumb: Int? = null,
-    val mimeType: MimeType? = null,
-    val createdDate: String? = null,
 )
 
 data class GalleryObjectReference(
@@ -100,6 +107,7 @@ data class GalleryState(
     val userSortBy: SortBy = SortBy.NEWEST_FIRST,
     val displayType: DisplayType = DisplayType.THUMBNAILS,
     val objectListSortedOrder: SortBy = SortBy.NEWEST_FIRST,
+    // TODO: Tree of objects, maintain current directory
     val objects: MutableList<GalleryObject?> = mutableListOf(),
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
 )
@@ -142,10 +150,15 @@ class GalleryViewModel() : ViewModel() {
         }
     }
 
-    fun setObject(i: Int, obj: GalleryObject?) {
+    fun updateObject(i: Int, md: FileMetadata? = null, thumbData: ByteArray? = null) {
         viewModelScope.launch(Dispatchers.Default) {
             val list = _uiState.value.objects
             while (list.size <= i) list.add(null)
+            val obj = list[i] ?: GalleryObject(md)
+            if (thumbData != null) {
+                obj.thumbnail = Runtime.decodeImageContents(thumbData, null)
+            }
+
             list[i] = obj
             _uiState.update { currentState ->
                 currentState.copy(objects = list)
@@ -172,7 +185,7 @@ fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
     val icon = if (obj == null) {
         R.drawable.baseline_question_mark_24
     } else {
-        when (obj.mimeType) {
+        when (obj.metadata?.mimeType) {
             null, MimeType.FILE -> R.drawable.baseline_question_mark_24
             MimeType.FOLDER -> R.drawable.baseline_folder_open_24
             MimeType.JPEG -> R.drawable.baseline_landscape_24
@@ -207,7 +220,11 @@ fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
                     contentDescription = null,
                 )
             } else {
-                val iconModifier = if (obj.mimeType == MimeType.FOLDER) {
+                if (obj.thumbnail != null) {
+                    Image(modifier = Modifier.fillMaxSize(), bitmap = obj.thumbnail!!, contentDescription = null)
+                }
+
+                val iconModifier = if (obj.metadata?.mimeType == MimeType.FOLDER) {
                     Modifier.align(Alignment.Center).size(45.dp)
                 } else {
                     Modifier.align(Alignment.TopEnd)
@@ -217,9 +234,9 @@ fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
                     painter = painterResource(icon),
                     contentDescription = null,
                 )
-                if (obj.filename != null) {
+                if (obj.metadata?.filename != null) {
                     Text(
-                        obj.filename, modifier = Modifier.align(Alignment.BottomCenter)
+                        obj.metadata.filename!!, modifier = Modifier.align(Alignment.BottomCenter)
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)),
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 10.sp,
@@ -255,24 +272,23 @@ fun GalleryFile(obj: GalleryObject?, onClick: () -> Unit = {}) {
                 .background(MaterialTheme.colorScheme.surfaceContainer)
         ) {
             Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                val icon = when (obj.mimeType) {
-                    MimeType.FILE -> R.drawable.baseline_question_mark_24
+                val icon = when (obj.metadata?.mimeType) {
+                    null, MimeType.FILE -> R.drawable.baseline_question_mark_24
                     MimeType.FOLDER -> R.drawable.baseline_folder_open_24
                     MimeType.JPEG -> R.drawable.baseline_landscape_24
                     MimeType.PNG -> R.drawable.baseline_landscape_24
                     MimeType.MOV -> R.drawable.baseline_movie_24
-                    null -> R.drawable.baseline_landscape_24
                 }
                 Icon(
                     tint = MaterialTheme.colorScheme.primary,
                     painter = painterResource(icon),
                     contentDescription = null,
                 )
-                if (obj.filename != null) {
-                    Text(obj.filename, modifier = Modifier.weight(1f))
+                if (obj.metadata?.filename != null) {
+                    Text(obj.metadata.filename!!, modifier = Modifier.weight(1f))
                 }
-                if (obj.fileSize != null) {
-                    Text(obj.fileSize.toString())
+                if (obj.metadata?.filesize != null) {
+                    Text(obj.metadata.filesize.toString())
                 }
             }
         }
@@ -366,20 +382,20 @@ fun Gallery(navController: NavHostController, innerPadding: PaddingValues, state
 @Composable
 fun PreviewGalleryScreen(navController: NavHostController = rememberNavController()) {
     val state = GalleryState(objects = mutableListOf(
-        GalleryObject(filename = "DCIM/", mimeType = MimeType.FOLDER),
-        GalleryObject(colorThumb = Color.Red.toArgb(), filename = "DSC1111.JPG", mimeType = MimeType.JPEG),
-        GalleryObject(colorThumb = Color.Green.toArgb(), filename = "DSC1112.MOV", mimeType = MimeType.MOV),
-        GalleryObject(colorThumb = Color.Cyan.toArgb()),
-        GalleryObject(colorThumb = Color.Magenta.toArgb()),
-        GalleryObject(colorThumb = Color.Yellow.toArgb()),
+        GalleryObject(FileMetadata("DCIM/", mimeType = MimeType.FOLDER)),
+        GalleryObject(FileMetadata("DSC1111.JPG", mimeType = MimeType.JPEG), colorThumb = Color.Red.toArgb()),
+        GalleryObject(FileMetadata("DSC1234.MOV", mimeType = MimeType.MOV), colorThumb = Color.Green.toArgb()),
+        GalleryObject(FileMetadata(), colorThumb = Color.Cyan.toArgb()),
+        GalleryObject(FileMetadata(), colorThumb = Color.Magenta.toArgb()),
+        GalleryObject(FileMetadata(), colorThumb = Color.Yellow.toArgb()),
         null,
-        GalleryObject(colorThumb = Color.Gray.toArgb()),
-        GalleryObject(colorThumb = Color.LightGray.toArgb()),
-        GalleryObject(colorThumb = Color.DarkGray.toArgb()),
-        GalleryObject(colorThumb = Color.Red.toArgb(), filename = "DSC1132.JPG", mimeType = MimeType.JPEG),
-        GalleryObject(colorThumb = Color.Green.toArgb()),
-        GalleryObject(colorThumb = Color.Blue.toArgb()),
-        GalleryObject(colorThumb = Color.Cyan.toArgb(), filename = "DSC6666.MOV", mimeType = MimeType.MOV),
+        GalleryObject(FileMetadata(), colorThumb = Color.Gray.toArgb()),
+        GalleryObject(FileMetadata(), colorThumb = Color.LightGray.toArgb()),
+        GalleryObject(FileMetadata(), colorThumb = Color.DarkGray.toArgb()),
+        GalleryObject(FileMetadata("DSC1132.JPG"), colorThumb = Color.Red.toArgb()),
+        GalleryObject(FileMetadata(), colorThumb = Color.Green.toArgb()),
+        GalleryObject(FileMetadata(), colorThumb = Color.Blue.toArgb()),
+        GalleryObject(FileMetadata(), colorThumb = Color.Cyan.toArgb()),
     ))
 
     return FudgeTheme {

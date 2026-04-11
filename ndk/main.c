@@ -6,6 +6,7 @@
 #include <runtime.h>
 #include "thread.h"
 #include "main.h"
+#include <runtime_ext.h>
 
 struct RuntimePriv {
 	jobject obj;
@@ -42,6 +43,48 @@ Java_dev_danielc_common_NativeRuntime_init(JNIEnv *env, jclass clazz) {
 	pak_global_log("NativeRuntime init");
 }
 
+static uint8_t *file_add(void *arg, uint8_t *buffer, unsigned int new_len, unsigned int old_len) {
+	uint8_t *new = realloc(buffer, new_len);
+	fread(new + old_len, 1, new_len - old_len, (FILE *)arg);
+	return new;
+}
+
+JNIEXPORT jbyteArray JNICALL
+Java_dev_danielc_common_Exif_getExifThumbnail(JNIEnv *env, jclass clazz, jstring filepath) {
+	const char *cfilepath = (*env)->GetStringUTFChars(env, filepath, 0);
+	FILE *f = fopen(cfilepath, "rb");
+	if (f == NULL) {
+		abort();
+	}
+
+	uint8_t *buffer = malloc(5000);
+	fread(buffer, 1, 5000, f);
+
+	struct ExifC c = {0};
+	c.length = 100;
+	c.buf = buffer;
+	c.arg = f;
+	c.get_more = file_add;
+
+	int rc = exif_start_raw(&c);
+	if (rc < 0) {
+		abort();
+	}
+
+	if (c.thumb_of == 0 || c.thumb_size == 0) {
+		return NULL;
+	}
+
+	jbyteArray result = (*env)->NewByteArray(env, (int)c.thumb_size);
+	(*env)->SetByteArrayRegion(env, result, 0, (int)c.thumb_size, (jbyte *)(c.buf + c.thumb_of));
+
+	free(c.buf);
+	fclose(f);
+	(*env)->ReleaseStringUTFChars(env, filepath, cfilepath);
+
+	return result;
+}
+
 void pak_global_log(const char *fmt, ...) {
 	char buffer[512] = {0};
 	va_list args;
@@ -56,6 +99,16 @@ void pak_global_log(const char *fmt, ...) {
 	jmethodID log_global_m = (*env)->GetStaticMethodID(env, backend_c, "logGlobalLine", "(Ljava/lang/String;)V");
 	(*env)->CallStaticVoidMethod(env, backend_c, log_global_m, buffer_s);
 	(*env)->PopLocalFrame(env, NULL);
+}
+
+int pak_rt_set_tick_interval(struct Module *mod, unsigned int us) {
+	JNIEnv *env = get_jni_env();
+	(*env)->PushLocalFrame(env, 10);
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jmethodID method = (*env)->GetMethodID(env, module_c, "setCurrentTickIntervalUs", "(I)V");
+	(*env)->CallVoidMethod(env, mod->rt->obj, method, (int)us);
+	(*env)->PopLocalFrame(env, NULL);
+	return 0;
 }
 
 void pak_debug_log(struct Module *mod, const char *fmt, ...) {
@@ -74,11 +127,94 @@ void pak_debug_log(struct Module *mod, const char *fmt, ...) {
 	(*env)->PopLocalFrame(env, NULL);
 }
 
+static jobject create_filehandle(JNIEnv *env, const struct FileHandle *file) {
+	(*env)->PushLocalFrame(env, 10);
+	jclass filehandle_c = (*env)->FindClass(env, "dev/danielc/common/FileHandle");
+	jmethodID constructor = (*env)->GetMethodID(env, filehandle_c, "<init>", "(ILjava/lang/String;Ljava/lang/String;Ldev/danielc/common/FileMetadata;)V");
+	jobject handle_o = (*env)->NewObject(env, filehandle_c, constructor,
+		file->index_in_view,
+		(*env)->NewStringUTF(env, file->filename),
+		(*env)->NewStringUTF(env, file->storage_name),
+		NULL
+	);
+	return (*env)->PopLocalFrame(env, handle_o);
+}
+
+static jobject create_filemetadata(JNIEnv *env, const struct FileMetadata *meta) {
+	(*env)->PushLocalFrame(env, 10);
+	jclass metadata_c = (*env)->FindClass(env, "dev/danielc/common/FileMetadata");
+	jmethodID constructor = (*env)->GetMethodID(env, metadata_c, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ldev/danielc/common/screens/MimeType;II)V");
+	jobject handle_o = (*env)->NewObject(env, metadata_c, constructor,
+		(*env)->NewStringUTF(env, meta->filename),
+		(*env)->NewStringUTF(env, meta->mime_type),
+		NULL,
+		0,
+		0
+	);
+	return (*env)->PopLocalFrame(env, handle_o);
+}
+
 int pak_rt_set_screen_supported(struct Module *mod, int screen, int v) {
 	JNIEnv *env = get_jni_env();
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
 	jmethodID set_screen_supported = (*env)->GetMethodID(env, module_c, "setScreenSupported", "(IZ)V");
 	(*env)->CallVoidMethod(env, mod->rt->obj, set_screen_supported, screen, (jboolean)v);
+	return 0;
+}
+
+int pak_rt_is_job_cancelled(struct Module *mod, int job) {
+	JNIEnv *env = get_jni_env();
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jmethodID is_job_cancelled = (*env)->GetMethodID(env, module_c, "isJobCancelled", "(I)Z");
+	return (*env)->CallBooleanMethod(env, mod->rt->obj, is_job_cancelled, job);
+}
+
+int pak_rt_set_progress_bar(struct Module *mod, int job, int percent) {
+	JNIEnv *env = get_jni_env();
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jmethodID set_progress_bar = (*env)->GetMethodID(env, module_c, "setProgressBar", "(II)V");
+	(*env)->CallVoidMethod(env, mod->rt->obj, set_progress_bar, job, percent);
+	return 0;
+}
+
+int pak_rt_set_storage_info(struct Module *mod, const char *storage_name, unsigned int n_items, enum SortedBy sorted_by) {
+	JNIEnv *env = get_jni_env();
+	(*env)->PushLocalFrame(env, 10);
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "setStorageInfo", "(ILjava/lang/String;I)V");
+	jstring name_s = (*env)->NewStringUTF(env, storage_name);
+	(*env)->CallVoidMethod(env, mod->rt->obj, set_storage_info, (int)n_items, name_s, (int)sorted_by);
+	(*env)->PopLocalFrame(env, NULL);
+	return 0;
+}
+
+int pak_rt_add_file_contents(struct Module *mod, struct FileHandle *file, void *image_data, unsigned int length) {
+	JNIEnv *env = get_jni_env();
+	(*env)->PushLocalFrame(env, 10);
+	jobject handle_o = create_filehandle(env, file);
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "setFileContents", "(Ldev/danielc/common/FileHandle;[B)V");
+
+	jbyteArray image_data_o = (*env)->NewByteArray(env, (jsize)length);
+	(*env)->SetByteArrayRegion(env, image_data_o, 0, (jsize)length, (const jbyte *)image_data);
+
+	(*env)->CallVoidMethod(env, mod->rt->obj, set_storage_info, handle_o, image_data_o);
+	(*env)->PopLocalFrame(env, NULL);
+	return 0;
+}
+
+int pak_rt_add_file_thumbnail(struct Module *mod, struct FileHandle *file, void *image_data, unsigned int length) {
+	JNIEnv *env = get_jni_env();
+	(*env)->PushLocalFrame(env, 10);
+	jobject handle_o = create_filehandle(env, file);
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "addFileThumbnail", "(Ldev/danielc/common/FileHandle;[B)V");
+
+	jbyteArray image_data_o = (*env)->NewByteArray(env, (jsize)length);
+	(*env)->SetByteArrayRegion(env, image_data_o, 0, (jsize)length, (const jbyte *)image_data);
+
+	(*env)->CallVoidMethod(env, mod->rt->obj, set_storage_info, handle_o, image_data_o);
+	(*env)->PopLocalFrame(env, NULL);
 	return 0;
 }
 
@@ -117,6 +253,21 @@ int pak_rt_add_user_setting(struct Module *mod, const struct PakUserSetting *s) 
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
 	jmethodID add_setting = (*env)->GetMethodID(env, module_c, "addUserSetting", "(Ldev/danielc/common/UserSetting;)V");
 	(*env)->CallVoidMethod(env, mod->rt->obj, add_setting, setting_o);
+
+	(*env)->PopLocalFrame(env, NULL);
+	return 0;
+}
+
+int pak_rt_add_file_metadata(struct Module *mod, struct FileHandle *file, const struct FileMetadata *metadata) {
+	JNIEnv *env = get_jni_env();
+	(*env)->PushLocalFrame(env, 10);
+
+	jobject handle_o = create_filehandle(env, file);
+	jobject metadata_o = create_filemetadata(env, metadata);
+
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jmethodID method = (*env)->GetMethodID(env, module_c, "addFileMetadata", "(Ldev/danielc/common/FileHandle;Ldev/danielc/common/FileMetadata;)V");
+	(*env)->CallVoidMethod(env, mod->rt->obj, method, handle_o, metadata_o);
 
 	(*env)->PopLocalFrame(env, NULL);
 	return 0;

@@ -282,7 +282,7 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
             val booleanValue = pane.currentBooleanValue
             if (booleanValue != null) {
                 panes += PaneState(PaneState.Color.NEUTRAL, content = {
-                    Text(pane.name, color = MaterialTheme.colorScheme.onSurface)
+                    Text(pane.title, color = MaterialTheme.colorScheme.onSurface)
                     Switch(booleanValue,
                         onCheckedChange = {
                             callbacks.updateSettingPane(pane, !booleanValue)

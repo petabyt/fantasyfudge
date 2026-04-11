@@ -45,6 +45,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
@@ -57,35 +58,79 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.ViewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
+import dev.danielc.common.FileHandle
+import dev.danielc.common.FileMetadata
+import dev.danielc.common.ModuleInstance
+import dev.danielc.common.ModuleManifest
+import dev.danielc.common.Runtime
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.GoGreen
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import net.engawapg.lib.zoomable.rememberZoomState
 import net.engawapg.lib.zoomable.zoomable
 
 data class ViewerState(
-    val type: MimeType = MimeType.FILE,
-    val filename: String? = null,
+    val handle: FileHandle,
+    val numberOfItems: Int,
     val isLoading: Boolean = true,
+    val isDecoding: Boolean = false,
     val currentDownloadProgress: Int = 0,
     val currentDownloadSpeed: String = "",
     val painter: Painter? = null,
-    val numberOfItems: Int = 100,
-    var indexInItems: Int = 5,
+    val bitmap: ImageBitmap? = null,
 )
+
+class ViewerModel() : ViewModel() {
+    private val _viewerState = MutableStateFlow<ViewerState?>(null)
+    val viewerState = _viewerState.asStateFlow()
+
+    fun update(file: FileHandle, numberOfItems: Int) {
+        _viewerState.value = ViewerState(file, numberOfItems)
+    }
+    fun clear() {
+        _viewerState.value = null
+    }
+    fun setFileContents(data: ByteArray) {
+        _viewerState.update { viewerState ->
+            viewerState?.copy(
+                isDecoding = true
+            )
+        }
+        val bitmap = Runtime.decodeImageContents(data, null)
+        _viewerState.update { viewerState ->
+            viewerState?.copy(
+                bitmap = bitmap,
+                isDecoding = false,
+                isLoading = false,
+            )
+        }
+    }
+    fun update(downloadPercent: Int, downloadSpeed: String) {
+        _viewerState.update { viewerState ->
+            viewerState?.copy(
+                currentDownloadProgress = downloadPercent,
+                currentDownloadSpeed = downloadSpeed,
+            )
+        }
+    }
+}
 
 @Composable
 fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) -> Unit, close: () -> Unit) {
-    val filename = state.filename ?: "File"
+    val filename = state.handle.filename ?: "File"
 
     if (state.isLoading) {
-        val text = "Downloading " + when (state.type) {
+        val text = "Downloading " + when (state.handle.metadata?.mimeType) {
             MimeType.JPEG, MimeType.PNG -> "image"
             MimeType.MOV -> "movie"
             else -> "file"
@@ -188,23 +233,31 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
         .offset(0.dp, imageYOffset.value.dp)
         .then(swipeToCloseGesture)
     ) {
-        val pagerState = rememberPagerState(initialPage = state.indexInItems, pageCount = {
+        val pagerState = rememberPagerState(initialPage = state.handle.index, pageCount = {
             state.numberOfItems
         })
         LaunchedEffect(pagerState) {
             snapshotFlow { pagerState.currentPage }.collect { page ->
-                if (page != state.indexInItems) switchTo(page)
+                if (page != state.handle.index) switchTo(page)
             }
         }
         HorizontalPager(
             state = pagerState, modifier = Modifier.fillMaxSize().align(Alignment.Center)) { page ->
-            if (page == state.indexInItems) {
+            if (page == state.handle.index) {
                 val zoomState = rememberZoomState(contentSize = painter.intrinsicSize)
-                Image(
-                    modifier = Modifier.align(Alignment.Center).zoomable(zoomState),
-                    painter = painter,
-                    contentDescription = filename,
-                )
+                if (state.bitmap != null) {
+                    Image(
+                        modifier = Modifier.align(Alignment.Center).zoomable(zoomState),
+                        bitmap = state.bitmap,
+                        contentDescription = filename,
+                    )
+                } else {
+                    Image(
+                        modifier = Modifier.align(Alignment.Center).zoomable(zoomState),
+                        painter = painter,
+                        contentDescription = filename,
+                    )
+                }
             } else {
                 Image(
                     modifier = Modifier.align(Alignment.Center),
@@ -222,21 +275,16 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
     val painter = painterResource(R.drawable.image)
     val scope = rememberCoroutineScope()
     var state by remember { mutableStateOf(ViewerState(
-        filename = "DSCF0001.JPG",
+        handle = FileHandle(index = 10, "sdcard", "DSCF00001.JPG", FileMetadata(mimeType = MimeType.JPEG)),
         painter = painter,
         isLoading = false,
-        type = MimeType.JPEG,
         currentDownloadSpeed = "5 mbps",
         currentDownloadProgress = 40,
-
-        indexInItems = 12,
         numberOfItems = 30,
     )) }
     ViewerScreen(state, switchTo = { i ->
         state = state.copy(
             currentDownloadProgress = 0,
-            filename = "DSCF0002.JPG",
-            indexInItems = i,
             isLoading = true
         )
         scope.launch {
@@ -263,7 +311,7 @@ fun ViewerScreen(state: ViewerState, switchTo: (Int) -> Unit, close: () -> Unit)
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(),
                     title = {
-                        Text(state.filename ?: "File")
+                        Text(state.handle.filename ?: "File")
                     },
                     navigationIcon = {
                         IconButton(onClick = {

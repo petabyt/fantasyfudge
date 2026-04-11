@@ -1,6 +1,10 @@
 package dev.danielc.common
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.compose.ui.graphics.ImageBitmap
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleStateModel
+import dev.danielc.common.screens.MimeType
 import dev.danielc.common.screens.dummyManifestList
 import dev.danielc.libpak.Bluetooth
 import kotlinx.serialization.Serializable
@@ -12,6 +16,8 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import javax.microedition.khronos.opengles.GL10
+import androidx.compose.ui.graphics.asImageBitmap
 
 /**
  * Module defined setting that can be updated by the user or the module
@@ -87,31 +93,33 @@ data class FileHandle(
     var index: Int = 0,
     var storageName: String? = null,
     var filename: String? = null,
+    val metadata: FileMetadata? = null, // does not belong
 )
+
+fun getMimeType(str: String?): MimeType {
+    return when (str) {
+        "image/jpeg" -> MimeType.JPEG
+        "image/png" -> MimeType.PNG
+        "image/quicktime" -> MimeType.MOV
+        else -> MimeType.FILE
+    }
+}
 
 /**
  * struct FileMetadata
  */
 data class FileMetadata(
     var filename: String? = null,
-    var mimeType: String? = null,
-)
-
-typealias JobUpdateCallback = (ModuleJob) -> Unit
-
-/**
- * A job id is passed each time a module function is called. A job can be cancelled
- * at any time by the user, and the percent finished value can be updated by the module.
- */
-@Serializable
-data class ModuleJob(
-    val onUpdate: JobUpdateCallback,
-    val moduleInstance: SerializableModuleInstance,
-    val id: Int,
-    var progressBarValue: Int = 100,
-    var isCancelled: Boolean = false,
-    var isFinished: Boolean = false,
-)
+    var mimeTypeString: String? = null,
+    val mimeType: MimeType = getMimeType(mimeTypeString),
+    val width: Int = 0,
+    val height: Int = 0,
+) {
+    // TODO:
+    val filesize: Int? = 0
+    val createdDate: String? = null
+    val updatedDate: String? = null
+}
 
 /**
  * Property IDs for the module instance
@@ -143,8 +151,7 @@ object Runtime {
     var moduleManifests = mutableListOf<ModuleManifest>()
     var moduleInstances = mutableMapOf<Int, ModuleInstance>()
     private var moduleCounter = 0
-    private var jobs = mutableMapOf<Int, ModuleJob>()
-    private var jobCounter = 0
+
 
     fun addModuleInstance(mod: ModuleInstance): Int {
         moduleInstances.put(++moduleCounter, mod)
@@ -164,24 +171,6 @@ object Runtime {
         connectableDevices = listOf(
             ConnectableDevice("FooBar", dummyManifestList[0].targets[0], dummyManifestList[0], false)
         )
-    }
-
-    fun createJob(mod: SerializableModuleInstance, onUpdate: JobUpdateCallback): ModuleJob {
-        val id = ++jobCounter
-        val job = ModuleJob(
-            moduleInstance = mod,
-            id = id,
-            onUpdate = onUpdate
-        )
-        jobs.put(id, job)
-        return job
-    }
-
-    fun closeJob(job: ModuleJob) {
-        val key = jobs.entries.find { it.value == job }?.key
-        if (key != null) {
-            jobs.remove(key)
-        }
     }
 
     fun createModuleInstance(m: ModuleManifest): ModuleInstance {
@@ -281,5 +270,18 @@ object Runtime {
                 mainLog.addLine(e.toString())
             }
         }
+    }
+
+    fun decodeImageContents(data: ByteArray, imageHorizontalSize: Int?): ImageBitmap? {
+        val options = BitmapFactory.Options()
+        if (imageHorizontalSize != null && imageHorizontalSize > GL10.GL_MAX_TEXTURE_SIZE) {
+            options.inSampleSize = 2
+            options.inDensity = 2
+            options.inTargetDensity = 2
+            options.inScaled = true
+        }
+
+        val bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, options)
+        return bitmap.asImageBitmap()
     }
 }

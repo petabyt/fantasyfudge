@@ -4,14 +4,17 @@ package dev.danielc.common;
 
 import android.content.Context;
 import android.content.res.AssetManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Network;
 import android.util.Log;
-
+import androidx.compose.ui.graphics.ImageBitmap;
 import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import javax.microedition.khronos.opengles.GL10;
 
 public class NativeRuntime {
     public static boolean hasInited = false;
