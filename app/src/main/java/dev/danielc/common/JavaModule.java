@@ -21,14 +21,15 @@ public class JavaModule extends ModuleInstance {
         Bluetooth.getDefaultAdapter().isEnabled();
         //debugLog(String.format("adapter name: %s", Bluetooth.adapterName()));
 
-//        for (Device e: Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())) {
-//            debugLog(e.name());
-//        }
+        for (Bluetooth.Device e: Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())) {
+            debugLog(e.dev.getName());
+            debugLog(String.valueOf(e.dev.fetchUuidsWithSdp()));
+        }
 
         Bluetooth.BtFilter filter = new Bluetooth.BtFilter();
         //filter.isClassic = true;
 
-        Bluetooth.pairWithDeviceCompanion(Pak.getActivity(), filter, "device");
+        //Bluetooth.pairWithDeviceCompanion(Pak.getActivity(), filter, "device");
     }
 
     @Override
@@ -38,10 +39,9 @@ public class JavaModule extends ModuleInstance {
 
         setStorageInfo(4, "sdcard", SortBy.DEFAULT.getId());
 
-//        GalleryObject md = new GalleryObject(false, "DSC1001.JPG", null, 0xff0000, null, null);
-//        addFileMetadata(1, md);
+        connectBt();
 
-        return 0;
+        return -1;
     }
 
     int x = 1;

@@ -139,6 +139,7 @@ data class ModuleManifest(
         NATIVE,
         DUMMY_MODULE,
         JAVA_MODULE,
+        CMF_NOTHING,
         LIBFUJI;
         fun getDesc(): String {
             return when (this) {
@@ -146,6 +147,7 @@ data class ModuleManifest(
                 WEBASSEMBLY -> "Webassembly"
                 NATIVE -> "Native (statically compiled)"
                 DUMMY_MODULE -> "DummyModule (statically compiled)"
+                CMF_NOTHING -> "libcmf-nothing (statically compiled)"
                 JAVA_MODULE -> "JavaDummyModule"
                 LIBFUJI -> "libfuji (statically compiled)"
             }
@@ -417,5 +419,11 @@ class DummyModule(manifest: ModuleManifest) : NativeModule(manifest) {
 class LibFujiModule(manifest: ModuleManifest) : NativeModule(manifest) {
     init {
         NativeRuntime.setupLibFujiModule(this, manifest)
+    }
+}
+
+class CmfNothingModule(manifest: ModuleManifest) : NativeModule(manifest) {
+    init {
+        NativeRuntime.setupCmfNothingAudioModule(this, manifest)
     }
 }

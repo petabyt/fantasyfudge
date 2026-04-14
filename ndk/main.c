@@ -15,6 +15,7 @@ struct RuntimePriv {
 int get_module_dummy(struct Module *mod);
 int setup_quickjs_module(struct Module **mod, const char *filename);
 int get_module_libfuji(struct Module *mod);
+int get_module_cmfnothingaudio(struct Module *mod);
 
 int pak_ndk_create_module(JNIEnv *env, jobject o_mod, int (*get_fn)(struct Module *mod), jobject manifest) {
 	struct Module *mod = calloc(1, sizeof(struct Module));
@@ -34,6 +35,9 @@ int pak_ndk_create_module(JNIEnv *env, jobject o_mod, int (*get_fn)(struct Modul
 	jfieldID struct_field = (*env)->GetFieldID(env, class, "struct", "[B");
 	(*env)->SetObjectField(env, o_mod, struct_field, struct_);
 
+	mod->bt = pak_bt_get_context();
+	mod->net = pak_net_get_context();
+
 	return rc;
 }
 
@@ -43,7 +47,7 @@ Java_dev_danielc_common_NativeRuntime_init(JNIEnv *env, jclass clazz) {
 	pak_global_log("NativeRuntime init");
 }
 
-static uint8_t *file_add(void *arg, uint8_t *buffer, unsigned int new_len, unsigned int old_len) {
+static uint8_t *file_add(void *arg, const uint8_t *buffer, unsigned int new_len, unsigned int old_len) {
 	uint8_t *new = realloc(buffer, new_len);
 	fread(new + old_len, 1, new_len - old_len, (FILE *)arg);
 	return new;
@@ -60,13 +64,8 @@ Java_dev_danielc_common_Exif_getExifThumbnail(JNIEnv *env, jclass clazz, jstring
 	uint8_t *buffer = malloc(5000);
 	fread(buffer, 1, 5000, f);
 
-	struct ExifC c = {0};
-	c.length = 100;
-	c.buf = buffer;
-	c.arg = f;
-	c.get_more = file_add;
-
-	int rc = exif_start_raw(&c);
+	struct ExifParser c = {0};
+	int rc = exif_start_raw(&c, buffer, 5000, file_add, f);
 	if (rc < 0) {
 		abort();
 	}
@@ -143,11 +142,10 @@ static jobject create_filehandle(JNIEnv *env, const struct FileHandle *file) {
 static jobject create_filemetadata(JNIEnv *env, const struct FileMetadata *meta) {
 	(*env)->PushLocalFrame(env, 10);
 	jclass metadata_c = (*env)->FindClass(env, "dev/danielc/common/FileMetadata");
-	jmethodID constructor = (*env)->GetMethodID(env, metadata_c, "<init>", "(Ljava/lang/String;Ljava/lang/String;Ldev/danielc/common/screens/MimeType;II)V");
+	jmethodID constructor = (*env)->GetMethodID(env, metadata_c, "<init>", "(Ljava/lang/String;Ljava/lang/String;II)V");
 	jobject handle_o = (*env)->NewObject(env, metadata_c, constructor,
 		(*env)->NewStringUTF(env, meta->filename),
 		(*env)->NewStringUTF(env, meta->mime_type),
-		NULL,
 		0,
 		0
 	);
@@ -317,4 +315,11 @@ Java_dev_danielc_common_NativeRuntime_setupJavascriptModule(JNIEnv *env, jclass 
 	if (rc) return rc;
 
 	return 0;
+}
+
+JNIEXPORT jint JNICALL
+Java_dev_danielc_common_NativeRuntime_setupCmfNothingAudioModule(JNIEnv *env, jclass clazz,
+																 jobject mod, jobject manifest) {
+	set_jni_env_ctx(env, clazz);
+	return pak_ndk_create_module(env, mod, get_module_cmfnothingaudio, manifest);
 }

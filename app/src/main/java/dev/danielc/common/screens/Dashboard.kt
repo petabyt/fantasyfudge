@@ -138,7 +138,7 @@ fun budsState(): DashboardState {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true, device = "id:tv_1080p", uiMode = Configuration.UI_MODE_NIGHT_YES)
+//@Preview(showBackground = true, device = "id:tv_1080p", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun PreviewDashboardBuds() {
     var state by remember { mutableStateOf(budsState()) }
@@ -335,7 +335,7 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                                         tint = fg,
                                         modifier = Modifier.padding(20.dp)
                                     )
-                                    Text(pane.text.orEmpty(), color = fg)
+                                    Text(pane.text.orEmpty(), color = fg, modifier = Modifier.padding(10.dp))
                                 }
                             } else {
                                 Column(Modifier.padding(20.dp)) {

@@ -110,15 +110,14 @@ fun getMimeType(str: String?): MimeType {
  */
 data class FileMetadata(
     var filename: String? = null,
-    var mimeTypeString: String? = null,
-    val mimeType: MimeType = getMimeType(mimeTypeString),
+    val mimeType: MimeType = MimeType.FILE,
     val width: Int = 0,
     val height: Int = 0,
-) {
-    // TODO:
-    val filesize: Int? = 0
-    val createdDate: String? = null
-    val updatedDate: String? = null
+    val filesize: Int? = 0,
+    val createdDate: String? = null,
+    val updatedDate: String? = null,
+    ) {
+    constructor(filename: String?, mimeTypeString: String?, width: Int, height: Int) : this(filename, mimeType = getMimeType(mimeTypeString), width = width, height = height)
 }
 
 /**
@@ -152,7 +151,6 @@ object Runtime {
     var moduleInstances = mutableMapOf<Int, ModuleInstance>()
     private var moduleCounter = 0
 
-
     fun addModuleInstance(mod: ModuleInstance): Int {
         moduleInstances.put(++moduleCounter, mod)
         return moduleCounter
@@ -166,7 +164,7 @@ object Runtime {
     }
 
     fun refreshConnectableDevices() {
-        Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())
+        val devices = Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())
         // TODO
         connectableDevices = listOf(
             ConnectableDevice("FooBar", dummyManifestList[0].targets[0], dummyManifestList[0], false)
@@ -174,14 +172,15 @@ object Runtime {
     }
 
     fun createModuleInstance(m: ModuleManifest): ModuleInstance {
-        if (m.moduleType == ModuleManifest.ModuleType.DUMMY_MODULE) {
-            return DummyModule(m)
-        } else if (m.moduleType == ModuleManifest.ModuleType.JAVA_MODULE) {
-            return JavaModule(m)
-        } else if (m.moduleType == ModuleManifest.ModuleType.LIBFUJI) {
-            return LibFujiModule(m)
+        return when (m.moduleType) {
+            ModuleManifest.ModuleType.CMF_NOTHING -> CmfNothingModule(m)
+            ModuleManifest.ModuleType.QUICKJS -> throw Exception("QuickJS")
+            ModuleManifest.ModuleType.WEBASSEMBLY -> throw Exception("Webassembly")
+            ModuleManifest.ModuleType.NATIVE -> throw Exception("Native module (?)")
+            ModuleManifest.ModuleType.DUMMY_MODULE -> DummyModule(m)
+            ModuleManifest.ModuleType.JAVA_MODULE -> JavaModule(m)
+            ModuleManifest.ModuleType.LIBFUJI -> LibFujiModule(m)
         }
-        throw Exception("TODO: Implement moduleType")
     }
 
     fun getManifestFromName(name: String): ModuleManifest? {
@@ -233,6 +232,19 @@ object Runtime {
                     company = "Fujifilm",
                     deviceId = Device.PROFESSIONAL_CAMERA,
                     products = listOf("X-T1", "X-T2", "X-T3", "X-T4", "X-T5")
+                )
+            ),
+        )
+
+        moduleManifests += ModuleManifest(
+            name = "cmf-nothing-audio",
+            description = "CMF Nothing Audio devices",
+            moduleType = ModuleManifest.ModuleType.CMF_NOTHING,
+            targets = listOf(
+                ModuleManifest.Target(
+                    company = "Nothing",
+                    deviceId = Device.EARBUDS,
+                    products = listOf("Buds Pro 2", "Buds 2")
                 )
             ),
         )

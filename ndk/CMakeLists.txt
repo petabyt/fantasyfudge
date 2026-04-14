@@ -36,12 +36,14 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../libpak ${CMAKE_CURRENT_BINARY_DI
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/libfuji ${CMAKE_CURRENT_BINARY_DIR}/libfuji)
 # dummy static module
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/dummy ${CMAKE_CURRENT_BINARY_DIR}/dummy)
+# dummy cmf module
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/nothing-buds ${CMAKE_CURRENT_BINARY_DIR}/nothing)
 
 add_library(${CMAKE_PROJECT_NAME} SHARED
     main.c
     thread.c
     module.c
 )
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE libfuji dummy pak qjs libjpeg-turbo $<$<BOOL:${APP_WASM_SUPPORT}>:vmlib>)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE libfuji dummy pak qjs libjpeg-turbo cmfnothingaudio $<$<BOOL:${APP_WASM_SUPPORT}>:vmlib>)
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE "-Wl,-z,max-page-size=16384")
 target_link_options(pak PRIVATE "-Wl,-z,max-page-size=16384")

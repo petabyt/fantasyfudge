@@ -24,6 +24,7 @@ public class NativeRuntime {
     }
     static native void init();
     static native int setupDummyNativeModule(NativeModule mod, ModuleManifest manifest);
+    static native int setupCmfNothingAudioModule(NativeModule mod, ModuleManifest manifest);
     static native int setupLibFujiModule(NativeModule mod, ModuleManifest manifest);
     static native int setupJavascriptModule(NativeModule mod, ModuleManifest manifest, String jsPath);
     static native int setupWebassemblyModule(NativeModule mod, ModuleManifest manifest, String wasmPath);

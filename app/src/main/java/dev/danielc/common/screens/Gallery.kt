@@ -63,6 +63,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.lang.Exception
 
 enum class MimeType {
     FILE,
@@ -93,7 +94,7 @@ enum class SortBy(val id: Int) {
 
 data class GalleryObject(
     val metadata: FileMetadata? = null,
-    var thumbnail: ImageBitmap? = null,
+    val thumbnail: ImageBitmap? = null,
     val colorThumb: Int? = null,
 )
 
@@ -108,7 +109,7 @@ data class GalleryState(
     val displayType: DisplayType = DisplayType.THUMBNAILS,
     val objectListSortedOrder: SortBy = SortBy.NEWEST_FIRST,
     // TODO: Tree of objects, maintain current directory
-    val objects: MutableList<GalleryObject?> = mutableListOf(),
+    val objects: List<GalleryObject?> = emptyList(),
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
 )
 
@@ -128,9 +129,9 @@ class GalleryViewModel() : ViewModel() {
 
     fun setProperties(nItems: Int, name: String, sortBy: SortBy) {
         viewModelScope.launch(Dispatchers.Default) {
-            val list = _uiState.value.objects
-            while (list.size < nItems) list.add(null)
             _uiState.update { currentState ->
+                val list = currentState.objects.toMutableList()
+                while (list.size < nItems) list.add(null)
                 currentState.copy(
                     objects = list,
                     storageName = name,
@@ -142,25 +143,34 @@ class GalleryViewModel() : ViewModel() {
 
     fun setListLength(size: Int) {
         viewModelScope.launch(Dispatchers.Default) {
-            val list = _uiState.value.objects
-            while (list.size < size) list.add(null)
             _uiState.update { currentState ->
+                val list = currentState.objects.toMutableList()
+                while (list.size < size) list.add(null)
                 currentState.copy(objects = list)
             }
         }
     }
 
     fun updateObject(i: Int, md: FileMetadata? = null, thumbData: ByteArray? = null) {
-        viewModelScope.launch(Dispatchers.Default) {
-            val list = _uiState.value.objects
-            while (list.size <= i) list.add(null)
-            val obj = list[i] ?: GalleryObject(md)
-            if (thumbData != null) {
-                obj.thumbnail = Runtime.decodeImageContents(thumbData, null)
-            }
-
-            list[i] = obj
+        // TODO: randomly firing twice
+        viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { currentState ->
+                val list = currentState.objects.toMutableList()
+                while (list.size <= i) list.add(null)
+                var obj = list[i] ?: GalleryObject(md)
+                if (thumbData != null) {
+                    try {
+                        obj = obj.copy(thumbnail = Runtime.decodeImageContents(thumbData, null))
+                    } catch (e: Exception) {
+                        println(e.message)
+                        // TODO: decode error
+                    }
+                }
+                if (md != null) {
+                    obj = obj.copy(metadata = md)
+                }
+
+                list[i] = obj
                 currentState.copy(objects = list)
             }
         }

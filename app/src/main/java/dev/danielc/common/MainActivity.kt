@@ -12,6 +12,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideIn
 import androidx.compose.animation.slideOut
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.unit.IntOffset
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -116,6 +117,12 @@ class MainActivity : ComponentActivity() {
                 composable("gallery") { PreviewGalleryScreen(navController) }
                 composable("preview-viewer") { PreviewViewer(navController) }
                 composable("test-dashboard1") { PreviewDashboardCamera() }
+            }
+
+            LaunchedEffect(Unit) {
+                val instance = Runtime.createModuleInstance(Runtime.getManifestFromName("cmf-nothing-audio")!!)
+                navController.navigate(instance.serializableModuleInstance)
+                instance.initThread()
             }
         }
     }
