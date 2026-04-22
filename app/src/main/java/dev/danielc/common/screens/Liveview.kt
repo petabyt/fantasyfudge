@@ -90,7 +90,7 @@ fun Liveview(modifier: Modifier = Modifier, navController: NavHostController = r
             LiveviewButton("White Balance", R.drawable.outline_wb_sunny_24, "WB")
             LiveviewButton("ISO", R.drawable.outline_iso_24, "ISO")
             LiveviewButton("Shutter Speed", R.drawable.outline_shutter_speed_24, "SHUTT")
-            LiveviewButton("Aperture", R.drawable.baseline_photo_camera_24, "APERT")
+            LiveviewButton("Aperture", R.drawable.outline_camera_24, "APERT")
             LiveviewButton("Format", R.drawable.outline_style_24, "FORMAT")
         }
 

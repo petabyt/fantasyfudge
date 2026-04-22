@@ -43,7 +43,6 @@ import androidx.navigation.compose.rememberNavController
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.R
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import dev.danielc.common.Device
 import dev.danielc.common.ModuleManifest
@@ -53,7 +52,9 @@ import dev.danielc.common.ui.theme.FudgeRippleConfig
 data class DashboardState(
     val manifest: ModuleManifest?,
     val customSettings: List<UserSetting> = emptyList(),
-    val batteryLevel: Int? = null,
+    val batteryLevelMain: Int? = null,
+    val batteryLevelLeft: Int? = null,
+    val batteryLevelRight: Int? = null,
     val nameOfDevice: String? = null,
     val filesOnStorage: Int? = null,
     val firmwareVersion: String? = null,
@@ -90,7 +91,7 @@ fun cameraState(): DashboardState {
         manifest = manifest,
         nameOfDevice = "Fujifilm X100VI",
         filesOnStorage = 321,
-        batteryLevel = 78,
+        batteryLevelMain = 78,
         firmwareVersion = "0.1.0",
         supportsLiveView = true,
         supportsGallery = true,
@@ -230,9 +231,9 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                         )
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, alignment = Alignment.End)) {
-                        if (state.batteryLevel != null) {
+                        if (state.batteryLevelMain != null) {
                             Icon(
-                                painter = painterResource(getBatteryStatusIcon(state.batteryLevel)),
+                                painter = painterResource(getBatteryStatusIcon(state.batteryLevelMain)),
                                 contentDescription = null,
                             )
                         }
@@ -272,11 +273,11 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
             panes += PaneState(PaneState.Color.TERTIARY, "Update Firmware", R.drawable.outline_developer_board_24)
         }
 
-        panes += BatteryListPane(listOf(
-            PaneBatteryStatus("Left", 47),
-            PaneBatteryStatus("Base", 81),
-            PaneBatteryStatus("Right", 46)
-        ))
+        val batteries = mutableListOf<PaneBatteryStatus>()
+        if (state.batteryLevelLeft != null) batteries.add(PaneBatteryStatus("Left", state.batteryLevelLeft))
+        if (state.batteryLevelMain != null) batteries.add(PaneBatteryStatus("Base", state.batteryLevelMain))
+        if (state.batteryLevelRight != null) batteries.add(PaneBatteryStatus("Right", state.batteryLevelRight))
+        if (batteries.size > 1) panes += BatteryListPane(batteries)
 
         for (pane in state.customSettings) {
             val booleanValue = pane.currentBooleanValue

@@ -119,10 +119,13 @@ class MainActivity : ComponentActivity() {
                 composable("test-dashboard1") { PreviewDashboardCamera() }
             }
 
-            LaunchedEffect(Unit) {
-                val instance = Runtime.createModuleInstance(Runtime.getManifestFromName("cmf-nothing-audio")!!)
-                navController.navigate(instance.serializableModuleInstance)
-                instance.initThread()
+            if (true) {
+                LaunchedEffect(Unit) {
+                    val instance =
+                        Runtime.createModuleInstance(Runtime.getManifestFromName("dummymod")!!)
+                    navController.navigate(instance.serializableModuleInstance)
+                    instance.initThread()
+                }
             }
         }
     }

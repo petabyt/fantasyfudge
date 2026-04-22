@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,21 +35,28 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.paint
+import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -57,13 +65,39 @@ import dev.danielc.common.FileMetadata
 import dev.danielc.common.Runtime
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.FudgeRippleConfig
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.lang.Exception
+import kotlin.coroutines.cancellation.CancellationException
+
+fun bitmapFromColor(
+    color: Color,
+    width: Int = 512,
+    height: Int = 512
+): ImageBitmap {
+    val imageBitmap = ImageBitmap(width, height)
+    val canvas = Canvas(imageBitmap)
+    val drawScope = CanvasDrawScope()
+    val size = androidx.compose.ui.geometry.Size(width.toFloat(), height.toFloat())
+
+    drawScope.draw(
+        density = Density(1f),
+        layoutDirection = LayoutDirection.Ltr,
+        canvas = canvas,
+        size = size
+    ) {
+        drawRect(color = color)
+    }
+
+    return imageBitmap
+}
 
 enum class MimeType {
     FILE,
@@ -95,8 +129,9 @@ enum class SortBy(val id: Int) {
 data class GalleryObject(
     val metadata: FileMetadata? = null,
     val thumbnail: ImageBitmap? = null,
-    val colorThumb: Int? = null,
-)
+    var invalidMetadata: Boolean = false,
+    var invalidThumbnail: Boolean = false,
+    )
 
 data class GalleryObjectReference(
     val index: Int,
@@ -113,9 +148,63 @@ data class GalleryState(
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
 )
 
-class GalleryViewModel() : ViewModel() {
+abstract class GalleryViewModel() : ViewModel() {
     private val _uiState = MutableStateFlow(GalleryState())
     val uiState = _uiState.asStateFlow()
+    var thread: Job? = null
+    var threadIsPaused: Boolean = true
+
+    abstract fun fulfillThumbnail(file: GalleryObjectReference)
+    abstract fun fulfillMetadata(file: GalleryObjectReference)
+
+    fun tick(): Boolean {
+        val queue = _uiState.value.queue
+        if (queue.isEmpty()) return false
+        val ref = queue.removeLast()
+        val obj = _uiState.value.objects[ref.index]
+        if (obj == null) {
+            fulfillThumbnail(ref)
+        } else {
+            if (obj.metadata == null && !obj.invalidMetadata) {
+                fulfillMetadata(ref)
+            } else if (obj.thumbnail == null && !obj.invalidThumbnail) {
+                fulfillThumbnail(ref)
+            } else {
+                return false
+            }
+        }
+        return true
+    }
+
+    fun start() {
+        if (thread == null) {
+            thread = CoroutineScope(Dispatchers.IO).launch {
+                val thread = thread
+                while (thread != null && !thread.isCancelled) {
+                    if (!threadIsPaused) {
+                        if (tick()) continue
+                    }
+                    try {
+                        delay(10)
+                    } catch (e: CancellationException) {
+                        break
+                    }
+                }
+            }
+        } else {
+            threadIsPaused = false
+        }
+    }
+
+    fun setPaused(v: Boolean) {
+        threadIsPaused = v
+    }
+
+    fun stop() {
+        setPaused(true)
+        thread?.cancel()
+        thread = null
+    }
 
     fun reset() {
         viewModelScope.launch() {
@@ -151,22 +240,34 @@ class GalleryViewModel() : ViewModel() {
         }
     }
 
-    fun updateObject(i: Int, md: FileMetadata? = null, thumbData: ByteArray? = null) {
+    fun updateThumbnail(i: Int, thumbData: ByteArray? = null) {
+        updateObject(i, null, thumbData, false, true)
+    }
+    fun updateMetadata(i: Int, md: FileMetadata? = null) {
+        updateObject(i, md, null, true, false)
+    }
+    fun updateObject(i: Int, md: FileMetadata? = null, thumbData: ByteArray? = null, haveMetadata: Boolean = true, haveThumbnail: Boolean = true) {
         // TODO: randomly firing twice
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { currentState ->
                 val list = currentState.objects.toMutableList()
                 while (list.size <= i) list.add(null)
                 var obj = list[i] ?: GalleryObject(md)
-                if (thumbData != null) {
-                    try {
-                        obj = obj.copy(thumbnail = Runtime.decodeImageContents(thumbData, null))
-                    } catch (e: Exception) {
-                        println(e.message)
-                        // TODO: decode error
+                if (haveThumbnail) {
+                    if (thumbData == null) {
+                        obj = obj.copy(
+                            thumbnail = null,
+                        )
+                    } else {
+                        try {
+                            obj = obj.copy(thumbnail = Runtime.decodeImageContents(thumbData, null))
+                        } catch (e: Exception) {
+                            println(e.message)
+                            // TODO: decode error
+                        }
                     }
                 }
-                if (md != null) {
+                if (haveMetadata) {
                     obj = obj.copy(metadata = md)
                 }
 
@@ -186,12 +287,6 @@ class GalleryViewModel() : ViewModel() {
 fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
     var boxModifier = Modifier.aspectRatio(1f)
 
-    val backgroundColor = if (obj != null && obj.colorThumb != null) {
-        Color(0xff000000 or obj.colorThumb.toLong())
-    } else {
-        MaterialTheme.colorScheme.surfaceContainer
-    }
-
     val icon = if (obj == null) {
         R.drawable.baseline_question_mark_24
     } else {
@@ -204,7 +299,7 @@ fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
         }
     }
 
-    boxModifier = boxModifier.background(backgroundColor)
+    boxModifier = boxModifier.background(MaterialTheme.colorScheme.surfaceContainer)
 
     CompositionLocalProvider(LocalRippleConfiguration provides FudgeRippleConfig(Color.White)) {
         Box(
@@ -221,7 +316,6 @@ fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
                 indication = ripple(),
                 interactionSource = remember { MutableInteractionSource() }
             )
-            .padding(2.dp)
         ) {
             if (obj == null) {
                 Icon(
@@ -231,7 +325,7 @@ fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
                 )
             } else {
                 if (obj.thumbnail != null) {
-                    Image(modifier = Modifier.fillMaxSize(), bitmap = obj.thumbnail!!, contentDescription = null)
+                    Image(modifier = Modifier.fillMaxSize(), bitmap = obj.thumbnail, contentDescription = null)
                 }
 
                 val iconModifier = if (obj.metadata?.mimeType == MimeType.FOLDER) {
@@ -306,11 +400,8 @@ fun GalleryFile(obj: GalleryObject?, onClick: () -> Unit = {}) {
 }
 
 @Composable
-fun Gallery(navController: NavHostController, innerPadding: PaddingValues, state: GalleryState, requestLoad: (Int) -> Unit = {}) {
-    Box(modifier = Modifier
-            .padding(innerPadding)
-            .fillMaxSize()
-    ) {
+fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (Int) -> Unit = {}) {
+    Box(modifier = modifier.fillMaxSize()) {
         Column {
             if (false) {
                 Surface(
@@ -354,10 +445,11 @@ fun Gallery(navController: NavHostController, innerPadding: PaddingValues, state
                 }
             }
 
-            val listState = rememberLazyListState()
+            val listState = rememberLazyGridState()
 
             if (state.displayType == DisplayType.THUMBNAILS) {
                 LazyVerticalGrid(
+                    state = listState,
                     columns = GridCells.Fixed(4)
                 ) {
                     items(state.objects) { obj ->
@@ -366,6 +458,7 @@ fun Gallery(navController: NavHostController, innerPadding: PaddingValues, state
                 }
             } else if (state.displayType == DisplayType.VERTICAL_TABLE) {
                 LazyVerticalGrid(
+                    state = listState,
                     columns = GridCells.Fixed(1)
                 ) {
                     items(state.objects) { obj ->
@@ -379,6 +472,7 @@ fun Gallery(navController: NavHostController, innerPadding: PaddingValues, state
                 snapshotFlow { listState.layoutInfo.visibleItemsInfo }
                 .collect { visibleItems ->
                     for (e in visibleItems) {
+                        println("enqueued ${e.index}")
                         requestLoad(e.index)
                     }
                 }
@@ -393,19 +487,21 @@ fun Gallery(navController: NavHostController, innerPadding: PaddingValues, state
 fun PreviewGalleryScreen(navController: NavHostController = rememberNavController()) {
     val state = GalleryState(objects = mutableListOf(
         GalleryObject(FileMetadata("DCIM/", mimeType = MimeType.FOLDER)),
-        GalleryObject(FileMetadata("DSC1111.JPG", mimeType = MimeType.JPEG), colorThumb = Color.Red.toArgb()),
-        GalleryObject(FileMetadata("DSC1234.MOV", mimeType = MimeType.MOV), colorThumb = Color.Green.toArgb()),
-        GalleryObject(FileMetadata(), colorThumb = Color.Cyan.toArgb()),
-        GalleryObject(FileMetadata(), colorThumb = Color.Magenta.toArgb()),
-        GalleryObject(FileMetadata(), colorThumb = Color.Yellow.toArgb()),
+        GalleryObject(FileMetadata("DSC1111.JPG", mimeType = MimeType.JPEG), thumbnail = bitmapFromColor(Color.Red)),
+        GalleryObject(FileMetadata("DSC1234.MOV", mimeType = MimeType.MOV), thumbnail = bitmapFromColor(Color.Green)),
+        GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Cyan)),
+        GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Magenta)),
+        GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Yellow)),
         null,
-        GalleryObject(FileMetadata(), colorThumb = Color.Gray.toArgb()),
-        GalleryObject(FileMetadata(), colorThumb = Color.LightGray.toArgb()),
-        GalleryObject(FileMetadata(), colorThumb = Color.DarkGray.toArgb()),
-        GalleryObject(FileMetadata("DSC1132.JPG"), colorThumb = Color.Red.toArgb()),
-        GalleryObject(FileMetadata(), colorThumb = Color.Green.toArgb()),
-        GalleryObject(FileMetadata(), colorThumb = Color.Blue.toArgb()),
-        GalleryObject(FileMetadata(), colorThumb = Color.Cyan.toArgb()),
+        null,
+        null,
+        GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Gray)),
+        GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.LightGray)),
+        GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.DarkGray)),
+        GalleryObject(FileMetadata("DSC1132.JPG"), thumbnail = bitmapFromColor(Color.Red)),
+        GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Green)),
+        GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Blue)),
+        GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Cyan)),
     ))
 
     return FudgeTheme {
@@ -426,7 +522,7 @@ fun PreviewGalleryScreen(navController: NavHostController = rememberNavControlle
                 )
             },
         ) { innerPadding ->
-            Gallery(navController, innerPadding, state)
+            Gallery(Modifier.padding(innerPadding), state)
         }
     }
 }

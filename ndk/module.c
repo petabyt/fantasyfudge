@@ -39,7 +39,7 @@ Java_dev_danielc_common_NativeModule_onFindConnection(JNIEnv *env, jobject thiz,
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
 
-	int rc = PAK_UNIMPLEMENTED;
+	int rc = PAK_ERR_UNIMPLEMENTED;
 	if (mod->on_find_connection) rc = mod->on_find_connection(mod, job);
 
 	release_mod(env, &info);
@@ -76,7 +76,14 @@ Java_dev_danielc_common_NativeModule_onIdleTick(JNIEnv *env, jobject thiz,
 
 JNIEXPORT jint JNICALL
 Java_dev_danielc_common_NativeModule_onDisconnect(JNIEnv *env, jobject thiz) {
-	// TODO: implement onDisconnect()
+	struct TempStruct info;
+	struct Module *mod = get_mod(env, thiz, &info);
+
+	int rc = 0;
+	if (mod->on_switch_screen) rc = mod->on_disconnect(mod);
+
+	release_mod(env, &info);
+	return rc;
 }
 
 JNIEXPORT jint JNICALL
@@ -120,8 +127,8 @@ Java_dev_danielc_common_NativeModule_onRequestFileThumbnail(JNIEnv *env, jobject
 	int rc = 0;
 	if (mod->on_request_thumbnail) rc = mod->on_request_thumbnail(mod, job, &handle);
 
-	(*env)->ReleaseStringUTFChars(env, storagename_o, storagename_s);
-	(*env)->ReleaseStringUTFChars(env, filename_o, filename_s);
+	if (storagename_o != NULL) (*env)->ReleaseStringUTFChars(env, storagename_o, storagename_s);
+	if (filename_o != NULL) (*env)->ReleaseStringUTFChars(env, filename_o, filename_s);
 	(*env)->PopLocalFrame(env, NULL);
 
 	release_mod(env, &info);

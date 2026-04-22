@@ -2,6 +2,7 @@ package dev.danielc.common
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleStateModel
 import dev.danielc.common.screens.GalleryObject
+import dev.danielc.common.screens.GalleryObjectReference
 import dev.danielc.common.screens.GalleryViewModel
 import dev.danielc.common.screens.ModuleHomeModel
 import dev.danielc.common.screens.SortBy
@@ -180,13 +181,23 @@ data class ModuleManifest(
     )
 }
 
+class ModuleGalleryViewModel(val module: ModuleInstance): GalleryViewModel() {
+    override fun fulfillThumbnail(file: GalleryObjectReference) {
+        module.getFileThumbnail(file = FileHandle(file.index, null, null, null))
+    }
+
+    override fun fulfillMetadata(file: GalleryObjectReference) {
+        module.getFileMetadata(file = FileHandle(file.index, null, null, null))
+    }
+}
+
 /**
  * Instance of a module with a single connection
  */
 abstract class ModuleInstance(manifest: ModuleManifest) {
     var debugLogModel = ConsoleStateModel()
     val homeModelView = ModuleHomeModel(manifest, this)
-    val galleryViewModel = GalleryViewModel()
+    val galleryViewModel = ModuleGalleryViewModel(this)
     val viewerViewModel = ViewerModel()
     var currentTickIntervalUs: Int = (100 * 1000)
     val serializableModuleInstance: SerializableModuleInstance = SerializableModuleInstance(Runtime.addModuleInstance(this))
@@ -239,6 +250,7 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
     }
     suspend fun deregister() {
         println("Deregistering module")
+        galleryViewModel.stop()
         initJob?.cancel()
         initJob?.join()
         mainLoopJob?.cancel()
@@ -276,7 +288,7 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
         return false
     }
     fun addFileMetadata(file: FileHandle, v: FileMetadata) {
-        galleryViewModel.updateObject(file.index, v, null)
+        galleryViewModel.updateMetadata(file.index, v)
         // Update the image viewer state if it doesn't already have the metadata
         val viewerState = viewerViewModel.viewerState.value
         if (viewerState != null) {
@@ -289,7 +301,7 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
         viewerViewModel.setFileContents(data)
     }
     fun addFileThumbnail(file: FileHandle, data: ByteArray) {
-        galleryViewModel.updateObject(file.index, null, data)
+        galleryViewModel.updateThumbnail(file.index, data)
     }
     fun setStorageInfo(nItems: Int, name: String, sortBy: Int) {
         // TODO: Manage multiple storage devices
@@ -305,9 +317,10 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
 
     fun initThread() {
         initJob = CoroutineScope(Dispatchers.IO).launch {
-            if (findConnection() == Pak.Error.OK.code) {
+            if (findConnection() == 0) {
                 isConnected = true
                 startMainLoop()
+                galleryViewModel.start()
                 switchScreen(Screen.DASHBOARD, false)
             } else {
                 debugLog("Failed to find connection")
@@ -361,6 +374,11 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
         withJob(callback) { job ->
             onSwitchScreen(currentScreen.id, screen.id, job.id)
         }
+        if (screen == Screen.FILE_GALLERY) {
+            galleryViewModel.setPaused(false)
+        } else if (currentScreen == Screen.FILE_GALLERY) {
+            galleryViewModel.setPaused(true)
+        }
         currentScreen = screen
         homeModelView.goToScreen(screen, isInNavBar)
     }
@@ -382,6 +400,12 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
     fun getFileMetadata(onUpdate: JobUpdateCallback = {}, file: FileHandle): Int {
         return withJob(onUpdate) { job ->
             onRequestFileMetadata(job.id, file)
+        }
+    }
+
+    fun getFileThumbnail(onUpdate: JobUpdateCallback = {}, file: FileHandle): Int {
+        return withJob(onUpdate) { job ->
+            onRequestFileThumbnail(job.id, file)
         }
     }
 

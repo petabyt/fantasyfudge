@@ -125,7 +125,10 @@ data class FileMetadata(
  */
 enum class ModuleProperty(val id: String) {
     NAME_OF_DEVICE("name"),
-    FIRMWARE_VERSION("firmware-version");
+    FIRMWARE_VERSION("firmware-version"),
+    BATTERY_MAIN("battery-main"),
+    BATTERY_LEFT("battery-left"),
+    BATTERY_RIGHT("battery-right");
     companion object {
         fun fromId(id: String?): ModuleProperty? {
             return ModuleProperty.entries.find { it.id == id }
@@ -200,25 +203,13 @@ object Runtime {
 
     fun loadModulesFromManifests(list: List<String>) {
         moduleManifests += ModuleManifest(
-            name = "Dummy Module",
+            name = "dummymod",
             description = "Test module that calls some internal C code",
             moduleType = ModuleManifest.ModuleType.DUMMY_MODULE,
             targets = listOf(
                 ModuleManifest.Target(
                     company = "Dummy Company",
                     deviceId = Device.GAME_CONTROLLER
-                )
-            ),
-        )
-
-        moduleManifests += ModuleManifest(
-            name = "Java Module",
-            description = "Test Android APIs",
-            moduleType = ModuleManifest.ModuleType.JAVA_MODULE,
-            targets = listOf(
-                ModuleManifest.Target(
-                    company = "Java Company",
-                    deviceId = Device.GENERIC_FURNITURE
                 )
             ),
         )

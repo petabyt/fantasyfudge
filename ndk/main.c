@@ -126,6 +126,27 @@ void pak_debug_log(struct Module *mod, const char *fmt, ...) {
 	(*env)->PopLocalFrame(env, NULL);
 }
 
+void pak_error(const char *fmt, ...) {
+	char buffer[512] = {0};
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(buffer, sizeof(buffer), fmt, args);
+	va_end(args);
+
+	__android_log_write(ANDROID_LOG_ERROR, "pak_error", buffer);
+}
+
+void pak_abort(const char *fmt, ...) {
+	char buffer[512];
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(buffer, sizeof(buffer), fmt, args);
+	va_end(args);
+
+	__android_log_write(ANDROID_LOG_ERROR, "pak_abort", buffer);
+	abort();
+}
+
 static jobject create_filehandle(JNIEnv *env, const struct FileHandle *file) {
 	(*env)->PushLocalFrame(env, 10);
 	jclass filehandle_c = (*env)->FindClass(env, "dev/danielc/common/FileHandle");
@@ -151,6 +172,8 @@ static jobject create_filemetadata(JNIEnv *env, const struct FileMetadata *meta)
 	);
 	return (*env)->PopLocalFrame(env, handle_o);
 }
+
+
 
 int pak_rt_set_screen_supported(struct Module *mod, int screen, int v) {
 	JNIEnv *env = get_jni_env();

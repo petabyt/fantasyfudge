@@ -21,6 +21,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,6 +33,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -86,12 +88,12 @@ class ModuleHomeModel(val manifest: ModuleManifest, val module: ModuleInstance) 
         }
     }
 
-    private val _currentScreenSwitchJob = MutableStateFlow(0)
-    val currentScreenSwitchJob = _currentScreenSwitchJob.asStateFlow()
-
-    fun updateScreenSwitchJob(job: ModuleJob) {
-        _currentScreenSwitchJob.value = job.progressBarValue ?: 0
-    }
+//    private val _currentScreenSwitchJob = MutableStateFlow(0)
+//    val currentScreenSwitchJob = _currentScreenSwitchJob.asStateFlow()
+//
+//    fun updateScreenSwitchJob(job: ModuleJob) {
+//        _currentScreenSwitchJob.value = job.progressBarValue ?: 0
+//    }
 
     private val _dashboardState = MutableStateFlow(DashboardState(manifest))
     val dashboardState = _dashboardState.asStateFlow()
@@ -160,6 +162,9 @@ class ModuleHomeModel(val manifest: ModuleManifest, val module: ModuleInstance) 
                 when (type) {
                     ModuleProperty.NAME_OF_DEVICE -> currentState.copy(nameOfDevice = value)
                     ModuleProperty.FIRMWARE_VERSION -> currentState.copy(firmwareVersion = value)
+                    ModuleProperty.BATTERY_LEFT -> currentState.copy(batteryLevelLeft = value.toInt())
+                    ModuleProperty.BATTERY_MAIN -> currentState.copy(batteryLevelMain = value.toInt())
+                    ModuleProperty.BATTERY_RIGHT -> currentState.copy(batteryLevelRight = value.toInt())
                 }
             }
         }
@@ -304,11 +309,23 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                 navController = navController, startDestination = Screen.DASHBOARD.strId) {
                 composable(Screen.DASHBOARD.strId) {
                     BackHandler { goBack() }
-                    Dashboard(Modifier.padding(innerPadding), navController, state = dashboardState, callbacks = model.dashboardCallbacks)
+                    Dashboard(Modifier.padding(innerPadding), navController, state = dashboardState.copy(
+                        filesOnStorage = galleryState.objects.size
+                    ), callbacks = model.dashboardCallbacks)
                 }
                 composable(Screen.FILE_GALLERY.strId) {
                     BackHandler { goBack() }
-                    Gallery(navController, innerPadding, galleryState, requestLoad = {})
+//                    LaunchedEffect(Unit) {
+//                        module.galleryViewModel.setPaused(false)
+//                    }
+//                    DisposableEffect(LocalLifecycleOwner.current) {
+//                        onDispose {
+//                            module.galleryViewModel.setPaused(true)
+//                        }
+//                    }
+                    Gallery( Modifier.padding(innerPadding), galleryState, requestLoad = { i ->
+                        module.galleryViewModel.enqueueObject(i, true)
+                    })
                 }
                 composable(Screen.LIVEVIEW.strId) {
                     BackHandler { goBack() }
@@ -402,7 +419,7 @@ fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {
         }
         composable("disconnected") {
             val state by instance.debugLogModel.uiState.collectAsStateWithLifecycle()
-            DisconnectedScreen(reason = instance.disconnectReason ?: "...", backToMainScreen, info = {
+            DisconnectedScreen(reason = instance.disconnectReason ?: "...", backToMainScreen = backToMainScreen, info = {
                 Console(state)
             })
         }
