@@ -99,6 +99,32 @@ Java_dev_danielc_common_NativeModule_onSwitchScreen(JNIEnv *env, jobject thiz, j
 	return rc;
 }
 
+struct FileHandleWrapper {
+	jobject storagename_o;
+	struct FileHandle handle;
+};
+
+static struct FileHandleWrapper get_filehandle(JNIEnv *env, jobject file) {
+	jclass filehandle_class = (*env)->FindClass(env, "dev/danielc/common/FileHandle");
+	jfieldID storagename_f = (*env)->GetFieldID(env, filehandle_class, "storageName", "Ljava/lang/String;");
+	jfieldID index_f = (*env)->GetFieldID(env, filehandle_class, "index", "I");
+	jstring storagename_o = (*env)->GetObjectField(env, file, storagename_f);
+	const char *storagename_s = NULL;
+	if (storagename_o != NULL) storagename_s = (*env)->GetStringUTFChars(env, storagename_o, NULL);
+
+	return (struct FileHandleWrapper){
+		storagename_o,
+		{
+			.index_in_view = (*env)->GetIntField(env, file, index_f),
+			.storage_name = storagename_s,
+		},
+	};
+}
+
+static void free_wrapper(JNIEnv *env, struct FileHandleWrapper *wrapper) {
+	if (wrapper->storagename_o != NULL) (*env)->ReleaseStringUTFChars(env, wrapper->storagename_o, wrapper->handle.storage_name);
+}
+
 JNIEXPORT jint JNICALL
 Java_dev_danielc_common_NativeModule_onRequestFileThumbnail(JNIEnv *env, jobject thiz, jint job,
 															jobject file) {
@@ -107,28 +133,12 @@ Java_dev_danielc_common_NativeModule_onRequestFileThumbnail(JNIEnv *env, jobject
 
 	(*env)->PushLocalFrame(env, 10);
 
-	jclass filehandle_class = (*env)->FindClass(env, "dev/danielc/common/FileHandle");
-	jfieldID filename_f = (*env)->GetFieldID(env, filehandle_class, "filename", "Ljava/lang/String;");
-	jfieldID storagename_f = (*env)->GetFieldID(env, filehandle_class, "storageName", "Ljava/lang/String;");
-	jfieldID index_f = (*env)->GetFieldID(env, filehandle_class, "index", "I");
-	jstring filename_o = (*env)->GetObjectField(env, file, filename_f);
-	jstring storagename_o = (*env)->GetObjectField(env, file, storagename_f);
-	const char *filename_s = NULL;
-	if (filename_o != NULL) filename_s = (*env)->GetStringUTFChars(env, filename_o, NULL);
-	const char *storagename_s = NULL;
-	if (storagename_o != NULL) storagename_s = (*env)->GetStringUTFChars(env, storagename_o, NULL);
-
-	struct FileHandle handle = {
-		.index_in_view = (*env)->GetIntField(env, file, index_f),
-		.filename = filename_s,
-		.storage_name = storagename_s,
-	};
+	struct FileHandleWrapper wrapper = get_filehandle(env, file);
 
 	int rc = 0;
-	if (mod->on_request_thumbnail) rc = mod->on_request_thumbnail(mod, job, &handle);
+	if (mod->on_request_thumbnail) rc = mod->on_request_thumbnail(mod, job, &wrapper.handle);
 
-	if (storagename_o != NULL) (*env)->ReleaseStringUTFChars(env, storagename_o, storagename_s);
-	if (filename_o != NULL) (*env)->ReleaseStringUTFChars(env, filename_o, filename_s);
+	free_wrapper(env, &wrapper);
 	(*env)->PopLocalFrame(env, NULL);
 
 	release_mod(env, &info);
@@ -138,11 +148,39 @@ Java_dev_danielc_common_NativeModule_onRequestFileThumbnail(JNIEnv *env, jobject
 JNIEXPORT jint JNICALL
 Java_dev_danielc_common_NativeModule_onRequestFileContents(JNIEnv *env, jobject thiz, jint job,
 														   jobject file) {
-	// TODO: implement onRequestFileContents()
+	struct TempStruct info;
+	struct Module *mod = get_mod(env, thiz, &info);
+
+	(*env)->PushLocalFrame(env, 10);
+
+	struct FileHandleWrapper wrapper = get_filehandle(env, file);
+
+	int rc = 0;
+	if (mod->on_request_file_contents) rc = mod->on_request_file_contents(mod, job, &wrapper.handle);
+
+	free_wrapper(env, &wrapper);
+	(*env)->PopLocalFrame(env, NULL);
+
+	release_mod(env, &info);
+	return rc;
 }
 
 JNIEXPORT jint JNICALL
 Java_dev_danielc_common_NativeModule_onRequestFileMetadata(JNIEnv *env, jobject thiz, jint job,
 														   jobject file) {
-	// TODO: implement onRequestFileMetadata()
+	struct TempStruct info;
+	struct Module *mod = get_mod(env, thiz, &info);
+
+	(*env)->PushLocalFrame(env, 10);
+
+	struct FileHandleWrapper wrapper = get_filehandle(env, file);
+
+	int rc = 0;
+	if (mod->on_request_file_metadata) rc = mod->on_request_file_metadata(mod, job, &wrapper.handle);
+
+	free_wrapper(env, &wrapper);
+	(*env)->PopLocalFrame(env, NULL);
+
+	release_mod(env, &info);
+	return rc;
 }

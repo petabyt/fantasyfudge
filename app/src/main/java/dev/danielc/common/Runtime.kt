@@ -92,8 +92,6 @@ enum class Screen(val strId: String, val id: Int) {
 data class FileHandle(
     var index: Int = 0,
     var storageName: String? = null,
-    var filename: String? = null,
-    val metadata: FileMetadata? = null, // does not belong
 )
 
 fun getMimeType(str: String?): MimeType {
@@ -116,7 +114,7 @@ data class FileMetadata(
     val filesize: Int? = 0,
     val createdDate: String? = null,
     val updatedDate: String? = null,
-    ) {
+) {
     constructor(filename: String?, mimeTypeString: String?, width: Int, height: Int) : this(filename, mimeType = getMimeType(mimeTypeString), width = width, height = height)
 }
 

@@ -1,6 +1,5 @@
 package dev.danielc.common.screens
 
-import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Image
@@ -9,16 +8,11 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,7 +25,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -44,33 +37,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.ViewModel
 import androidx.navigation.NavController
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
 import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
-import dev.danielc.common.ModuleInstance
-import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Runtime
 import dev.danielc.common.ui.theme.FudgeTheme
-import dev.danielc.common.ui.theme.GoGreen
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -82,8 +67,11 @@ import net.engawapg.lib.zoomable.zoomable
 data class ViewerState(
     val handle: FileHandle,
     val numberOfItems: Int,
+    val metadata: FileMetadata? = null,
     val isLoading: Boolean = true,
     val isDecoding: Boolean = false,
+    val isError: Boolean = false,
+    val errorMessage: String? = null,
     val currentDownloadProgress: Int = 0,
     val currentDownloadSpeed: String = "",
     val painter: Painter? = null,
@@ -97,6 +85,13 @@ class ViewerModel() : ViewModel() {
     fun update(file: FileHandle, numberOfItems: Int) {
         _viewerState.value = ViewerState(file, numberOfItems)
     }
+    fun updateMetadata(metadata: FileMetadata?) {
+        _viewerState.update { viewerState ->
+            viewerState?.copy(
+                metadata = metadata
+            )
+        }
+    }
     fun clear() {
         _viewerState.value = null
     }
@@ -107,12 +102,16 @@ class ViewerModel() : ViewModel() {
             )
         }
         val bitmap = Runtime.decodeImageContents(data, null)
-        _viewerState.update { viewerState ->
-            viewerState?.copy(
-                bitmap = bitmap,
-                isDecoding = false,
-                isLoading = false,
-            )
+        if (bitmap == null) {
+            setError("Failed to decode image contents")
+        } else {
+            _viewerState.update { viewerState ->
+                viewerState?.copy(
+                    bitmap = bitmap,
+                    isDecoding = false,
+                    isLoading = false,
+                )
+            }
         }
     }
     fun update(downloadPercent: Int, downloadSpeed: String) {
@@ -123,14 +122,53 @@ class ViewerModel() : ViewModel() {
             )
         }
     }
+    fun setError(message: String) {
+        _viewerState.update { viewerState ->
+            viewerState?.copy(
+                isError = true,
+                errorMessage = message
+            )
+        }
+    }
 }
 
 @Composable
 fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) -> Unit, close: () -> Unit) {
-    val filename = state.handle.filename ?: "File"
+    val filename = state.metadata?.filename ?: "File"
 
+    if (state.isError) {
+        Dialog(onDismissRequest = {
+
+        }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Box(Modifier.fillMaxSize()) {
+                    Column(Modifier.align(Alignment.Center), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "Error",
+                            style = TextStyle(
+                                fontSize = 20.sp
+                            ),
+                        )
+                        Text("'${state.errorMessage.orEmpty()}'", color = MaterialTheme.colorScheme.error)
+                        Button(onClick = {
+                            close()
+                        }) {
+                            Text("Exit")
+                        }
+                    }
+                }
+            }
+        }
+        return
+    } else
     if (state.isLoading) {
-        val text = "Downloading " + when (state.handle.metadata?.mimeType) {
+        val text = "Downloading " + when (state.metadata?.mimeType) {
             MimeType.JPEG, MimeType.PNG -> "image"
             MimeType.MOV -> "movie"
             else -> "file"
@@ -275,12 +313,15 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
     val painter = painterResource(R.drawable.image)
     val scope = rememberCoroutineScope()
     var state by remember { mutableStateOf(ViewerState(
-        handle = FileHandle(index = 10, "sdcard", "DSCF00001.JPG", FileMetadata(mimeType = MimeType.JPEG)),
+        handle = FileHandle(index = 10, "sdcard"),
+        metadata = FileMetadata("DSCF00001.JPG", mimeType = MimeType.JPEG),
         painter = painter,
         isLoading = false,
         currentDownloadSpeed = "5 mbps",
         currentDownloadProgress = 40,
         numberOfItems = 30,
+        isError = true,
+        errorMessage = "Failed to decode",
     )) }
     ViewerScreen(state, switchTo = { i ->
         state = state.copy(
@@ -311,7 +352,7 @@ fun ViewerScreen(state: ViewerState, switchTo: (Int) -> Unit, close: () -> Unit)
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(),
                     title = {
-                        Text(state.handle.filename ?: "File")
+                        Text(state.metadata?.filename ?: "File")
                     },
                     navigationIcon = {
                         IconButton(onClick = {

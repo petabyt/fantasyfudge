@@ -1,4 +1,5 @@
 package dev.danielc.common
+import androidx.lifecycle.viewModelScope
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleStateModel
 import dev.danielc.common.screens.GalleryObject
@@ -183,11 +184,11 @@ data class ModuleManifest(
 
 class ModuleGalleryViewModel(val module: ModuleInstance): GalleryViewModel() {
     override fun fulfillThumbnail(file: GalleryObjectReference) {
-        module.getFileThumbnail(file = FileHandle(file.index, null, null, null))
+        module.getFileThumbnail(file = FileHandle(file.index, null))
     }
 
     override fun fulfillMetadata(file: GalleryObjectReference) {
-        module.getFileMetadata(file = FileHandle(file.index, null, null, null))
+        module.getFileMetadata(file = FileHandle(file.index, null))
     }
 }
 
@@ -294,6 +295,7 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
         if (viewerState != null) {
             if (viewerState.handle.index == file.index && viewerState.handle.storageName == file.storageName) {
                 viewerViewModel.update(file, galleryViewModel.uiState.value.objects.size)
+                viewerViewModel.updateMetadata(v)
             }
         }
     }
@@ -379,8 +381,10 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
         } else if (currentScreen == Screen.FILE_GALLERY) {
             galleryViewModel.setPaused(true)
         }
-        currentScreen = screen
-        homeModelView.goToScreen(screen, isInNavBar)
+        if (currentScreen != screen) {
+            currentScreen = screen
+            homeModelView.goToScreen(screen, isInNavBar)
+        }
     }
 
     fun goBack(previous: Screen, isInNavBar: Boolean, callback: JobUpdateCallback = {}) {
@@ -389,6 +393,25 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
         }
         currentScreen = previous
         homeModelView.back(isInNavBar)
+    }
+
+    fun goToViewer(file: FileHandle) {
+        CoroutineScope(Dispatchers.IO).launch {
+            viewerViewModel.clear()
+            // Get specific gallery state from storage device name
+            val galleryState = galleryViewModel.uiState.value
+            viewerViewModel.update(file, galleryState.objects.size)
+            viewerViewModel.updateMetadata(galleryViewModel.getMetadata(file))
+
+            switchScreen(Screen.FILE_VIEWER, false)
+
+            val rc = getFileContents({ job ->
+                viewerViewModel.update(job.progressBarValue ?: 0, "speed")
+            }, file)
+            if (rc != 0) {
+                viewerViewModel.setError("Image load error: ${rc}")
+            }
+        }
     }
 
     fun findConnection(onUpdate: JobUpdateCallback = {}): Int {

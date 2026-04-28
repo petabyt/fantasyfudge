@@ -21,7 +21,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,7 +32,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -53,7 +51,6 @@ import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.currentBackStackEntryAsState
 import dev.danielc.common.FileHandle
 import dev.danielc.common.ModuleInstance
-import dev.danielc.common.ModuleJob
 import dev.danielc.common.ModuleProperty
 import dev.danielc.common.UserSetting
 import dev.danielc.common.ui.DisconnectDialog
@@ -61,6 +58,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 
 data class HomeState(
     val supportedNavBarScreenList: List<Screen> = emptyList(),
@@ -112,20 +110,6 @@ class ModuleHomeModel(val manifest: ModuleManifest, val module: ModuleInstance) 
 
     private val _uiEvents = MutableSharedFlow<UiEvent>(replay = 1)
     val uiEvents = _uiEvents.asSharedFlow()
-
-    fun goToViewer(file: FileHandle) {
-        // Get specific gallery state from storage device name
-        val galleryState = module.galleryViewModel.uiState.value
-        module.viewerViewModel.update(file, galleryState.objects.size)
-
-        goToScreen(Screen.FILE_VIEWER)
-
-        runBlocking {
-            module.getFileContents({ job ->
-                module.viewerViewModel.update(job.progressBarValue ?: 0, "speed")
-            }, file)
-        }
-    }
 
     fun showDisconnectDialog(v: Boolean) {
         _homeState.update { homeState ->
@@ -231,7 +215,10 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
     val homeState by model.homeState.collectAsStateWithLifecycle()
     val dashboardState by model.dashboardState.collectAsStateWithLifecycle()
     val galleryState by module.galleryViewModel.uiState.collectAsStateWithLifecycle()
-    val navScreens = homeState.supportedNavBarScreenList
+    val navScreens = homeState.supportedNavBarScreenList.sortedBy { when (it) {
+        Screen.DASHBOARD -> 0 // ensure dashboard is always first
+        else -> 1
+    } }
     var screenSwitchProgress by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(Unit) {
@@ -325,6 +312,8 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
 //                    }
                     Gallery( Modifier.padding(innerPadding), galleryState, requestLoad = { i ->
                         module.galleryViewModel.enqueueObject(i, true)
+                    }, onItemClick = { i ->
+                        module.goToViewer(FileHandle(i))
                     })
                 }
                 composable(Screen.LIVEVIEW.strId) {
@@ -368,7 +357,11 @@ fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {
                             inclusive = true
                         }
                     }
+                } else {
+                    navController.navigate(event.screen.strId)
                 }
+            } else if (event.type == UiEvent.UiEventType.GO_BACK_SCREEN) {
+                navController.navigateUp()
             }
         }
     }
@@ -407,13 +400,13 @@ fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {
         composable("home") {
             ModuleHomeScreen(instance, navController)
         }
-        composable("viewer") {
+        composable("fileviewer") {
             val viewerState = instance.viewerViewModel.viewerState.collectAsStateWithLifecycle().value
             if (viewerState != null) {
                 ViewerScreen(viewerState, switchTo = { i ->
-                    println("switching to ${i}")
+                    instance.goToViewer(FileHandle(i, viewerState.handle.storageName))
                 }, close = {
-                    navController.navigateUp()
+                    instance.goBack(Screen.FILE_GALLERY, false)
                 })
             }
         }

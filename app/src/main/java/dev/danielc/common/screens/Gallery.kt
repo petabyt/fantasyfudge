@@ -10,14 +10,17 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,6 +46,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
@@ -61,6 +65,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
+import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
 import dev.danielc.common.Runtime
 import dev.danielc.common.ui.theme.FudgeTheme
@@ -83,15 +88,12 @@ fun bitmapFromColor(
     height: Int = 512
 ): ImageBitmap {
     val imageBitmap = ImageBitmap(width, height)
-    val canvas = Canvas(imageBitmap)
     val drawScope = CanvasDrawScope()
-    val size = androidx.compose.ui.geometry.Size(width.toFloat(), height.toFloat())
-
     drawScope.draw(
         density = Density(1f),
         layoutDirection = LayoutDirection.Ltr,
-        canvas = canvas,
-        size = size
+        canvas = Canvas(imageBitmap),
+        size = Size(width.toFloat(), height.toFloat())
     ) {
         drawRect(color = color)
     }
@@ -131,7 +133,7 @@ data class GalleryObject(
     val thumbnail: ImageBitmap? = null,
     var invalidMetadata: Boolean = false,
     var invalidThumbnail: Boolean = false,
-    )
+)
 
 data class GalleryObjectReference(
     val index: Int,
@@ -148,22 +150,27 @@ data class GalleryState(
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
 )
 
-abstract class GalleryViewModel() : ViewModel() {
+abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewModel() {
     private val _uiState = MutableStateFlow(GalleryState())
     val uiState = _uiState.asStateFlow()
     var thread: Job? = null
     var threadIsPaused: Boolean = true
+    var isThumbnailPriority: Boolean = true
+
+    fun getMetadata(file: FileHandle): FileMetadata? {
+        return _uiState.value.objects.getOrNull(file.index)?.metadata
+    }
 
     abstract fun fulfillThumbnail(file: GalleryObjectReference)
     abstract fun fulfillMetadata(file: GalleryObjectReference)
 
-    fun tick(): Boolean {
-        val queue = _uiState.value.queue
-        if (queue.isEmpty()) return false
-        val ref = queue.removeLast()
-        val obj = _uiState.value.objects[ref.index]
+    fun checkObject(obj: GalleryObject?, ref: GalleryObjectReference): Boolean {
         if (obj == null) {
-            fulfillThumbnail(ref)
+            if (isThumbnailPriority) {
+                fulfillThumbnail(ref)
+            } else {
+                fulfillMetadata(ref)
+            }
         } else {
             if (obj.metadata == null && !obj.invalidMetadata) {
                 fulfillMetadata(ref)
@@ -174,6 +181,27 @@ abstract class GalleryViewModel() : ViewModel() {
             }
         }
         return true
+    }
+
+    fun tick(): Boolean {
+        val queue = _uiState.value.queue
+        val objects = _uiState.value.objects
+        if (queue.isEmpty()) {
+            for (i in objects.indices) {
+                if (checkObject(objects[i], GalleryObjectReference(i, true))) {
+                    return true
+                }
+            }
+            return false
+        }
+        val ref = queue.removeLast()
+        try {
+            val obj = _uiState.value.objects[ref.index]
+            return checkObject(obj, ref)
+        } catch (e: Exception) {
+            println(e.message)
+            return false
+        }
     }
 
     fun start() {
@@ -207,11 +235,9 @@ abstract class GalleryViewModel() : ViewModel() {
     }
 
     fun reset() {
-        viewModelScope.launch() {
-            withContext(Dispatchers.Default) {
-                _uiState.update { currentState ->
-                    currentState.copy(objects = mutableListOf())
-                }
+        viewModelScope.launch(Dispatchers.Default) {
+            _uiState.update { currentState ->
+                currentState.copy(objects = mutableListOf())
             }
         }
     }
@@ -263,7 +289,7 @@ abstract class GalleryViewModel() : ViewModel() {
                             obj = obj.copy(thumbnail = Runtime.decodeImageContents(thumbData, null))
                         } catch (e: Exception) {
                             println(e.message)
-                            // TODO: decode error
+                            // TODO: show decode error to user
                         }
                     }
                 }
@@ -287,18 +313,6 @@ abstract class GalleryViewModel() : ViewModel() {
 fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
     var boxModifier = Modifier.aspectRatio(1f)
 
-    val icon = if (obj == null) {
-        R.drawable.baseline_question_mark_24
-    } else {
-        when (obj.metadata?.mimeType) {
-            null, MimeType.FILE -> R.drawable.baseline_question_mark_24
-            MimeType.FOLDER -> R.drawable.baseline_folder_open_24
-            MimeType.JPEG -> R.drawable.baseline_landscape_24
-            MimeType.PNG -> R.drawable.baseline_landscape_24
-            MimeType.MOV -> R.drawable.baseline_movie_24
-        }
-    }
-
     boxModifier = boxModifier.background(MaterialTheme.colorScheme.surfaceContainer)
 
     CompositionLocalProvider(LocalRippleConfiguration provides FudgeRippleConfig(Color.White)) {
@@ -309,7 +323,7 @@ fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
                     onClick()
                 },
                 onLongClick = {
-
+                    onClick
                 }
             )
             .indication(
@@ -317,13 +331,16 @@ fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
                 interactionSource = remember { MutableInteractionSource() }
             )
         ) {
-            if (obj == null) {
-                Icon(
-                    modifier = Modifier.align(Alignment.Center).size(35.dp),
-                    painter = painterResource(icon),
-                    contentDescription = null,
-                )
-            } else {
+            if (obj != null) {
+                val icon = when (obj.metadata?.mimeType) {
+                    null -> R.drawable.baseline_question_mark_24
+                    MimeType.FILE -> R.drawable.outline_files_24
+                    MimeType.FOLDER -> R.drawable.baseline_folder_open_24
+                    MimeType.JPEG -> R.drawable.baseline_landscape_24
+                    MimeType.PNG -> R.drawable.baseline_landscape_24
+                    MimeType.MOV -> R.drawable.baseline_movie_24
+                }
+
                 if (obj.thumbnail != null) {
                     Image(modifier = Modifier.fillMaxSize(), bitmap = obj.thumbnail, contentDescription = null)
                 }
@@ -400,16 +417,16 @@ fun GalleryFile(obj: GalleryObject?, onClick: () -> Unit = {}) {
 }
 
 @Composable
-fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (Int) -> Unit = {}) {
+fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (Int) -> Unit = {}, onItemClick: (Int) -> Unit = {}) {
     Box(modifier = modifier.fillMaxSize()) {
         Column {
-            if (false) {
+            if (true) {
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Row(
-                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(2.dp),
                     ) {
                         val iconButtonColors = IconButtonColors(
@@ -418,6 +435,12 @@ fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (In
                             disabledContainerColor = MaterialTheme.colorScheme.primary,
                             disabledContentColor = MaterialTheme.colorScheme.onPrimary,
                         )
+
+                        Row(Modifier.weight(1f)) {
+                            Box(Modifier.padding(5.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp))) {
+                                Text("sdcard", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(5.dp))
+                            }
+                        }
 
                         IconButton(
                             colors = iconButtonColors,
@@ -452,8 +475,10 @@ fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (In
                     state = listState,
                     columns = GridCells.Fixed(4)
                 ) {
-                    items(state.objects) { obj ->
-                        GalleryThumbnail(obj)
+                    itemsIndexed(state.objects) { index, obj ->
+                        GalleryThumbnail(obj, onClick = {
+                            onItemClick(index)
+                        })
                     }
                 }
             } else if (state.displayType == DisplayType.VERTICAL_TABLE) {

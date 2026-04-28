@@ -150,12 +150,10 @@ void pak_abort(const char *fmt, ...) {
 static jobject create_filehandle(JNIEnv *env, const struct FileHandle *file) {
 	(*env)->PushLocalFrame(env, 10);
 	jclass filehandle_c = (*env)->FindClass(env, "dev/danielc/common/FileHandle");
-	jmethodID constructor = (*env)->GetMethodID(env, filehandle_c, "<init>", "(ILjava/lang/String;Ljava/lang/String;Ldev/danielc/common/FileMetadata;)V");
+	jmethodID constructor = (*env)->GetMethodID(env, filehandle_c, "<init>", "(ILjava/lang/String;)V");
 	jobject handle_o = (*env)->NewObject(env, filehandle_c, constructor,
 		file->index_in_view,
-		(*env)->NewStringUTF(env, file->filename),
-		(*env)->NewStringUTF(env, file->storage_name),
-		NULL
+		(*env)->NewStringUTF(env, file->storage_name)
 	);
 	return (*env)->PopLocalFrame(env, handle_o);
 }
