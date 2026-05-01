@@ -1,4 +1,4 @@
-# FantasyFudge
+# FantasyFudge (temp name)
 
 This is an app that can connect to various gadgets and devices, serving as an alternative to the vendor-provided app.
 
@@ -12,7 +12,7 @@ This is an app that can connect to various gadgets and devices, serving as an al
 
 ## Roadmap
 - [ ] WiFi and Bluetooth bindings for Android+Linux
-  - Based on libpak: https://github.com/petabyt/pak
+  - Based on [libpak](https://github.com/petabyt/pak)
 - [x] Develop a runtime + reliable thread model
 - [x] Develop initial [set of modules](https://github.com/petabyt/gadget-libs)
 - [x] Dashboard with interactive grid of cards
