@@ -3,7 +3,6 @@ package dev.danielc.common.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,6 +40,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
@@ -56,6 +56,7 @@ import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
 import dev.danielc.common.Runtime
 import dev.danielc.common.ui.theme.FudgeTheme
+import dev.danielc.fudge.AndroidRuntime
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -76,13 +77,17 @@ data class ViewerState(
     val currentDownloadSpeed: String = "",
     val painter: Painter? = null,
     val bitmap: ImageBitmap? = null,
+    val bitmapLeft: ImageBitmap? = null,
+    val bitmapRight: ImageBitmap? = null,
 )
 
 class ViewerModel() : ViewModel() {
+    var temporaryBuffer: ByteArray? = null
     private val _viewerState = MutableStateFlow<ViewerState?>(null)
     val viewerState = _viewerState.asStateFlow()
 
     fun update(file: FileHandle, numberOfItems: Int) {
+        temporaryBuffer = null
         _viewerState.value = ViewerState(file, numberOfItems)
     }
     fun updateMetadata(metadata: FileMetadata?) {
@@ -92,16 +97,37 @@ class ViewerModel() : ViewModel() {
             )
         }
     }
+    fun updateSideBitmaps(left: ImageBitmap?, right: ImageBitmap?) {
+        _viewerState.update { viewerState ->
+            viewerState?.copy(
+                bitmapLeft = left,
+                bitmapRight = right,
+            )
+        }
+    }
     fun clear() {
         _viewerState.value = null
     }
-    fun setFileContents(data: ByteArray) {
+    fun setFileContents(data: ByteArray, isPartial: Boolean) {
+        val temporaryBufferRef = temporaryBuffer
+        if (isPartial) {
+            if (temporaryBufferRef == null) {
+                temporaryBuffer = data
+            } else {
+                temporaryBuffer = temporaryBufferRef + data
+            }
+            return
+        } else {
+            if (temporaryBufferRef != null) {
+                temporaryBuffer = temporaryBufferRef + data
+            }
+        }
         _viewerState.update { viewerState ->
             viewerState?.copy(
                 isDecoding = true
             )
         }
-        val bitmap = Runtime.decodeImageContents(data, null)
+        val bitmap = AndroidRuntime.decodeImageContents(temporaryBuffer ?: data, null)
         if (bitmap == null) {
             setError("Failed to decode image contents")
         } else {
@@ -114,7 +140,7 @@ class ViewerModel() : ViewModel() {
             }
         }
     }
-    fun update(downloadPercent: Int, downloadSpeed: String) {
+    fun updateStats(downloadPercent: Int, downloadSpeed: String) {
         _viewerState.update { viewerState ->
             viewerState?.copy(
                 currentDownloadProgress = downloadPercent,
@@ -281,8 +307,8 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
         }
         HorizontalPager(
             state = pagerState, modifier = Modifier.fillMaxSize().align(Alignment.Center)) { page ->
+            val zoomState = rememberZoomState(contentSize = painter.intrinsicSize)
             if (page == state.handle.index) {
-                val zoomState = rememberZoomState(contentSize = painter.intrinsicSize)
                 if (state.bitmap != null) {
                     Image(
                         modifier = Modifier.align(Alignment.Center).zoomable(zoomState),
@@ -296,6 +322,20 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
                         contentDescription = filename,
                     )
                 }
+            } else if (page == state.handle.index - 1 && state.bitmapLeft != null) {
+                Image(
+                    modifier = Modifier.align(Alignment.Center).fillMaxWidth(),
+                    bitmap = state.bitmapLeft,
+                    contentScale = ContentScale.FillWidth,
+                    contentDescription = filename,
+                )
+            } else if (page == state.handle.index + 1 && state.bitmapRight != null) {
+                Image(
+                    modifier = Modifier.align(Alignment.Center).fillMaxWidth(),
+                    bitmap = state.bitmapRight,
+                    contentScale = ContentScale.FillWidth,
+                    contentDescription = filename,
+                )
             } else {
                 Image(
                     modifier = Modifier.align(Alignment.Center),
@@ -320,7 +360,7 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
         currentDownloadSpeed = "5 mbps",
         currentDownloadProgress = 40,
         numberOfItems = 30,
-        isError = true,
+        isError = false,
         errorMessage = "Failed to decode",
     )) }
     ViewerScreen(state, switchTo = { i ->

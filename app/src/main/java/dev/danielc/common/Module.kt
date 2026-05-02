@@ -1,21 +1,17 @@
 package dev.danielc.common
-import androidx.lifecycle.viewModelScope
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleStateModel
-import dev.danielc.common.screens.GalleryObject
 import dev.danielc.common.screens.GalleryObjectReference
 import dev.danielc.common.screens.GalleryViewModel
 import dev.danielc.common.screens.ModuleHomeModel
 import dev.danielc.common.screens.SortBy
 import dev.danielc.common.screens.ViewerModel
-import dev.danielc.libpak.Pak
+import dev.danielc.fudge.AndroidRuntime
+import dev.danielc.fudge.WiFiAdapter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlin.collections.remove
-import kotlin.inc
 import kotlin.time.DurationUnit
 import kotlin.time.TimeSource
 
@@ -140,7 +136,6 @@ data class ModuleManifest(
         WEBASSEMBLY,
         NATIVE,
         DUMMY_MODULE,
-        JAVA_MODULE,
         CMF_NOTHING,
         LIBFUJI;
         fun getDesc(): String {
@@ -150,7 +145,6 @@ data class ModuleManifest(
                 NATIVE -> "Native (statically compiled)"
                 DUMMY_MODULE -> "DummyModule (statically compiled)"
                 CMF_NOTHING -> "libcmf-nothing (statically compiled)"
-                JAVA_MODULE -> "JavaDummyModule"
                 LIBFUJI -> "libfuji (statically compiled)"
             }
         }
@@ -195,9 +189,9 @@ class ModuleGalleryViewModel(val module: ModuleInstance): GalleryViewModel() {
 /**
  * Instance of a module with a single connection
  */
-abstract class ModuleInstance(manifest: ModuleManifest) {
+abstract class ModuleInstance(val manifest: ModuleManifest) {
     var debugLogModel = ConsoleStateModel()
-    val homeModelView = ModuleHomeModel(manifest, this)
+    val homeModelView = ModuleHomeModel(this)
     val galleryViewModel = ModuleGalleryViewModel(this)
     val viewerViewModel = ViewerModel()
     var currentTickIntervalUs: Int = (100 * 1000)
@@ -233,9 +227,13 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
         return jobs.entries.find { it.key == job }?.value
     }
 
+    fun cancelJob(job: ModuleJob) {
+        job.isCancelled = true
+    }
+
     abstract fun free()
     abstract fun onFindConnection(job: Int): Int
-    abstract fun onTryConnectWiFi(a: NativeRuntime.WiFiAdapter, job: Int): Int
+    abstract fun onTryConnectWiFi(a: WiFiAdapter, job: Int): Int
     abstract fun onDisconnect(): Int
     abstract fun onIdleTick(usSinceLast: Int): Int
     abstract fun onSwitchScreen(oldScreen: Int, newScreen: Int, job: Int): Int
@@ -258,6 +256,9 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
         mainLoopJob?.join()
         Runtime.removeModuleInstance(this)
         free()
+    }
+    fun getMetadata(file: FileHandle): FileMetadata? {
+        return galleryViewModel.getMetadata(file)
     }
     fun setProperty(type: ModuleProperty, value: String) {
         homeModelView.setProperty(type, value)
@@ -288,7 +289,7 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
         // throw err?
         return false
     }
-    fun addFileMetadata(file: FileHandle, v: FileMetadata) {
+    fun addFileMetadata(file: FileHandle, v: FileMetadata?) {
         galleryViewModel.updateMetadata(file.index, v)
         // Update the image viewer state if it doesn't already have the metadata
         val viewerState = viewerViewModel.viewerState.value
@@ -299,8 +300,9 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
             }
         }
     }
-    fun setFileContents(file: FileHandle, data: ByteArray) {
-        viewerViewModel.setFileContents(data)
+    fun setFileContents(file: FileHandle, data: ByteArray, isPartial: Boolean) {
+        // TODO: check viewer matches file
+        viewerViewModel.setFileContents(data, isPartial)
     }
     fun addFileThumbnail(file: FileHandle, data: ByteArray) {
         galleryViewModel.updateThumbnail(file.index, data)
@@ -312,9 +314,6 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
         homeModelView.dashboardState.value.copy(
             filesOnStorage = nItems
         )
-    }
-    fun setFileListLength(length: Int) {
-        galleryViewModel.setListLength(length)
     }
 
     fun initThread() {
@@ -364,49 +363,56 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
     }
 
     fun disconnect(reason: String) {
-        withJob({}) { job ->
-            onDisconnect()
+        if (isConnected) {
+            isConnected = false
+            withJob({}) { job ->
+                onDisconnect()
+            }
+            disconnectReason = reason
+            homeModelView.goToScreen(Screen.DISCONNECTED)
         }
-        isConnected = false
-        disconnectReason = reason
-        homeModelView.goToScreen(Screen.DISCONNECTED)
+    }
+
+    fun switchScreen(prev: Screen, new: Screen, callback: JobUpdateCallback) {
+        withJob(callback) { job ->
+            onSwitchScreen(prev.id, new.id, job.id)
+        }
+        if (new == Screen.FILE_GALLERY) {
+            galleryViewModel.setPaused(false)
+        } else if (prev == Screen.FILE_GALLERY) {
+            galleryViewModel.setPaused(true)
+        }
     }
 
     fun switchScreen(screen: Screen, isInNavBar: Boolean, callback: JobUpdateCallback = {}) {
-        withJob(callback) { job ->
-            onSwitchScreen(currentScreen.id, screen.id, job.id)
-        }
-        if (screen == Screen.FILE_GALLERY) {
-            galleryViewModel.setPaused(false)
-        } else if (currentScreen == Screen.FILE_GALLERY) {
-            galleryViewModel.setPaused(true)
-        }
         if (currentScreen != screen) {
-            currentScreen = screen
             homeModelView.goToScreen(screen, isInNavBar)
         }
+        switchScreen(currentScreen, screen, callback)
+        currentScreen = screen
     }
 
     fun goBack(previous: Screen, isInNavBar: Boolean, callback: JobUpdateCallback = {}) {
-        withJob(callback) { job ->
-            onSwitchScreen(currentScreen.id, previous.id, job.id)
-        }
-        currentScreen = previous
         homeModelView.back(isInNavBar)
+        switchScreen(currentScreen, previous, callback)
+        currentScreen = previous
     }
 
     fun goToViewer(file: FileHandle) {
         CoroutineScope(Dispatchers.IO).launch {
             viewerViewModel.clear()
-            // Get specific gallery state from storage device name
+
             val galleryState = galleryViewModel.uiState.value
             viewerViewModel.update(file, galleryState.objects.size)
             viewerViewModel.updateMetadata(galleryViewModel.getMetadata(file))
+            viewerViewModel.updateSideBitmaps(galleryViewModel.getThumbnail(file, -1), galleryViewModel.getThumbnail(file, 1))
 
-            switchScreen(Screen.FILE_VIEWER, false)
+            switchScreen(Screen.FILE_VIEWER, false, { job ->
+                viewerViewModel.updateStats(job.progressBarValue ?: 0, "switching to viewer")
+            })
 
             val rc = getFileContents({ job ->
-                viewerViewModel.update(job.progressBarValue ?: 0, "speed")
+                viewerViewModel.updateStats(job.progressBarValue ?: 0, "speed")
             }, file)
             if (rc != 0) {
                 viewerViewModel.setError("Image load error: ${rc}")
@@ -437,10 +443,6 @@ abstract class ModuleInstance(manifest: ModuleManifest) {
             onRequestFileContents(job.id, file)
         }
     }
-
-    fun cancelJob(job: ModuleJob) {
-        job.isCancelled = true
-    }
 }
 
 // Serializable ID of connection instance that can be passed between activities
@@ -459,18 +461,18 @@ data class SerializableModuleInstance(
 
 class DummyModule(manifest: ModuleManifest) : NativeModule(manifest) {
     init {
-        NativeRuntime.setupDummyNativeModule(this, manifest)
+        AndroidRuntime.setupDummyNativeModule(this, manifest)
     }
 }
 
 class LibFujiModule(manifest: ModuleManifest) : NativeModule(manifest) {
     init {
-        NativeRuntime.setupLibFujiModule(this, manifest)
+        AndroidRuntime.setupLibFujiModule(this, manifest)
     }
 }
 
 class CmfNothingModule(manifest: ModuleManifest) : NativeModule(manifest) {
     init {
-        NativeRuntime.setupCmfNothingAudioModule(this, manifest)
+        AndroidRuntime.setupCmfNothingAudioModule(this, manifest)
     }
 }

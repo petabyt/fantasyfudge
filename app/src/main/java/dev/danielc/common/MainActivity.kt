@@ -28,6 +28,7 @@ import dev.danielc.common.screens.ModuleListScreen
 import dev.danielc.common.screens.PreviewGalleryScreen
 import dev.danielc.common.screens.PreviewDashboardCamera
 import dev.danielc.common.screens.PreviewViewer
+import dev.danielc.fudge.AndroidRuntime
 import dev.danielc.libpak.Pak
 import kotlinx.coroutines.runBlocking
 
@@ -54,14 +55,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        NativeRuntime.setupAndroidContext(this)
+        AndroidRuntime.setupAndroidContext(this)
         Pak.setupAndroidContext(this)
-        if (!NativeRuntime.hasInited) {
+        if (!AndroidRuntime.hasInited) {
             System.loadLibrary("fudge")
-            NativeRuntime.init()
-            val manifests = NativeRuntime.getJsonManifestList()
+            AndroidRuntime.init()
+            val manifests = AndroidRuntime.getJsonManifestList()
             Runtime.loadModulesFromManifests(manifests)
-            NativeRuntime.hasInited = true
+            AndroidRuntime.hasInited = true
         }
         enableEdgeToEdge()
 
@@ -121,8 +122,7 @@ class MainActivity : ComponentActivity() {
 
             if (true) {
                 LaunchedEffect(Unit) {
-                    val instance =
-                        Runtime.createModuleInstance(Runtime.getManifestFromName("dummymod")!!)
+                    val instance = Runtime.createModuleInstance(Runtime.getManifestFromName("libfuji")!!)
                     navController.navigate(instance.serializableModuleInstance)
                     instance.initThread()
                 }

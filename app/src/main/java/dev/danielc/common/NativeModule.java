@@ -1,9 +1,7 @@
 package dev.danielc.common;
 
 import androidx.annotation.NonNull;
-
-import dev.danielc.common.NativeRuntime.*;
-import dev.danielc.common.screens.SortBy;
+import dev.danielc.fudge.WiFiAdapter;
 
 public class NativeModule extends ModuleInstance {
     byte[] struct;

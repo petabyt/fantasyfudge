@@ -136,7 +136,7 @@ Java_dev_danielc_common_NativeModule_onRequestFileThumbnail(JNIEnv *env, jobject
 	struct FileHandleWrapper wrapper = get_filehandle(env, file);
 
 	int rc = 0;
-	if (mod->on_request_thumbnail) rc = mod->on_request_thumbnail(mod, job, &wrapper.handle);
+	if (mod->on_request_file_thumbnail) rc = mod->on_request_file_thumbnail(mod, job, &wrapper.handle);
 
 	free_wrapper(env, &wrapper);
 	(*env)->PopLocalFrame(env, NULL);

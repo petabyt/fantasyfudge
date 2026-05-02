@@ -1,7 +1,5 @@
 package dev.danielc.common
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import androidx.compose.ui.graphics.ImageBitmap
+
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleStateModel
 import dev.danielc.common.screens.MimeType
@@ -16,8 +14,7 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import javax.microedition.khronos.opengles.GL10
-import androidx.compose.ui.graphics.asImageBitmap
+import dev.danielc.fudge.AndroidRuntime
 
 /**
  * Module defined setting that can be updated by the user or the module
@@ -111,11 +108,11 @@ data class FileMetadata(
     val mimeType: MimeType = MimeType.FILE,
     val width: Int = 0,
     val height: Int = 0,
-    val filesize: Int? = 0,
+    val filesize: Int = 0,
     val createdDate: String? = null,
     val updatedDate: String? = null,
 ) {
-    constructor(filename: String?, mimeTypeString: String?, width: Int, height: Int) : this(filename, mimeType = getMimeType(mimeTypeString), width = width, height = height)
+    constructor(filename: String?, mimeTypeString: String?, width: Int, height: Int, size: Int) : this(filename, mimeType = getMimeType(mimeTypeString), width = width, height = height, filesize = size)
 }
 
 /**
@@ -146,7 +143,7 @@ data class ConnectableDevice(
 )
 
 object Runtime {
-    var mainLog = ConsoleStateModel()
+    val mainLog = ConsoleStateModel()
     var connectableDevices = listOf<ConnectableDevice>()
     var moduleManifests = mutableListOf<ModuleManifest>()
     var moduleInstances = mutableMapOf<Int, ModuleInstance>()
@@ -179,7 +176,6 @@ object Runtime {
             ModuleManifest.ModuleType.WEBASSEMBLY -> throw Exception("Webassembly")
             ModuleManifest.ModuleType.NATIVE -> throw Exception("Native module (?)")
             ModuleManifest.ModuleType.DUMMY_MODULE -> DummyModule(m)
-            ModuleManifest.ModuleType.JAVA_MODULE -> JavaModule(m)
             ModuleManifest.ModuleType.LIBFUJI -> LibFujiModule(m)
         }
     }
@@ -240,7 +236,7 @@ object Runtime {
 
         for (filename in list) {
             try {
-                val text = NativeRuntime.readAssetsFile(filename)
+                val text = AndroidRuntime.readAssetsFile(filename)
                 val obj: JsonElement = Json.parseToJsonElement(String(text))
                 val root = obj.jsonObject
 
@@ -271,18 +267,5 @@ object Runtime {
                 mainLog.addLine(e.toString())
             }
         }
-    }
-
-    fun decodeImageContents(data: ByteArray, imageHorizontalSize: Int?): ImageBitmap? {
-        val options = BitmapFactory.Options()
-        if (imageHorizontalSize != null && imageHorizontalSize > GL10.GL_MAX_TEXTURE_SIZE) {
-            options.inSampleSize = 2
-            options.inDensity = 2
-            options.inTargetDensity = 2
-            options.inScaled = true
-        }
-
-        val bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, options)
-        return bitmap.asImageBitmap()
     }
 }

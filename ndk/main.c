@@ -42,9 +42,9 @@ int pak_ndk_create_module(JNIEnv *env, jobject o_mod, int (*get_fn)(struct Modul
 }
 
 JNIEXPORT void JNICALL
-Java_dev_danielc_common_NativeRuntime_init(JNIEnv *env, jclass clazz) {
+Java_dev_danielc_fudge_AndroidRuntime_init(JNIEnv *env, jclass clazz) {
 	set_jni_env_ctx(env, clazz);
-	pak_global_log("NativeRuntime init");
+	pak_global_log("AndroidRuntime init");
 }
 
 static uint8_t *file_add(void *arg, const uint8_t *buffer, unsigned int new_len, unsigned int old_len) {
@@ -54,7 +54,7 @@ static uint8_t *file_add(void *arg, const uint8_t *buffer, unsigned int new_len,
 }
 
 JNIEXPORT jbyteArray JNICALL
-Java_dev_danielc_common_Exif_getExifThumbnail(JNIEnv *env, jclass clazz, jstring filepath) {
+Java_dev_danielc_fudge_Exif_getExifThumbnail(JNIEnv *env, jclass clazz, jstring filepath) {
 	const char *cfilepath = (*env)->GetStringUTFChars(env, filepath, 0);
 	FILE *f = fopen(cfilepath, "rb");
 	if (f == NULL) {
@@ -94,7 +94,7 @@ void pak_global_log(const char *fmt, ...) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
 	jstring buffer_s = (*env)->NewStringUTF(env, buffer);
-	jclass backend_c = (*env)->FindClass(env, "dev/danielc/common/NativeRuntime");
+	jclass backend_c = (*env)->FindClass(env, "dev/danielc/fudge/AndroidRuntime");
 	jmethodID log_global_m = (*env)->GetStaticMethodID(env, backend_c, "logGlobalLine", "(Ljava/lang/String;)V");
 	(*env)->CallStaticVoidMethod(env, backend_c, log_global_m, buffer_s);
 	(*env)->PopLocalFrame(env, NULL);
@@ -126,6 +126,22 @@ void pak_debug_log(struct Module *mod, const char *fmt, ...) {
 	(*env)->PopLocalFrame(env, NULL);
 }
 
+void pak_rt_fatal_error(struct Module *mod, const char *fmt, ...) {
+	char buffer[512] = {0};
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(buffer, sizeof(buffer), fmt, args);
+	va_end(args);
+
+	JNIEnv *env = get_jni_env();
+	(*env)->PushLocalFrame(env, 10);
+	jstring buffer_s = (*env)->NewStringUTF(env, buffer);
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jmethodID debug_log_m = (*env)->GetMethodID(env, module_c, "reportFatalError", "(ILjava/lang/String;)V");
+	(*env)->CallVoidMethod(env, mod->rt->obj, debug_log_m, -1, buffer_s);
+	(*env)->PopLocalFrame(env, NULL);
+}
+
 void pak_error(const char *fmt, ...) {
 	char buffer[512] = {0};
 	va_list args;
@@ -148,6 +164,7 @@ void pak_abort(const char *fmt, ...) {
 }
 
 static jobject create_filehandle(JNIEnv *env, const struct FileHandle *file) {
+	if (file == NULL) return NULL;
 	(*env)->PushLocalFrame(env, 10);
 	jclass filehandle_c = (*env)->FindClass(env, "dev/danielc/common/FileHandle");
 	jmethodID constructor = (*env)->GetMethodID(env, filehandle_c, "<init>", "(ILjava/lang/String;)V");
@@ -159,19 +176,19 @@ static jobject create_filehandle(JNIEnv *env, const struct FileHandle *file) {
 }
 
 static jobject create_filemetadata(JNIEnv *env, const struct FileMetadata *meta) {
+	if (meta == NULL) return NULL;
 	(*env)->PushLocalFrame(env, 10);
 	jclass metadata_c = (*env)->FindClass(env, "dev/danielc/common/FileMetadata");
-	jmethodID constructor = (*env)->GetMethodID(env, metadata_c, "<init>", "(Ljava/lang/String;Ljava/lang/String;II)V");
+	jmethodID constructor = (*env)->GetMethodID(env, metadata_c, "<init>", "(Ljava/lang/String;Ljava/lang/String;III)V");
 	jobject handle_o = (*env)->NewObject(env, metadata_c, constructor,
 		(*env)->NewStringUTF(env, meta->filename),
 		(*env)->NewStringUTF(env, meta->mime_type),
-		0,
-		0
+		meta->image_width,
+		meta->image_height,
+		meta->file_size
 	);
 	return (*env)->PopLocalFrame(env, handle_o);
 }
-
-
 
 int pak_rt_set_screen_supported(struct Module *mod, int screen, int v) {
 	JNIEnv *env = get_jni_env();
@@ -207,17 +224,17 @@ int pak_rt_set_storage_info(struct Module *mod, const char *storage_name, unsign
 	return 0;
 }
 
-int pak_rt_add_file_contents(struct Module *mod, struct FileHandle *file, void *image_data, unsigned int length) {
+int pak_rt_add_file_contents(struct Module *mod, struct FileHandle *file, void *image_data, unsigned int length, int is_partial) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
 	jobject handle_o = create_filehandle(env, file);
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
-	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "setFileContents", "(Ldev/danielc/common/FileHandle;[B)V");
+	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "setFileContents", "(Ldev/danielc/common/FileHandle;[BZ)V");
 
 	jbyteArray image_data_o = (*env)->NewByteArray(env, (jsize)length);
 	(*env)->SetByteArrayRegion(env, image_data_o, 0, (jsize)length, (const jbyte *)image_data);
 
-	(*env)->CallVoidMethod(env, mod->rt->obj, set_storage_info, handle_o, image_data_o);
+	(*env)->CallVoidMethod(env, mod->rt->obj, set_storage_info, handle_o, image_data_o, (jboolean)is_partial);
 	(*env)->PopLocalFrame(env, NULL);
 	return 0;
 }
@@ -296,26 +313,63 @@ int pak_rt_test_module(struct Module *mod) {
 	return 0;
 }
 
+static char *strdup_jstring(JNIEnv *env, jstring s_o) {
+	const char *s = (*env)->GetStringUTFChars(env, s_o, 0);
+	char *s2 = strdup(s);
+	(*env)->ReleaseStringUTFChars(env, s_o, s);
+	return s2;
+}
+
+struct FileMetadata *pak_rt_get_metadata(struct Module *mod, struct FileHandle *file) {
+	JNIEnv *env = get_jni_env();
+	(*env)->PushLocalFrame(env, 10);
+	jobject handle_o = create_filehandle(env, file);
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jmethodID method = (*env)->GetMethodID(env, module_c, "getMetadata", "(Ldev/danielc/common/FileHandle;)Ldev/danielc/common/FileMetadata;");
+	jobject md_o = (*env)->CallObjectMethod(env, mod->rt->obj, method, handle_o);
+	if (md_o == NULL) {
+		(*env)->PushLocalFrame(env, 10);
+		return NULL;
+	}
+
+	struct FileMetadata *md = malloc(sizeof(struct FileMetadata));
+
+	jclass md_c = (*env)->FindClass(env, "dev/danielc/common/FileMetadata");
+	jobject filename_o = (*env)->GetObjectField(env, md_o, (*env)->GetFieldID(env, md_c, "filename", "Ljava/lang/String;"));
+	md->filename = strdup_jstring(env, filename_o);
+	md->file_size = (*env)->GetIntField(env, md_o, (*env)->GetFieldID(env, md_c, "filesize", "I"));
+
+	(*env)->PopLocalFrame(env, NULL);
+	return md;
+}
+
+void pak_rt_release_metadata(struct Module *mod, struct FileMetadata *md) {
+	free((void *)md->filename);
+	free(md);
+}
+
+
+
 JNIEXPORT int JNICALL
-Java_dev_danielc_common_NativeRuntime_setupLibFujiModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest) {
+Java_dev_danielc_fudge_AndroidRuntime_setupLibFujiModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest) {
 	set_jni_env_ctx(env, clazz);
 	return pak_ndk_create_module(env, mod_o, get_module_libfuji, manifest);
 }
 
 JNIEXPORT int JNICALL
-Java_dev_danielc_common_NativeRuntime_setupDummyNativeModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest) {
+Java_dev_danielc_fudge_AndroidRuntime_setupDummyNativeModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest) {
 	set_jni_env_ctx(env, clazz);
 	return pak_ndk_create_module(env, mod_o, get_module_dummy, manifest);
 }
 
 JNIEXPORT int JNICALL
-Java_dev_danielc_common_NativeRuntime_setupWebassemblyModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest, jstring path) {
+Java_dev_danielc_fudge_AndroidRuntime_setupWebassemblyModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest, jstring path) {
 	abort();
 	return -1;
 }
 
 JNIEXPORT int JNICALL
-Java_dev_danielc_common_NativeRuntime_setupJavascriptModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest, jstring jsPath) {
+Java_dev_danielc_fudge_AndroidRuntime_setupJavascriptModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest, jstring jsPath) {
 	set_jni_env_ctx(env, clazz);
 
 	const char *js_path = (*env)->GetStringUTFChars(env, jsPath, 0);
@@ -339,7 +393,7 @@ Java_dev_danielc_common_NativeRuntime_setupJavascriptModule(JNIEnv *env, jclass 
 }
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_common_NativeRuntime_setupCmfNothingAudioModule(JNIEnv *env, jclass clazz,
+Java_dev_danielc_fudge_AndroidRuntime_setupCmfNothingAudioModule(JNIEnv *env, jclass clazz,
 																 jobject mod, jobject manifest) {
 	set_jni_env_ctx(env, clazz);
 	return pak_ndk_create_module(env, mod, get_module_cmfnothingaudio, manifest);

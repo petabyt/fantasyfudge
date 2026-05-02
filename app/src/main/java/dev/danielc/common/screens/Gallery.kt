@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
@@ -70,6 +71,7 @@ import dev.danielc.common.FileMetadata
 import dev.danielc.common.Runtime
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.FudgeRippleConfig
+import dev.danielc.fudge.AndroidRuntime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -85,7 +87,7 @@ import kotlin.coroutines.cancellation.CancellationException
 fun bitmapFromColor(
     color: Color,
     width: Int = 512,
-    height: Int = 512
+    height: Int = 400
 ): ImageBitmap {
     val imageBitmap = ImageBitmap(width, height)
     val drawScope = CanvasDrawScope()
@@ -146,6 +148,7 @@ data class GalleryState(
     val displayType: DisplayType = DisplayType.THUMBNAILS,
     val objectListSortedOrder: SortBy = SortBy.NEWEST_FIRST,
     // TODO: Tree of objects, maintain current directory
+    // object if null if it hasn't been loaded/checked yet
     val objects: List<GalleryObject?> = emptyList(),
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
 )
@@ -159,6 +162,9 @@ abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewMod
 
     fun getMetadata(file: FileHandle): FileMetadata? {
         return _uiState.value.objects.getOrNull(file.index)?.metadata
+    }
+    fun getThumbnail(file: FileHandle, offset: Int): ImageBitmap? {
+        return _uiState.value.objects.getOrNull(file.index + offset)?.thumbnail
     }
 
     abstract fun fulfillThumbnail(file: GalleryObjectReference)
@@ -187,6 +193,7 @@ abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewMod
         val queue = _uiState.value.queue
         val objects = _uiState.value.objects
         if (queue.isEmpty()) {
+            // If queue is empty, iterate all objects and check for any work to do
             for (i in objects.indices) {
                 if (checkObject(objects[i], GalleryObjectReference(i, true))) {
                     return true
@@ -256,16 +263,6 @@ abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewMod
         }
     }
 
-    fun setListLength(size: Int) {
-        viewModelScope.launch(Dispatchers.Default) {
-            _uiState.update { currentState ->
-                val list = currentState.objects.toMutableList()
-                while (list.size < size) list.add(null)
-                currentState.copy(objects = list)
-            }
-        }
-    }
-
     fun updateThumbnail(i: Int, thumbData: ByteArray? = null) {
         updateObject(i, null, thumbData, false, true)
     }
@@ -273,7 +270,6 @@ abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewMod
         updateObject(i, md, null, true, false)
     }
     fun updateObject(i: Int, md: FileMetadata? = null, thumbData: ByteArray? = null, haveMetadata: Boolean = true, haveThumbnail: Boolean = true) {
-        // TODO: randomly firing twice
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { currentState ->
                 val list = currentState.objects.toMutableList()
@@ -286,7 +282,7 @@ abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewMod
                         )
                     } else {
                         try {
-                            obj = obj.copy(thumbnail = Runtime.decodeImageContents(thumbData, null))
+                            obj = obj.copy(thumbnail = AndroidRuntime.decodeImageContents(thumbData, null))
                         } catch (e: Exception) {
                             println(e.message)
                             // TODO: show decode error to user
@@ -342,7 +338,8 @@ fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
                 }
 
                 if (obj.thumbnail != null) {
-                    Image(modifier = Modifier.fillMaxSize(), bitmap = obj.thumbnail, contentDescription = null)
+                    // TODO: Better content scale handling?
+                    Image(modifier = Modifier.fillMaxSize(), bitmap = obj.thumbnail, contentDescription = null, contentScale = ContentScale.FillHeight)
                 }
 
                 val iconModifier = if (obj.metadata?.mimeType == MimeType.FOLDER) {
@@ -420,7 +417,7 @@ fun GalleryFile(obj: GalleryObject?, onClick: () -> Unit = {}) {
 fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (Int) -> Unit = {}, onItemClick: (Int) -> Unit = {}) {
     Box(modifier = modifier.fillMaxSize()) {
         Column {
-            if (true) {
+            if (false) {
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.primaryContainer

@@ -58,7 +58,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 
 data class HomeState(
     val supportedNavBarScreenList: List<Screen> = emptyList(),
@@ -78,20 +77,14 @@ data class UiEvent(
     }
 }
 
-class ModuleHomeModel(val manifest: ModuleManifest, val module: ModuleInstance) : ViewModel() {
+class ModuleHomeModel(val module: ModuleInstance) : ViewModel() {
+    val manifest: ModuleManifest = module.manifest
     override fun onCleared() {
         super.onCleared()
         runBlocking {
             module.deregister()
         }
     }
-
-//    private val _currentScreenSwitchJob = MutableStateFlow(0)
-//    val currentScreenSwitchJob = _currentScreenSwitchJob.asStateFlow()
-//
-//    fun updateScreenSwitchJob(job: ModuleJob) {
-//        _currentScreenSwitchJob.value = job.progressBarValue ?: 0
-//    }
 
     private val _dashboardState = MutableStateFlow(DashboardState(manifest))
     val dashboardState = _dashboardState.asStateFlow()
@@ -126,18 +119,18 @@ class ModuleHomeModel(val manifest: ModuleManifest, val module: ModuleInstance) 
         }
     }
 
-    fun uiEvent(type: UiEvent.UiEventType, screen: Screen = Screen.NONE) {
+    fun sendUiEvent(type: UiEvent.UiEventType, screen: Screen = Screen.NONE) {
         viewModelScope.launch {
             _uiEvents.emit(UiEvent(type, screen))
         }
     }
 
     fun goToScreen(screen: Screen, isInNavBar: Boolean = false) {
-        uiEvent(if (isInNavBar) UiEvent.UiEventType.SWITCH_NAV else UiEvent.UiEventType.SWITCH_SCREEN, screen)
+        sendUiEvent(if (isInNavBar) UiEvent.UiEventType.SWITCH_NAV else UiEvent.UiEventType.SWITCH_SCREEN, screen)
     }
 
     fun back(isInNavBar: Boolean = false) {
-        uiEvent(if (isInNavBar) UiEvent.UiEventType.GO_BACK_NAV else UiEvent.UiEventType.GO_BACK_SCREEN, Screen.NONE)
+        sendUiEvent(if (isInNavBar) UiEvent.UiEventType.GO_BACK_NAV else UiEvent.UiEventType.GO_BACK_SCREEN, Screen.NONE)
     }
 
     fun setProperty(type: ModuleProperty, value: String) {
@@ -243,6 +236,7 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                     ) {
                         for (i in navScreens.indices) {
                             NavigationBarItem(
+                                enabled = screenSwitchProgress == null,
                                 selected = navBackStackEntry?.destination?.hierarchy?.any { it.route == navScreens[i].strId } == true,
                                 onClick = {
                                     haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
@@ -338,11 +332,11 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
  * Main navigation graph of module instance UI
  */
 @Composable
-fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {}) {
+fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {}) {
     val navController = rememberNavController()
 
     LaunchedEffect(Unit) {
-        instance.homeModelView.uiEvents.collect { event ->
+        module.homeModelView.uiEvents.collect { event ->
             if (event.type == UiEvent.UiEventType.SWITCH_SCREEN) {
                 if (event.screen == Screen.DASHBOARD) {
                     navController.navigate("home") {
@@ -394,25 +388,27 @@ fun ModuleInstanceNav(instance: ModuleInstance, backToMainScreen: () -> Unit = {
         },
         navController = navController, startDestination = "connecting") {
         composable("connecting") {
-            val state by instance.debugLogModel.uiState.collectAsStateWithLifecycle()
+            val state by module.debugLogModel.uiState.collectAsStateWithLifecycle()
             ConsoleScreen(navController, state, title = "Connecting")
         }
         composable("home") {
-            ModuleHomeScreen(instance, navController)
+            ModuleHomeScreen(module, navController)
         }
         composable("fileviewer") {
-            val viewerState = instance.viewerViewModel.viewerState.collectAsStateWithLifecycle().value
+            val viewerState = module.viewerViewModel.viewerState.collectAsStateWithLifecycle().value
             if (viewerState != null) {
                 ViewerScreen(viewerState, switchTo = { i ->
-                    instance.goToViewer(FileHandle(i, viewerState.handle.storageName))
+                    module.goToViewer(FileHandle(i, viewerState.handle.storageName))
                 }, close = {
-                    instance.goBack(Screen.FILE_GALLERY, false)
+                    CoroutineScope(Dispatchers.IO).launch {
+                        module.goBack(Screen.FILE_GALLERY, false)
+                    }
                 })
             }
         }
         composable("disconnected") {
-            val state by instance.debugLogModel.uiState.collectAsStateWithLifecycle()
-            DisconnectedScreen(reason = instance.disconnectReason ?: "...", backToMainScreen = backToMainScreen, info = {
+            val state by module.debugLogModel.uiState.collectAsStateWithLifecycle()
+            DisconnectedScreen(reason = module.disconnectReason ?: "...", backToMainScreen = backToMainScreen, info = {
                 Console(state)
             })
         }
