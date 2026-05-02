@@ -12,6 +12,7 @@ This is an app that can connect to various gadgets and devices, serving as an al
 - Separate the logic between the frontend and reverse-engineered protocol code similar to [Grayjay](https://grayjay.app/)
 
 ## Roadmap
+- [x] Material 3 UI with Jetpack Compose
 - [ ] WiFi and Bluetooth bindings for Android+Linux
   - Based on [libpak](https://github.com/petabyt/pak)
 - [x] Runtime + reliable thread model
@@ -21,7 +22,9 @@ This is an app that can connect to various gadgets and devices, serving as an al
 - [ ] Liveview screen
 - [ ] Intervalometer screen
 
-## Modules:
+## Modules
+Reverse-engineered protocol logic is separated from the frontend through a runtime and module system.
+
 Like the Linux kernel module system, modules use low level Bluetooth or WiFi APIs to directly communicate with devices
 through their proprietary protocols. Modules can be installed on the fly without recompiling the app.
 
