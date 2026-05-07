@@ -311,13 +311,13 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
             if (page == state.handle.index) {
                 if (state.bitmap != null) {
                     Image(
-                        modifier = Modifier.align(Alignment.Center).zoomable(zoomState),
+                        modifier = Modifier.fillMaxSize().align(Alignment.Center).zoomable(zoomState),
                         bitmap = state.bitmap,
                         contentDescription = filename,
                     )
                 } else {
                     Image(
-                        modifier = Modifier.align(Alignment.Center).zoomable(zoomState),
+                        modifier = Modifier.fillMaxSize().align(Alignment.Center).zoomable(zoomState),
                         painter = painter,
                         contentDescription = filename,
                     )
@@ -382,7 +382,7 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ViewerScreen(state: ViewerState, switchTo: (Int) -> Unit, close: () -> Unit) {
+fun ViewerScreen(state: ViewerState?, switchTo: (Int) -> Unit, close: () -> Unit) {
     return FudgeTheme {
         BackHandler {
             close()
@@ -392,7 +392,7 @@ fun ViewerScreen(state: ViewerState, switchTo: (Int) -> Unit, close: () -> Unit)
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(),
                     title = {
-                        Text(state.metadata?.filename ?: "File")
+                        Text(state?.metadata?.filename ?: "File")
                     },
                     navigationIcon = {
                         IconButton(onClick = {
@@ -421,12 +421,14 @@ fun ViewerScreen(state: ViewerState, switchTo: (Int) -> Unit, close: () -> Unit)
                 )
             },
         ) { innerPadding ->
-            Viewer(Modifier.padding(innerPadding), state,
-                switchTo = switchTo,
-                close = {
-                    close()
-                }
-            )
+            if (state != null) {
+                Viewer(Modifier.padding(innerPadding), state,
+                    switchTo = switchTo,
+                    close = {
+                        close()
+                    }
+                )
+            }
         }
     }
 }

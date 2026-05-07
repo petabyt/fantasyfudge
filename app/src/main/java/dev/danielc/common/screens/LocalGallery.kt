@@ -14,11 +14,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.danielc.R
+import dev.danielc.common.FileHandle
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
 
 class LocalGalleryViewModel(val directory: String) : GalleryViewModel() {
     var files = AndroidRuntime.getFiles()
+    val viewer = ViewerModel()
     init {
         setProperties(files.size, directory, SortBy.NEWEST_FIRST)
     }
@@ -29,6 +31,25 @@ class LocalGalleryViewModel(val directory: String) : GalleryViewModel() {
 
     override fun fulfillMetadata(file: GalleryObjectReference) {
         updateMetadata(file.index, files[file.index].metadata)
+    }
+
+    fun loadImage(i: Int) {
+        viewer.clear()
+        val file = files[i]
+        viewer.update(FileHandle(i), files.size)
+        viewer.updateMetadata(file.metadata)
+        viewer.updateStats(10,"Reading file")
+        val data = AndroidRuntime.readFile(file)
+        if (data == null) {
+            viewer.setError("Failed to decode image")
+        } else {
+            viewer.setFileContents(data, false)
+        }
+
+        viewer.updateSideBitmaps(
+            if (files.getOrNull(i - 1) == null) null else AndroidRuntime.getMediaThumbnail(files[i - 1]),
+            if (files.getOrNull(i + 1) == null) null else AndroidRuntime.getMediaThumbnail(files[i + 1])
+        )
     }
 }
 

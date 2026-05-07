@@ -4,6 +4,7 @@ package dev.danielc.fudge
 
 import android.Manifest
 import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -28,6 +29,7 @@ import dev.danielc.common.Runtime
 import dev.danielc.common.getMimeType
 import dev.danielc.libpak.Pak
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.lang.ref.WeakReference
@@ -128,8 +130,8 @@ object AndroidRuntime {
         return fujifilm
     }
 
-    fun scanImage(path: String?) {
-        MediaScannerConnection.scanFile(Pak.getActivity(), arrayOf<String?>(path), null, null)
+    fun scanImage(path: String) {
+        MediaScannerConnection.scanFile(Pak.getActivity(), arrayOf(path), null, null)
     }
 
     fun writeFile(data: ByteArray, filename: String) {
@@ -159,6 +161,33 @@ object AndroidRuntime {
         val metadata: FileMetadata
     )
 
+    fun readFile(file: MediaStoreFile): ByteArray? {
+        val resolver = Pak.getActivity().contentResolver
+        val fd = resolver.openFileDescriptor(file.contentUri, "r")
+        if (fd == null) return null
+        val stream = FileInputStream(fd.fileDescriptor)
+        val data = stream.readBytes()
+        stream.close()
+        fd.close()
+        return data
+    }
+
+    fun writeImageFile(filename: String, data: ByteArray) {
+        val resolver = Pak.getActivity().contentResolver
+
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path + File.separator + "fudge")
+        }
+
+        val uri = resolver.insert(MediaStore.Files.getContentUri("external"), values)
+        if (uri == null) return
+        val stream = resolver.openOutputStream(uri)
+        if (stream == null) return
+        stream.write(data)
+        stream.close()
+    }
+
     fun getMediaThumbnail(file: MediaStoreFile): ImageBitmap? {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val bitmap = Pak.getActivity().contentResolver.loadThumbnail(file.contentUri, Size(640, 480), null)
@@ -170,12 +199,18 @@ object AndroidRuntime {
         }
     }
 
-    fun getFiles(subfolder: String = "fudge"): List<MediaStoreFile> {
-//        val ctx = Pak.getActivity()
-//        if (ctx.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
-//            Handler(ctx.mainLooper).post { ctx.requestPermissions(arrayOf<String?>(Manifest.permission.READ_MEDIA_IMAGES), 1) }
-//        }
+    fun requestExternalImagesPermission() {
+        val ctx = Pak.getActivity()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ctx.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+                Handler(ctx.mainLooper).post {
+                    ctx.requestPermissions(arrayOf<String?>(Manifest.permission.READ_MEDIA_IMAGES), 1)
+                }
+            }
+        }
+    }
 
+    fun getFiles(subfolder: String = "fudge"): List<MediaStoreFile> {
         val list = mutableListOf<MediaStoreFile>()
         val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
         Pak.getActivity().contentResolver.query(

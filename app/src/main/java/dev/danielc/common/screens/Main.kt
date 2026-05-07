@@ -77,6 +77,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.danielc.R
 import dev.danielc.common.ConnectableDevice
+import dev.danielc.common.FileHandle
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Runtime
 import dev.danielc.common.SerializableModuleInstance
@@ -88,6 +89,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.collectAsState
 
 val dummyConnectableDeviceList: List<ConnectableDevice> = listOf(
     ConnectableDevice("Daniel's Earbuds", manifest = dummyManifestList[0], target = dummyManifestList[0].targets[0], isConnected = true),
@@ -289,6 +291,15 @@ fun MainNav(navController: NavHostController) {
                 navController.popBackStack()
             })
         }
+        composable("local-viewer") {
+            ViewerScreen(currentLocalGallery?.viewer?.viewerState?.collectAsState()?.value, { i ->
+                CoroutineScope(Dispatchers.IO).launch {
+                    currentLocalGallery?.loadImage(i)
+                }
+            }, {
+                navController.popBackStack()
+            })
+        }
         composable("local-gallery") {
             fun back() {
                 navController.popBackStack()
@@ -303,7 +314,10 @@ fun MainNav(navController: NavHostController) {
             LocalGallery(onBack = {
                 back()
             }, onItemClick = { i ->
-
+                navController.navigate("local-viewer")
+                CoroutineScope(Dispatchers.IO).launch {
+                    currentLocalGallery?.loadImage(i)
+                }
             }, Modifier, currentLocalGallery)
         }
         composable("gallery") { PreviewGalleryScreen(navController) }
