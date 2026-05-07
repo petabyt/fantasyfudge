@@ -177,6 +177,7 @@ object Runtime {
             ModuleManifest.ModuleType.NATIVE -> throw Exception("Native module (?)")
             ModuleManifest.ModuleType.DUMMY_MODULE -> DummyModule(m)
             ModuleManifest.ModuleType.LIBFUJI -> LibFujiModule(m)
+            ModuleManifest.ModuleType.GOVEELIFE -> GoveeLifeModule(m)
         }
     }
 
@@ -230,6 +231,19 @@ object Runtime {
                     company = "Nothing",
                     deviceId = Device.EARBUDS,
                     products = listOf("Buds Pro 2", "Buds 2")
+                )
+            ),
+        )
+
+        moduleManifests += ModuleManifest(
+            name = "goveelife",
+            description = "GoveeLife smart home devices",
+            moduleType = ModuleManifest.ModuleType.GOVEELIFE,
+            targets = listOf(
+                ModuleManifest.Target(
+                    company = "GoveeLife",
+                    deviceId = Device.GENERIC_HOME_DEVICE,
+                    products = listOf("thermometer")
                 )
             ),
         )

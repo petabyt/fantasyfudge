@@ -1,12 +1,16 @@
 /// Main app start screen
 package dev.danielc.common.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideIn
+import androidx.compose.animation.slideOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -58,21 +62,29 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHost
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.toRoute
 import dev.danielc.R
 import dev.danielc.common.ConnectableDevice
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Runtime
+import dev.danielc.common.SerializableModuleInstance
 import dev.danielc.common.ui.theme.FudgeTheme
+import dev.danielc.fudge.AndroidRuntime
 import dev.danielc.libpak.Bluetooth
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -221,9 +233,88 @@ fun PreviewModuleDeviceList() {
     }
 }
 
+@Composable
+fun MainNav(navController: NavHostController) {
+    var currentLocalGallery by remember { mutableStateOf<LocalGalleryViewModel?>(null) }
+    val duration = 200
+    NavHost(
+        enterTransition = {
+            slideIn(
+                initialOffset = { IntOffset(it.width, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        exitTransition = {
+            slideOut(
+                targetOffset = { IntOffset(-it.width / 4, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        popEnterTransition = {
+            slideIn(
+                initialOffset = { IntOffset(-it.width / 4, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        popExitTransition = {
+            slideOut(
+                targetOffset = { IntOffset(it.width, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+
+        navController = navController, startDestination = "home") {
+        composable("home") {
+            MainScreen(navController, goToLocalGallery = {
+                navController.navigate("local-gallery")
+                CoroutineScope(Dispatchers.IO).launch {
+                    currentLocalGallery = LocalGalleryViewModel(AndroidRuntime.getDownloadDirectory())
+                    currentLocalGallery?.start()
+                }
+            })
+        }
+        composable("help") {
+            HelpScreen(navController)
+        }
+        composable("about") {
+            AboutScreen(navController)
+        }
+        composable("modules-list") {
+            ModuleListScreen(navController)
+        }
+        composable<SerializableModuleInstance> { backStackEntry ->
+            val inst = backStackEntry.toRoute<SerializableModuleInstance>()
+            val module = inst.getModuleInstance()
+            ModuleInstanceNav(module, backToMainScreen = {
+                navController.popBackStack()
+            })
+        }
+        composable("local-gallery") {
+            fun back() {
+                navController.popBackStack()
+                CoroutineScope(Dispatchers.IO).launch {
+                    currentLocalGallery?.stop()
+                    currentLocalGallery = null
+                }
+            }
+            BackHandler {
+                back()
+            }
+            LocalGallery(onBack = {
+                back()
+            }, onItemClick = { i ->
+
+            }, Modifier, currentLocalGallery)
+        }
+        composable("gallery") { PreviewGalleryScreen(navController) }
+        composable("preview-viewer") { PreviewViewer(navController) }
+        composable("test-dashboard1") { PreviewDashboardCamera() }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun MainScreen(navController: NavHostController = rememberNavController()) {
+fun MainScreen(navController: NavHostController = rememberNavController(), goToLocalGallery: () -> Unit = {}) {
     val subNavController = rememberNavController()
     val haptic = LocalHapticFeedback.current
     val navBackStackEntry by subNavController.currentBackStackEntryAsState()
@@ -305,7 +396,9 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
                             Text("FantasyFudge")
                         },
                         actions = {
-                            IconButton(onClick = {}) {
+                            IconButton(onClick = {
+                                goToLocalGallery()
+                            }) {
                                 Icon(
                                     painter = painterResource(R.drawable.baseline_folder_open_24),
                                     contentDescription = null

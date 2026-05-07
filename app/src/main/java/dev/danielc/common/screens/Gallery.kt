@@ -35,13 +35,18 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -226,9 +231,8 @@ abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewMod
                     }
                 }
             }
-        } else {
-            threadIsPaused = false
         }
+        threadIsPaused = false
     }
 
     fun setPaused(v: Boolean) {
@@ -263,42 +267,42 @@ abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewMod
         }
     }
 
-    fun updateThumbnail(i: Int, thumbData: ByteArray? = null) {
-        updateObject(i, null, thumbData, false, true)
-    }
-    fun updateMetadata(i: Int, md: FileMetadata? = null) {
-        updateObject(i, md, null, true, false)
-    }
-    fun updateObject(i: Int, md: FileMetadata? = null, thumbData: ByteArray? = null, haveMetadata: Boolean = true, haveThumbnail: Boolean = true) {
+    fun updateObject(i: Int, block: (GalleryObject) -> GalleryObject) {
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { currentState ->
                 val list = currentState.objects.toMutableList()
                 while (list.size <= i) list.add(null)
-                var obj = list[i] ?: GalleryObject(md)
-                if (haveThumbnail) {
-                    if (thumbData == null) {
-                        obj = obj.copy(
-                            thumbnail = null,
-                        )
-                    } else {
-                        try {
-                            obj = obj.copy(thumbnail = AndroidRuntime.decodeImageContents(thumbData, null))
-                        } catch (e: Exception) {
-                            println(e.message)
-                            // TODO: show decode error to user
-                        }
-                    }
-                }
-                if (haveMetadata) {
-                    obj = obj.copy(metadata = md)
-                }
-
-                list[i] = obj
+                val obj = list[i] ?: GalleryObject(null)
+                list[i] = block(obj)
                 currentState.copy(objects = list)
             }
         }
     }
 
+    fun updateThumbnail(i: Int, thumbData: ByteArray? = null) {
+        updateThumbnail(i, if (thumbData != null) AndroidRuntime.decodeImageContents(thumbData, null) else null)
+    }
+    fun updateMetadata(i: Int, md: FileMetadata? = null) {
+        updateObject(i) { obj ->
+            if (md == null) {
+                obj.copy(metadata = null, invalidMetadata = true)
+            } else {
+                obj.copy(metadata = md)
+            }
+        }
+    }
+    fun updateThumbnail(i: Int, thumb: ImageBitmap? = null) {
+        updateObject(i) { obj ->
+            if (thumb == null) {
+                obj.copy(
+                    thumbnail = null,
+                    invalidThumbnail = true,
+                )
+            } else {
+                obj.copy(thumbnail = thumb)
+            }
+        }
+    }
     fun enqueueObject(index: Int, isPriority: Boolean = false) {
         _uiState.value.queue.addLast(GalleryObjectReference(index, isPriority))
     }
@@ -415,6 +419,8 @@ fun GalleryFile(obj: GalleryObject?, onClick: () -> Unit = {}) {
 
 @Composable
 fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (Int) -> Unit = {}, onItemClick: (Int) -> Unit = {}) {
+    var isRefreshing by remember { mutableStateOf(false) }
+    var refreshTrigger by remember { mutableIntStateOf(0) }
     Box(modifier = modifier.fillMaxSize()) {
         Column {
             if (false) {
@@ -465,38 +471,56 @@ fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (In
                 }
             }
 
-            val listState = rememberLazyGridState()
+            if (state.objects.isNotEmpty()) {
+                val listState = rememberLazyGridState()
 
-            if (state.displayType == DisplayType.THUMBNAILS) {
-                LazyVerticalGrid(
-                    state = listState,
-                    columns = GridCells.Fixed(4)
+                PullToRefreshBox(
+                    state = rememberPullToRefreshState(),
+                    isRefreshing = isRefreshing,
+                    onRefresh = {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            isRefreshing = true
+                            refreshTrigger++
+                            isRefreshing = false
+                        }
+                    }
                 ) {
-                    itemsIndexed(state.objects) { index, obj ->
-                        GalleryThumbnail(obj, onClick = {
-                            onItemClick(index)
-                        })
+                    if (state.displayType == DisplayType.THUMBNAILS) {
+                        LazyVerticalGrid(
+                            state = listState,
+                            columns = GridCells.Fixed(4)
+                        ) {
+                            itemsIndexed(state.objects) { index, obj ->
+                                GalleryThumbnail(obj, onClick = {
+                                    onItemClick(index)
+                                })
+                            }
+                        }
+                    } else if (state.displayType == DisplayType.VERTICAL_TABLE) {
+                        LazyVerticalGrid(
+                            state = listState,
+                            columns = GridCells.Fixed(1)
+                        ) {
+                            items(state.objects) { obj ->
+                                GalleryFile(obj)
+                            }
+                        }
                     }
                 }
-            } else if (state.displayType == DisplayType.VERTICAL_TABLE) {
-                LazyVerticalGrid(
-                    state = listState,
-                    columns = GridCells.Fixed(1)
-                ) {
-                    items(state.objects) { obj ->
-                        GalleryFile(obj)
+
+                // Monitor recently viewed items so it can be sent to the queue
+                LaunchedEffect(listState) {
+                    snapshotFlow { listState.layoutInfo.visibleItemsInfo }
+                    .collect { visibleItems ->
+                        for (e in visibleItems) {
+                            println("enqueued ${e.index}")
+                            requestLoad(e.index)
+                        }
                     }
                 }
-            }
-
-            // Monitor recently viewed items so it can be sent to the queue
-            LaunchedEffect(listState) {
-                snapshotFlow { listState.layoutInfo.visibleItemsInfo }
-                .collect { visibleItems ->
-                    for (e in visibleItems) {
-                        println("enqueued ${e.index}")
-                        requestLoad(e.index)
-                    }
+            } else {
+                Row(Modifier.fillMaxWidth().padding(10.dp), horizontalArrangement = Arrangement.Center) {
+                    Text("No files are present.")
                 }
             }
         }

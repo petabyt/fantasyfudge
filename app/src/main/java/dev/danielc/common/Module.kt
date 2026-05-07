@@ -137,6 +137,7 @@ data class ModuleManifest(
         NATIVE,
         DUMMY_MODULE,
         CMF_NOTHING,
+        GOVEELIFE,
         LIBFUJI;
         fun getDesc(): String {
             return when (this) {
@@ -146,6 +147,7 @@ data class ModuleManifest(
                 DUMMY_MODULE -> "DummyModule (statically compiled)"
                 CMF_NOTHING -> "libcmf-nothing (statically compiled)"
                 LIBFUJI -> "libfuji (statically compiled)"
+                GOVEELIFE -> "..."
             }
         }
     }
@@ -474,5 +476,11 @@ class LibFujiModule(manifest: ModuleManifest) : NativeModule(manifest) {
 class CmfNothingModule(manifest: ModuleManifest) : NativeModule(manifest) {
     init {
         AndroidRuntime.setupCmfNothingAudioModule(this, manifest)
+    }
+}
+
+class GoveeLifeModule(manifest: ModuleManifest) : NativeModule(manifest) {
+    init {
+        AndroidRuntime.setupGoveeLifeModule(this, manifest)
     }
 }

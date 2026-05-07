@@ -30,6 +30,8 @@ target_link_options(qjs PRIVATE "-Wl,-z,max-page-size=16384")
 option(PAK_INCLUDE_CLI "cli program" OFF)
 option(PAK_INCLUDE_WIFI "WiFi APIs" ON)
 option(PAK_INCLUDE_BT "Bluetooth APIs" ON)
+option(PAK_INCLUDE_EXIF "EXIF Parser" ON)
+option(PAK_QUICKJS "QuickJS bindings" ON)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../libpak ${CMAKE_CURRENT_BINARY_DIR}/libpak)
 
 # libfuji static module
@@ -43,6 +45,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     main.c
     thread.c
     module.c
+    goveelife.c
 )
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE libfuji dummy pak qjs libjpeg-turbo cmfnothingaudio $<$<BOOL:${APP_WASM_SUPPORT}>:vmlib>)
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE "-Wl,-z,max-page-size=16384")

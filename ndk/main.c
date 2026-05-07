@@ -16,6 +16,7 @@ int get_module_dummy(struct Module *mod);
 int setup_quickjs_module(struct Module **mod, const char *filename);
 int get_module_libfuji(struct Module *mod);
 int get_module_cmfnothingaudio(struct Module *mod);
+int get_module_goveelife(struct Module *mod);
 
 int pak_ndk_create_module(JNIEnv *env, jobject o_mod, int (*get_fn)(struct Module *mod), jobject manifest) {
 	struct Module *mod = calloc(1, sizeof(struct Module));
@@ -54,7 +55,7 @@ static uint8_t *file_add(void *arg, const uint8_t *buffer, unsigned int new_len,
 }
 
 JNIEXPORT jbyteArray JNICALL
-Java_dev_danielc_fudge_Exif_getExifThumbnail(JNIEnv *env, jclass clazz, jstring filepath) {
+Java_dev_danielc_common_Exif_getExifThumbnail(JNIEnv *env, jclass clazz, jstring filepath) {
 	const char *cfilepath = (*env)->GetStringUTFChars(env, filepath, 0);
 	FILE *f = fopen(cfilepath, "rb");
 	if (f == NULL) {
@@ -74,8 +75,8 @@ Java_dev_danielc_fudge_Exif_getExifThumbnail(JNIEnv *env, jclass clazz, jstring 
 		return NULL;
 	}
 
-	jbyteArray result = (*env)->NewByteArray(env, (int)c.thumb_size);
-	(*env)->SetByteArrayRegion(env, result, 0, (int)c.thumb_size, (jbyte *)(c.buf + c.thumb_of));
+	jbyteArray result = (*env)->NewByteArray(env, (jsize)c.thumb_size);
+	(*env)->SetByteArrayRegion(env, result, 0, (jsize)c.thumb_size, (jbyte *)(c.buf + c.thumb_of));
 
 	free(c.buf);
 	fclose(f);
@@ -393,8 +394,13 @@ Java_dev_danielc_fudge_AndroidRuntime_setupJavascriptModule(JNIEnv *env, jclass 
 }
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupCmfNothingAudioModule(JNIEnv *env, jclass clazz,
-																 jobject mod, jobject manifest) {
+Java_dev_danielc_fudge_AndroidRuntime_setupCmfNothingAudioModule(JNIEnv *env, jclass clazz, jobject mod, jobject manifest) {
 	set_jni_env_ctx(env, clazz);
 	return pak_ndk_create_module(env, mod, get_module_cmfnothingaudio, manifest);
+}
+
+JNIEXPORT jint JNICALL
+Java_dev_danielc_fudge_AndroidRuntime_setupGoveeLifeModule(JNIEnv *env, jobject thiz, jobject mod, jobject manifest) {
+	set_jni_env_ctx(env, thiz);
+	return pak_ndk_create_module(env, mod, get_module_goveelife, manifest);
 }
