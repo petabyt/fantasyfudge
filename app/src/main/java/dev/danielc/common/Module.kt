@@ -127,6 +127,7 @@ data class ModuleManifest(
     val runtimeVersion: Int = 0,
     val scriptPath: String? = null,
     val targets: List<Target> = emptyList(),
+    val setupOptions: List<SetupOption> = emptyList(),
     val publicKey: String? = null,
     val isDraft: Boolean = false,
     val moduleType: ModuleType = ModuleType.NATIVE,
@@ -151,6 +152,10 @@ data class ModuleManifest(
             }
         }
     }
+    data class SetupOption(
+        val name: String,
+        val title: String,
+    )
     data class Target(
         val deviceId: Device = Device.PROFESSIONAL_CAMERA,
         val company: String = "",
@@ -206,6 +211,7 @@ abstract class ModuleInstance(val manifest: ModuleManifest) {
     var disconnectedErrorCode: Int? = null
     private var jobs = mutableMapOf<Int, ModuleJob>()
     private var jobCounter = 0
+    private var isNavigating = false
 
     fun createJob(mod: SerializableModuleInstance, onUpdate: JobUpdateCallback): ModuleJob {
         val id = ++jobCounter
@@ -387,17 +393,25 @@ abstract class ModuleInstance(val manifest: ModuleManifest) {
     }
 
     fun switchScreen(screen: Screen, isInNavBar: Boolean, callback: JobUpdateCallback = {}) {
-        if (currentScreen != screen) {
-            homeModelView.goToScreen(screen, isInNavBar)
+        if (!isNavigating) {
+            isNavigating = true
+            if (currentScreen != screen) {
+                homeModelView.goToScreen(screen, isInNavBar)
+            }
+            switchScreen(currentScreen, screen, callback)
+            currentScreen = screen
+            isNavigating = false
         }
-        switchScreen(currentScreen, screen, callback)
-        currentScreen = screen
     }
 
     fun goBack(previous: Screen, isInNavBar: Boolean, callback: JobUpdateCallback = {}) {
-        homeModelView.back(isInNavBar)
-        switchScreen(currentScreen, previous, callback)
-        currentScreen = previous
+        if (!isNavigating) {
+            isNavigating = true
+            homeModelView.back(isInNavBar)
+            switchScreen(currentScreen, previous, callback)
+            currentScreen = previous
+            isNavigating = false
+        }
     }
 
     fun goToViewer(file: FileHandle) {

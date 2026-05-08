@@ -12,8 +12,14 @@ struct RuntimePriv {
 	jobject obj;
 };
 
+
+__attribute__((weak)) int setup_quickjs_module(struct Module **mod, const char *filename) {
+	return -1;
+}
+__attribute__((weak)) int setup_wasm_module(struct Module **mod, const char *filename) {
+	return -1;
+}
 int get_module_dummy(struct Module *mod);
-int setup_quickjs_module(struct Module **mod, const char *filename);
 int get_module_libfuji(struct Module *mod);
 int get_module_cmfnothingaudio(struct Module *mod);
 int get_module_goveelife(struct Module *mod);

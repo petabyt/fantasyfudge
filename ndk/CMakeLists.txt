@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.10)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 project(fudge)
 
-option(APP_WASM_SUPPORT "" no)
+option(APP_WASM_SUPPORT "" OFF)
+option(APP_QUICKJS_SUPPORT "" OFF)
 
 # wasm runtime
 if(APP_WASM_SUPPORT)
@@ -12,6 +13,8 @@ if(APP_WASM_SUPPORT)
         set(WAMR_BUILD_TARGET "X86_64")
     elseif(ANDROID_ABI STREQUAL "arm64-v8a")
         set(WAMR_BUILD_TARGET "AARCH64")
+    elseif(ANDROID_ABI STREQUAL "armeabi-v7a")
+        set(WAMR_BUILD_TARGET "ARMV7A")
     endif()
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../third_party/wasm-micro-runtime/ ${CMAKE_CURRENT_BINARY_DIR}/wamr)
     target_link_options(vmlib PRIVATE "-Wl,-z,max-page-size=16384")
@@ -22,16 +25,19 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../third_party/libjpeg-turbo ${CMAK
 target_link_options(libjpeg-turbo PRIVATE "-Wl,-z,max-page-size=16384")
 
 # quickjs
-option(QJS_BUILD_LIBC "Build standard library modules as part of the library" ON)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../third_party/quickjs ${CMAKE_CURRENT_BINARY_DIR}/quickjs)
-target_link_options(qjs PRIVATE "-Wl,-z,max-page-size=16384")
+if(APP_QUICKJS_SUPPORT)
+    option(QJS_BUILD_LIBC "Build standard library modules as part of the library" ON)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../third_party/quickjs ${CMAKE_CURRENT_BINARY_DIR}/quickjs)
+    target_link_options(qjs PRIVATE "-Wl,-z,max-page-size=16384")
+endif()
 
 # libpak
 option(PAK_INCLUDE_CLI "cli program" OFF)
 option(PAK_INCLUDE_WIFI "WiFi APIs" ON)
 option(PAK_INCLUDE_BT "Bluetooth APIs" ON)
 option(PAK_INCLUDE_EXIF "EXIF Parser" ON)
-option(PAK_QUICKJS "QuickJS bindings" ON)
+option(PAK_QUICKJS "QuickJS bindings" ${APP_QUICKJS_SUPPORT})
+option(PAK_WASM "" ${APP_WASM_SUPPORT})
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../libpak ${CMAKE_CURRENT_BINARY_DIR}/libpak)
 
 # libfuji static module
@@ -47,6 +53,6 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     module.c
     goveelife.c
 )
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE libfuji dummy pak qjs libjpeg-turbo cmfnothingaudio $<$<BOOL:${APP_WASM_SUPPORT}>:vmlib>)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE libfuji dummy pak libjpeg-turbo cmfnothingaudio $<$<BOOL:${APP_WASM_SUPPORT}>:vmlib> $<$<BOOL:${APP_QUICKJS_SUPPORT}>:qjs>)
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE "-Wl,-z,max-page-size=16384")
 target_link_options(pak PRIVATE "-Wl,-z,max-page-size=16384")

@@ -210,6 +210,7 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
     val galleryState by module.galleryViewModel.uiState.collectAsStateWithLifecycle()
     val navScreens = homeState.supportedNavBarScreenList.sortedBy { when (it) {
         Screen.DASHBOARD -> 0 // ensure dashboard is always first
+        Screen.FILE_GALLERY -> 1
         else -> 1
     } }
     var screenSwitchProgress by remember { mutableStateOf<Int?>(null) }
@@ -260,11 +261,11 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                         }
                     }
 
-                    if (screenSwitchProgress != null) {
+                    screenSwitchProgress?.let {
                         LinearProgressIndicator(
                             modifier = Modifier.fillMaxWidth(),
                             color = MaterialTheme.colorScheme.primary,
-                            progress = { (screenSwitchProgress ?: 0).toFloat() / 100 }
+                            progress = { it.toFloat() / 100 }
                         )
                     }
                 }
@@ -296,14 +297,6 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                 }
                 composable(Screen.FILE_GALLERY.strId) {
                     BackHandler { goBack() }
-//                    LaunchedEffect(Unit) {
-//                        module.galleryViewModel.setPaused(false)
-//                    }
-//                    DisposableEffect(LocalLifecycleOwner.current) {
-//                        onDispose {
-//                            module.galleryViewModel.setPaused(true)
-//                        }
-//                    }
                     Gallery( Modifier.padding(innerPadding), galleryState, requestLoad = { i ->
                         module.galleryViewModel.enqueueObject(i, true)
                     }, onItemClick = { i ->

@@ -213,6 +213,12 @@ object Runtime {
             name = "libfuji",
             description = "All Fujifilm cameras",
             moduleType = ModuleManifest.ModuleType.LIBFUJI,
+            setupOptions = listOf(
+                ModuleManifest.SetupOption("wifi", "WiFi (Legacy)"),
+                ModuleManifest.SetupOption("local-network", "PC AutoSave & Wireless Tether Shoot"),
+                ModuleManifest.SetupOption("bluetooth", "Bluetooth"),
+                ModuleManifest.SetupOption("usb", "USB"),
+            ),
             targets = listOf(
                 ModuleManifest.Target(
                     company = "Fujifilm",

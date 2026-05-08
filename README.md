@@ -9,7 +9,7 @@ This is an app that can connect to various gadgets and devices, serving as an al
 - Connect to and control a wide range of devices and gadgets - such as earbuds, mirrorless cameras, smart TVs, diagnostic systems
 - Serve as an attractive alternative to (often privacy-invasive, buggy, or outdated) vendor-provided apps
 - Deep integration with the wireless features of each device, adjusting UI depending on circumstance
-- Separate the logic between the frontend and reverse-engineered protocol code similar to [Grayjay](https://grayjay.app/)
+- Separate the logic between the frontend and reverse-engineered protocol code (similar to [Grayjay](https://grayjay.app/))
 
 ## Roadmap
 - [x] Material 3 UI with Jetpack Compose

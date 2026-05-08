@@ -97,6 +97,7 @@ class ViewerModel() : ViewModel() {
             )
         }
     }
+    // TODO: When swiping left or right, reuse old bitmaps
     fun updateSideBitmaps(left: ImageBitmap?, right: ImageBitmap?) {
         _viewerState.update { viewerState ->
             viewerState?.copy(
