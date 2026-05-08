@@ -36,7 +36,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
@@ -45,6 +48,8 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -54,7 +59,6 @@ import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
 import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
-import dev.danielc.common.Runtime
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
 import kotlinx.coroutines.delay
@@ -62,8 +66,25 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import net.engawapg.lib.zoomable.rememberZoomState
 import net.engawapg.lib.zoomable.zoomable
+
+fun painterToImageBitmap(
+    painter: Painter,
+    density: Density = Density(1f),
+    layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+): ImageBitmap {
+    val size = painter.intrinsicSize
+    val bitmap = ImageBitmap(size.width.toInt(), size.height.toInt())
+    val canvas = Canvas(bitmap)
+    CanvasDrawScope().draw(density, layoutDirection, canvas, size) {
+        with(painter) {
+            draw(size)
+        }
+    }
+    return bitmap
+}
 
 data class ViewerState(
     val handle: FileHandle,
@@ -75,7 +96,6 @@ data class ViewerState(
     val errorMessage: String? = null,
     val currentDownloadProgress: Int = 0,
     val currentDownloadSpeed: String = "",
-    val painter: Painter? = null,
     val bitmap: ImageBitmap? = null,
     val bitmapLeft: ImageBitmap? = null,
     val bitmapRight: ImageBitmap? = null,
@@ -86,9 +106,29 @@ class ViewerModel() : ViewModel() {
     private val _viewerState = MutableStateFlow<ViewerState?>(null)
     val viewerState = _viewerState.asStateFlow()
 
+    override fun onCleared() {
+        super.onCleared()
+        println("oncleared")
+        clear()
+    }
+
     fun update(file: FileHandle, numberOfItems: Int) {
         temporaryBuffer = null
-        _viewerState.value = ViewerState(file, numberOfItems)
+
+        val state = _viewerState.value
+        val tempBitmap = if (state != null) {
+            if (file.index == (state.handle.index - 1)) {
+                listOf(null, state.bitmapLeft, state.bitmap)
+            } else if (file.index == (state.handle.index + 1)) {
+                listOf(state.bitmap, state.bitmapRight, null)
+            } else {
+                listOf(null, null, null)
+            }
+        } else {
+            listOf(null, null, null)
+        }
+
+        _viewerState.value = ViewerState(file, numberOfItems, bitmap = tempBitmap[1], bitmapLeft = tempBitmap[0], bitmapRight = tempBitmap[2])
     }
     fun updateMetadata(metadata: FileMetadata?) {
         _viewerState.update { viewerState ->
@@ -97,7 +137,6 @@ class ViewerModel() : ViewModel() {
             )
         }
     }
-    // TODO: When swiping left or right, reuse old bitmaps
     fun updateSideBitmaps(left: ImageBitmap?, right: ImageBitmap?) {
         _viewerState.update { viewerState ->
             viewerState?.copy(
@@ -164,9 +203,7 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
     val filename = state.metadata?.filename ?: "File"
 
     if (state.isError) {
-        Dialog(onDismissRequest = {
-
-        }) {
+        Dialog(onDismissRequest = {}) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -192,18 +229,14 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
                 }
             }
         }
-        return
-    } else
-    if (state.isLoading) {
+    } else if (state.isLoading) {
         val text = "Downloading " + when (state.metadata?.mimeType) {
             MimeType.JPEG, MimeType.PNG -> "image"
             MimeType.MOV -> "movie"
             else -> "file"
         }
 
-        Dialog(onDismissRequest = {
-
-        }) {
+        Dialog(onDismissRequest = {}) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -238,10 +271,7 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
                 }
             }
         }
-        return
     }
-
-    val painter = state.painter ?: painterResource(R.drawable.baseline_photo_camera_24)
 
     val imageYOffset = remember {
         Animatable(0f)
@@ -274,7 +304,7 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
                 }
             },
             onDragEnd = {
-                if (imageYOffset.value >= 100) {
+                if (imageYOffset.value >= minOffsetToClose) {
                     close()
                 } else {
                     scope.launch {
@@ -301,25 +331,21 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
         val pagerState = rememberPagerState(initialPage = state.handle.index, pageCount = {
             state.numberOfItems
         })
-        LaunchedEffect(pagerState) {
+        LaunchedEffect(state) {
             snapshotFlow { pagerState.currentPage }.collect { page ->
-                if (page != state.handle.index) switchTo(page)
+                if (page != state.handle.index) {
+                    switchTo(page)
+                }
             }
         }
         HorizontalPager(
             state = pagerState, modifier = Modifier.fillMaxSize().align(Alignment.Center)) { page ->
-            val zoomState = rememberZoomState(contentSize = painter.intrinsicSize)
             if (page == state.handle.index) {
                 if (state.bitmap != null) {
+                    val zoomState = rememberZoomState(contentSize = Size(state.bitmap.width.toFloat(), state.bitmap.height.toFloat()))
                     Image(
                         modifier = Modifier.fillMaxSize().align(Alignment.Center).zoomable(zoomState),
                         bitmap = state.bitmap,
-                        contentDescription = filename,
-                    )
-                } else {
-                    Image(
-                        modifier = Modifier.fillMaxSize().align(Alignment.Center).zoomable(zoomState),
-                        painter = painter,
                         contentDescription = filename,
                     )
                 }
@@ -356,7 +382,7 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
     var state by remember { mutableStateOf(ViewerState(
         handle = FileHandle(index = 10, "sdcard"),
         metadata = FileMetadata("DSCF00001.JPG", mimeType = MimeType.JPEG),
-        painter = painter,
+        bitmap = painterToImageBitmap(painter),
         isLoading = false,
         currentDownloadSpeed = "5 mbps",
         currentDownloadProgress = 40,

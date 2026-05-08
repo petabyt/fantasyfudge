@@ -416,7 +416,7 @@ abstract class ModuleInstance(val manifest: ModuleManifest) {
 
     fun goToViewer(file: FileHandle) {
         CoroutineScope(Dispatchers.IO).launch {
-            viewerViewModel.clear()
+            //viewerViewModel.clear()
 
             val galleryState = galleryViewModel.uiState.value
             viewerViewModel.update(file, galleryState.objects.size)

@@ -387,22 +387,20 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
         composable("home") {
             ModuleHomeScreen(module, navController)
         }
-        composable("fileviewer") {
-            val viewerState = module.viewerViewModel.viewerState.collectAsStateWithLifecycle().value
-            if (viewerState != null) {
-                ViewerScreen(viewerState, switchTo = { i ->
-                    module.goToViewer(FileHandle(i, viewerState.handle.storageName))
-                }, close = {
-                    CoroutineScope(Dispatchers.IO).launch {
-                        module.goBack(Screen.FILE_GALLERY, false)
-                    }
-                })
-            }
-        }
         composable("disconnected") {
             val state by module.debugLogModel.uiState.collectAsStateWithLifecycle()
             DisconnectedScreen(reason = module.disconnectReason ?: "...", backToMainScreen = backToMainScreen, info = {
                 Console(state)
+            })
+        }
+        composable(Screen.FILE_VIEWER.strId) {
+            val viewerState by module.viewerViewModel.viewerState.collectAsStateWithLifecycle()
+            ViewerScreen(viewerState, switchTo = { i ->
+                module.goToViewer(FileHandle(i, viewerState?.handle?.storageName))
+            }, close = {
+                CoroutineScope(Dispatchers.IO).launch {
+                    module.goBack(Screen.FILE_GALLERY, false)
+                }
             })
         }
     }

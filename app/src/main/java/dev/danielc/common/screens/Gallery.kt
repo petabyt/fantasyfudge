@@ -513,7 +513,6 @@ fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (In
                     snapshotFlow { listState.layoutInfo.visibleItemsInfo }
                     .collect { visibleItems ->
                         for (e in visibleItems) {
-                            println("enqueued ${e.index}")
                             requestLoad(e.index)
                         }
                     }

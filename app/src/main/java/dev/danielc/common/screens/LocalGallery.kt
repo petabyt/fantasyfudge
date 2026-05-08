@@ -34,7 +34,7 @@ class LocalGalleryViewModel(val directory: String) : GalleryViewModel() {
     }
 
     fun loadImage(i: Int) {
-        viewer.clear()
+        println("load ${i}")
         val file = files[i]
         viewer.update(FileHandle(i), files.size)
         viewer.updateMetadata(file.metadata)

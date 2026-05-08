@@ -270,6 +270,7 @@ fun MainNav(navController: NavHostController) {
             MainScreen(navController, goToLocalGallery = {
                 navController.navigate("local-gallery")
                 CoroutineScope(Dispatchers.IO).launch {
+                    println("assign currentLocalGallery")
                     currentLocalGallery = LocalGalleryViewModel(AndroidRuntime.getDownloadDirectory())
                     currentLocalGallery?.start()
                 }
@@ -292,13 +293,17 @@ fun MainNav(navController: NavHostController) {
             })
         }
         composable("local-viewer") {
-            ViewerScreen(currentLocalGallery?.viewer?.viewerState?.collectAsState()?.value, { i ->
-                CoroutineScope(Dispatchers.IO).launch {
-                    currentLocalGallery?.loadImage(i)
-                }
-            }, {
-                navController.popBackStack()
-            })
+            currentLocalGallery?.let {
+                val state by it.viewer.viewerState.collectAsStateWithLifecycle()
+                ViewerScreen(state, { i ->
+                    CoroutineScope(Dispatchers.IO).launch {
+                        it.loadImage(i)
+                    }
+                }, {
+                    it.viewer.clear()
+                    navController.popBackStack()
+                })
+            }
         }
         composable("local-gallery") {
             fun back() {
