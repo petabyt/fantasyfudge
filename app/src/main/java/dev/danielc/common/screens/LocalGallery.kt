@@ -17,12 +17,23 @@ import dev.danielc.R
 import dev.danielc.common.FileHandle
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
-class LocalGalleryViewModel(val directory: String) : GalleryViewModel() {
-    var files = AndroidRuntime.getFiles()
-    val viewer = ViewerModel()
+class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : GalleryViewModel() {
+    var files = emptyList<AndroidRuntime.MediaStoreFile>()
     init {
-        setProperties(files.size, directory, SortBy.NEWEST_FIRST)
+        CoroutineScope(Dispatchers.IO).launch {
+            files = AndroidRuntime.getFiles()
+            setProperties(files.size, directory, SortBy.NEWEST_FIRST)
+        }
+        start()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stop()
     }
 
     override fun fulfillThumbnail(file: GalleryObjectReference) {
@@ -34,7 +45,6 @@ class LocalGalleryViewModel(val directory: String) : GalleryViewModel() {
     }
 
     fun loadImage(i: Int) {
-        println("load ${i}")
         val file = files[i]
         viewer.update(FileHandle(i), files.size)
         viewer.updateMetadata(file.metadata)

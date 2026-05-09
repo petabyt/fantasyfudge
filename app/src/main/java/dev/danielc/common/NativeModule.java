@@ -3,9 +3,8 @@ package dev.danielc.common;
 import androidx.annotation.NonNull;
 import dev.danielc.fudge.WiFiAdapter;
 
-public class NativeModule extends ModuleInstance {
+public class NativeModule {
     byte[] struct;
-
     public native int onFindConnection(int job);
     public native int onTryConnectWiFi(@NonNull WiFiAdapter adapter, int job);
     public native int onIdleTick(int usSinceLastTick);
@@ -15,8 +14,4 @@ public class NativeModule extends ModuleInstance {
     public native int onRequestFileThumbnail(int job, @NonNull FileHandle file);
     public native int onRequestFileMetadata(int job, @NonNull FileHandle file);
     public native void free();
-
-    NativeModule(ModuleManifest manifest) {
-        super(manifest);
-    }
 }

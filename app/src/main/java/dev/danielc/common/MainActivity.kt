@@ -50,9 +50,7 @@ class MainActivity : ComponentActivity() {
             MainNav(navController)
             if (false) {
                 LaunchedEffect(Unit) {
-                    val instance = Runtime.createModuleInstance(Runtime.getManifestFromName("goveelife")!!)
-                    navController.navigate(instance.serializableModuleInstance)
-                    instance.initThread()
+                    navController.navigate(ModuleInstanceRequest("goveelife", null))
                 }
             }
         }

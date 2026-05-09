@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.net.toUri
 import dev.danielc.common.Exif
 import dev.danielc.common.FileMetadata
+import dev.danielc.common.ModuleInstance
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.NativeModule
 import dev.danielc.common.Runtime
@@ -47,17 +48,17 @@ object AndroidRuntime {
     }
 
     external fun init()
-    external fun setupDummyNativeModule(mod: NativeModule?, manifest: ModuleManifest?): Int
-    external fun setupCmfNothingAudioModule(mod: NativeModule?, manifest: ModuleManifest?): Int
-    external fun setupLibFujiModule(mod: NativeModule?, manifest: ModuleManifest?): Int
-    external fun setupGoveeLifeModule(mod: NativeModule?, manifest: ModuleManifest?): Int
+    external fun setupDummyNativeModule(mod: ModuleInstance?, manifest: ModuleManifest?): Int
+    external fun setupCmfNothingAudioModule(mod: ModuleInstance?, manifest: ModuleManifest?): Int
+    external fun setupLibFujiModule(mod: ModuleInstance?, manifest: ModuleManifest?): Int
+    external fun setupGoveeLifeModule(mod: ModuleInstance?, manifest: ModuleManifest?): Int
     external fun setupJavascriptModule(
-        mod: NativeModule?,
+        mod: ModuleInstance?,
         manifest: ModuleManifest?,
         jsPath: String?
     ): Int
     external fun setupWebassemblyModule(
-        mod: NativeModule?,
+        mod: ModuleInstance?,
         manifest: ModuleManifest?,
         wasmPath: String?
     ): Int

@@ -36,14 +36,14 @@ int pak_ndk_create_module(JNIEnv *env, jobject o_mod, int (*get_fn)(struct Modul
 	int rc = 0;
 	if (mod->init != NULL) rc = mod->init(mod);
 
+	mod->bt = pak_bt_get_context();
+	mod->net = pak_net_get_context();
+
 	jbyteArray struct_ = (*env)->NewByteArray(env, sizeof(struct Module));
 	(*env)->SetByteArrayRegion(env, struct_, 0, sizeof(struct Module), (const jbyte *)mod);
 
 	jfieldID struct_field = (*env)->GetFieldID(env, class, "struct", "[B");
 	(*env)->SetObjectField(env, o_mod, struct_field, struct_);
-
-	mod->bt = pak_bt_get_context();
-	mod->net = pak_net_get_context();
 
 	return rc;
 }
@@ -110,7 +110,7 @@ void pak_global_log(const char *fmt, ...) {
 int pak_rt_set_tick_interval(struct Module *mod, unsigned int us) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
-	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID method = (*env)->GetMethodID(env, module_c, "setCurrentTickIntervalUs", "(I)V");
 	(*env)->CallVoidMethod(env, mod->rt->obj, method, (int)us);
 	(*env)->PopLocalFrame(env, NULL);
@@ -127,7 +127,7 @@ void pak_debug_log(struct Module *mod, const char *fmt, ...) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
 	jstring buffer_s = (*env)->NewStringUTF(env, buffer);
-	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID debug_log_m = (*env)->GetMethodID(env, module_c, "debugLog", "(Ljava/lang/String;)V");
 	(*env)->CallVoidMethod(env, mod->rt->obj, debug_log_m, buffer_s);
 	(*env)->PopLocalFrame(env, NULL);
@@ -143,7 +143,7 @@ void pak_rt_fatal_error(struct Module *mod, const char *fmt, ...) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
 	jstring buffer_s = (*env)->NewStringUTF(env, buffer);
-	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID debug_log_m = (*env)->GetMethodID(env, module_c, "reportFatalError", "(ILjava/lang/String;)V");
 	(*env)->CallVoidMethod(env, mod->rt->obj, debug_log_m, -1, buffer_s);
 	(*env)->PopLocalFrame(env, NULL);
@@ -199,7 +199,7 @@ static jobject create_filemetadata(JNIEnv *env, const struct FileMetadata *meta)
 
 int pak_rt_set_screen_supported(struct Module *mod, int screen, int v) {
 	JNIEnv *env = get_jni_env();
-	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID set_screen_supported = (*env)->GetMethodID(env, module_c, "setScreenSupported", "(IZ)V");
 	(*env)->CallVoidMethod(env, mod->rt->obj, set_screen_supported, screen, (jboolean)v);
 	return 0;
@@ -207,14 +207,14 @@ int pak_rt_set_screen_supported(struct Module *mod, int screen, int v) {
 
 int pak_rt_is_job_cancelled(struct Module *mod, int job) {
 	JNIEnv *env = get_jni_env();
-	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID is_job_cancelled = (*env)->GetMethodID(env, module_c, "isJobCancelled", "(I)Z");
 	return (*env)->CallBooleanMethod(env, mod->rt->obj, is_job_cancelled, job);
 }
 
 int pak_rt_set_progress_bar(struct Module *mod, int job, int percent) {
 	JNIEnv *env = get_jni_env();
-	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID set_progress_bar = (*env)->GetMethodID(env, module_c, "setProgressBar", "(II)V");
 	(*env)->CallVoidMethod(env, mod->rt->obj, set_progress_bar, job, percent);
 	return 0;
@@ -223,7 +223,7 @@ int pak_rt_set_progress_bar(struct Module *mod, int job, int percent) {
 int pak_rt_set_storage_info(struct Module *mod, const char *storage_name, unsigned int n_items, enum SortedBy sorted_by) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
-	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "setStorageInfo", "(ILjava/lang/String;I)V");
 	jstring name_s = (*env)->NewStringUTF(env, storage_name);
 	(*env)->CallVoidMethod(env, mod->rt->obj, set_storage_info, (int)n_items, name_s, (int)sorted_by);
@@ -235,7 +235,7 @@ int pak_rt_add_file_contents(struct Module *mod, struct FileHandle *file, void *
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
 	jobject handle_o = create_filehandle(env, file);
-	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "setFileContents", "(Ldev/danielc/common/FileHandle;[BZ)V");
 
 	jbyteArray image_data_o = (*env)->NewByteArray(env, (jsize)length);
@@ -250,7 +250,7 @@ int pak_rt_add_file_thumbnail(struct Module *mod, struct FileHandle *file, void 
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
 	jobject handle_o = create_filehandle(env, file);
-	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "addFileThumbnail", "(Ldev/danielc/common/FileHandle;[B)V");
 
 	jbyteArray image_data_o = (*env)->NewByteArray(env, (jsize)length);
@@ -264,7 +264,7 @@ int pak_rt_add_file_thumbnail(struct Module *mod, struct FileHandle *file, void 
 int pak_rt_set_session_property(struct Module *mod, const char *key, const char *value) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
-	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID set_screen_supported = (*env)->GetMethodID(env, module_c, "setProperty", "(Ljava/lang/String;Ljava/lang/String;)V");
 	jstring key_s = (*env)->NewStringUTF(env, key);
 	jstring value_s = (*env)->NewStringUTF(env, value);
@@ -293,7 +293,7 @@ int pak_rt_add_user_setting(struct Module *mod, const struct PakUserSetting *s) 
 	}
 	jobject setting_o = (*env)->NewObject(env, setting_c, constructor, name_s, title_s, boolv, intv, stringv, min_o, max_o, dropdownlist_o);
 
-	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID add_setting = (*env)->GetMethodID(env, module_c, "addUserSetting", "(Ldev/danielc/common/UserSetting;)V");
 	(*env)->CallVoidMethod(env, mod->rt->obj, add_setting, setting_o);
 
@@ -308,7 +308,7 @@ int pak_rt_add_file_metadata(struct Module *mod, struct FileHandle *file, const 
 	jobject handle_o = create_filehandle(env, file);
 	jobject metadata_o = create_filemetadata(env, metadata);
 
-	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID method = (*env)->GetMethodID(env, module_c, "addFileMetadata", "(Ldev/danielc/common/FileHandle;Ldev/danielc/common/FileMetadata;)V");
 	(*env)->CallVoidMethod(env, mod->rt->obj, method, handle_o, metadata_o);
 
@@ -331,7 +331,7 @@ struct FileMetadata *pak_rt_get_metadata(struct Module *mod, struct FileHandle *
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
 	jobject handle_o = create_filehandle(env, file);
-	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID method = (*env)->GetMethodID(env, module_c, "getMetadata", "(Ldev/danielc/common/FileHandle;)Ldev/danielc/common/FileMetadata;");
 	jobject md_o = (*env)->CallObjectMethod(env, mod->rt->obj, method, handle_o);
 	if (md_o == NULL) {

@@ -3,11 +3,10 @@ import dev.danielc.R
 import dev.danielc.common.screens.ConsoleStateModel
 import dev.danielc.common.screens.GalleryObjectReference
 import dev.danielc.common.screens.GalleryViewModel
-import dev.danielc.common.screens.ModuleHomeModel
+import dev.danielc.common.screens.ModuleInstanceModel
 import dev.danielc.common.screens.SortBy
 import dev.danielc.common.screens.ViewerModel
 import dev.danielc.fudge.AndroidRuntime
-import dev.danielc.fudge.WiFiAdapter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -77,35 +76,35 @@ enum class Device(val id: String) {
 
     fun getIcon(): Int {
         return when (this) {
-            Device.PROFESSIONAL_CAMERA -> R.drawable.baseline_photo_camera_24
-            Device.ACTION_CAMERA -> R.drawable.outline_videocam_24
-            Device.DASHCAM -> R.drawable.outline_camera_video_24
-            Device.GENERIC_CAMERA -> R.drawable.baseline_photo_camera_24
-            Device.WIFI_SD_CARD -> R.drawable.outline_sd_card_24
-            Device.DOORBELL -> R.drawable.outline_general_device_24
-            Device.GENERIC_HOME_DEVICE -> R.drawable.outline_general_device_24
-            Device.DESK -> R.drawable.outline_general_device_24
-            Device.GENERIC_FURNITURE -> R.drawable.outline_general_device_24
-            Device.PRINTER_3D -> R.drawable.outline_general_device_24
-            Device.HEADPHONES -> R.drawable.outline_headphones_24
-            Device.EARBUDS -> R.drawable.outline_earbuds_2_24
-            Device.SPEAKERS -> R.drawable.outline_speaker_24
-            Device.GENERIC_AUDIO -> R.drawable.outline_speaker_24
-            Device.SMART_GLASSES -> R.drawable.outline_eyeglasses_2_24
-            Device.SMART_TV -> R.drawable.outline_connected_tv_24
-            Device.SMARTWATCH -> R.drawable.outline_watch_24
-            Device.GENERIC_MEDICAL_WEARABLE -> R.drawable.outline_general_device_24
-            Device.GENERIC_EXERCISE_MACHINE -> R.drawable.outline_general_device_24
-            Device.POWER_TOOL -> R.drawable.outline_tools_power_drill_24
-            Device.GAME_CONTROLLER -> R.drawable.outline_videogame_asset_24
-            Device.DRONE -> R.drawable.outline_general_device_24
-            Device.GENERIC_REMOTE_CONTROL -> R.drawable.outline_general_device_24
-            Device.SCOOTER -> R.drawable.outline_general_device_24
-            Device.BICYCLE -> R.drawable.outline_general_device_24
-            Device.GENERIC_RIDEABLE -> R.drawable.outline_general_device_24
-            Device.AUTOMOTIVE_INFOTAINMENT -> R.drawable.outline_directions_car_24
-            Device.AUTOMOTIVE_DIAGNOSTIC -> R.drawable.outline_car_repair_24
-            Device.GENERIC_AUTOMOTIVE -> R.drawable.outline_directions_car_24
+            PROFESSIONAL_CAMERA -> R.drawable.baseline_photo_camera_24
+            ACTION_CAMERA -> R.drawable.outline_videocam_24
+            DASHCAM -> R.drawable.outline_camera_video_24
+            GENERIC_CAMERA -> R.drawable.baseline_photo_camera_24
+            WIFI_SD_CARD -> R.drawable.outline_sd_card_24
+            DOORBELL -> R.drawable.outline_general_device_24
+            GENERIC_HOME_DEVICE -> R.drawable.outline_general_device_24
+            DESK -> R.drawable.outline_general_device_24
+            GENERIC_FURNITURE -> R.drawable.outline_general_device_24
+            PRINTER_3D -> R.drawable.outline_general_device_24
+            HEADPHONES -> R.drawable.outline_headphones_24
+            EARBUDS -> R.drawable.outline_earbuds_2_24
+            SPEAKERS -> R.drawable.outline_speaker_24
+            GENERIC_AUDIO -> R.drawable.outline_speaker_24
+            SMART_GLASSES -> R.drawable.outline_eyeglasses_2_24
+            SMART_TV -> R.drawable.outline_connected_tv_24
+            SMARTWATCH -> R.drawable.outline_watch_24
+            GENERIC_MEDICAL_WEARABLE -> R.drawable.outline_general_device_24
+            GENERIC_EXERCISE_MACHINE -> R.drawable.outline_general_device_24
+            POWER_TOOL -> R.drawable.outline_tools_power_drill_24
+            GAME_CONTROLLER -> R.drawable.outline_videogame_asset_24
+            DRONE -> R.drawable.outline_general_device_24
+            GENERIC_REMOTE_CONTROL -> R.drawable.outline_general_device_24
+            SCOOTER -> R.drawable.outline_general_device_24
+            BICYCLE -> R.drawable.outline_general_device_24
+            GENERIC_RIDEABLE -> R.drawable.outline_general_device_24
+            AUTOMOTIVE_INFOTAINMENT -> R.drawable.outline_directions_car_24
+            AUTOMOTIVE_DIAGNOSTIC -> R.drawable.outline_car_repair_24
+            GENERIC_AUTOMOTIVE -> R.drawable.outline_directions_car_24
         }
     }
 }
@@ -183,26 +182,46 @@ data class ModuleManifest(
     )
 }
 
-class ModuleGalleryViewModel(val module: ModuleInstance): GalleryViewModel() {
+class ModuleGalleryViewModel(): GalleryViewModel() {
+    var module: ModuleInstance? = null
     override fun fulfillThumbnail(file: GalleryObjectReference) {
-        module.getFileThumbnail(file = FileHandle(file.index, null))
+        module?.getFileThumbnail(file = FileHandle(file.index, null))
     }
 
     override fun fulfillMetadata(file: GalleryObjectReference) {
-        module.getFileMetadata(file = FileHandle(file.index, null))
+        module?.getFileMetadata(file = FileHandle(file.index, null))
     }
 }
+
+data class ViewModelReferences(
+    val galleryViewModel: ModuleGalleryViewModel,
+    val viewerViewModel: ViewerModel,
+    val debugLogModel: ConsoleStateModel,
+)
 
 /**
  * Instance of a module with a single connection
  */
-abstract class ModuleInstance(val manifest: ModuleManifest) {
-    var debugLogModel = ConsoleStateModel()
-    val homeModelView = ModuleHomeModel(this)
-    val galleryViewModel = ModuleGalleryViewModel(this)
-    val viewerViewModel = ViewerModel()
+class ModuleInstance(val manifest: ModuleManifest, val homeModelView: ModuleInstanceModel, viewModels: ViewModelReferences): NativeModule() {
+    val galleryViewModel: ModuleGalleryViewModel = viewModels.galleryViewModel
+    val viewerViewModel: ViewerModel = viewModels.viewerViewModel
+    val debugLogModel: ConsoleStateModel = viewModels.debugLogModel
+    val serializableModuleInstance: SerializableModuleInstance
+    init {
+        galleryViewModel.module = this
+        serializableModuleInstance = SerializableModuleInstance(Runtime.addModuleInstance(this))
+        when (manifest.moduleType) {
+            ModuleManifest.ModuleType.CMF_NOTHING -> AndroidRuntime.setupCmfNothingAudioModule(this, manifest)
+            ModuleManifest.ModuleType.QUICKJS -> throw Exception("QuickJS")
+            ModuleManifest.ModuleType.WEBASSEMBLY -> throw Exception("Webassembly")
+            ModuleManifest.ModuleType.NATIVE -> throw Exception("Native module (?)")
+            ModuleManifest.ModuleType.DUMMY_MODULE -> AndroidRuntime.setupDummyNativeModule(this, manifest)
+            ModuleManifest.ModuleType.LIBFUJI -> AndroidRuntime.setupLibFujiModule(this, manifest)
+            ModuleManifest.ModuleType.GOVEELIFE -> AndroidRuntime.setupGoveeLifeModule(this, manifest)
+        }
+    }
+
     var currentTickIntervalUs: Int = (100 * 1000)
-    val serializableModuleInstance: SerializableModuleInstance = SerializableModuleInstance(Runtime.addModuleInstance(this))
     private var mainLoopJob: kotlinx.coroutines.Job? = null
     private var initJob: kotlinx.coroutines.Job? = null
     private var currentScreen: Screen = Screen.CONNECT
@@ -238,16 +257,6 @@ abstract class ModuleInstance(val manifest: ModuleManifest) {
     fun cancelJob(job: ModuleJob) {
         job.isCancelled = true
     }
-
-    abstract fun free()
-    abstract fun onFindConnection(job: Int): Int
-    abstract fun onTryConnectWiFi(a: WiFiAdapter, job: Int): Int
-    abstract fun onDisconnect(): Int
-    abstract fun onIdleTick(usSinceLast: Int): Int
-    abstract fun onSwitchScreen(oldScreen: Int, newScreen: Int, job: Int): Int
-    abstract fun onRequestFileContents(job: Int, file: FileHandle): Int
-    abstract fun onRequestFileThumbnail(job: Int, file: FileHandle): Int
-    abstract fun onRequestFileMetadata(job: Int, file: FileHandle): Int
 
     fun setTickRate(us: Int) {
         currentTickIntervalUs = us
@@ -326,14 +335,15 @@ abstract class ModuleInstance(val manifest: ModuleManifest) {
 
     fun initThread() {
         initJob = CoroutineScope(Dispatchers.IO).launch {
-            if (findConnection() == 0) {
-                isConnected = true
-                startMainLoop()
-                galleryViewModel.start()
-                switchScreen(Screen.DASHBOARD, false)
-            } else {
-                debugLog("Failed to find connection")
-                switchScreen(Screen.DISCONNECTED, false)
+            if (manifest.setupOptions.isEmpty()) {
+                if (findConnection() == 0) {
+                    isConnected = true
+                    startMainLoop()
+                    switchScreen(Screen.DASHBOARD, false)
+                } else {
+                    debugLog("Failed to find connection")
+                    switchScreen(Screen.DISCONNECTED, false)
+                }
             }
         }
     }
@@ -462,6 +472,7 @@ abstract class ModuleInstance(val manifest: ModuleManifest) {
 }
 
 // Serializable ID of connection instance that can be passed between activities
+// TODO: Not used right now
 @Serializable
 data class SerializableModuleInstance(
     val connectionId: Int,
@@ -475,26 +486,9 @@ data class SerializableModuleInstance(
     }
 }
 
-class DummyModule(manifest: ModuleManifest) : NativeModule(manifest) {
-    init {
-        AndroidRuntime.setupDummyNativeModule(this, manifest)
-    }
-}
-
-class LibFujiModule(manifest: ModuleManifest) : NativeModule(manifest) {
-    init {
-        AndroidRuntime.setupLibFujiModule(this, manifest)
-    }
-}
-
-class CmfNothingModule(manifest: ModuleManifest) : NativeModule(manifest) {
-    init {
-        AndroidRuntime.setupCmfNothingAudioModule(this, manifest)
-    }
-}
-
-class GoveeLifeModule(manifest: ModuleManifest) : NativeModule(manifest) {
-    init {
-        AndroidRuntime.setupGoveeLifeModule(this, manifest)
-    }
-}
+// Serializable ID of connection instance that can be passed between activities
+@Serializable
+data class ModuleInstanceRequest(
+    val manifestName: String,
+    val productName: String?,
+)

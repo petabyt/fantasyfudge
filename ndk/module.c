@@ -62,8 +62,7 @@ Java_dev_danielc_common_NativeModule_onTryConnectWiFi(JNIEnv *env, jobject thiz,
 }
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_common_NativeModule_onIdleTick(JNIEnv *env, jobject thiz,
-												jint us_since_last_tick) {
+Java_dev_danielc_common_NativeModule_onIdleTick(JNIEnv *env, jobject thiz, jint us_since_last_tick) {
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
 

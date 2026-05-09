@@ -7,30 +7,48 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideIn
 import androidx.compose.animation.slideOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.compose.NavHost
@@ -49,11 +67,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.currentBackStackEntryAsState
+import dev.danielc.R
 import dev.danielc.common.FileHandle
 import dev.danielc.common.ModuleInstance
 import dev.danielc.common.ModuleProperty
 import dev.danielc.common.UserSetting
+import dev.danielc.common.ViewModelReferences
 import dev.danielc.common.ui.DisconnectDialog
+import dev.danielc.common.ui.theme.FudgeRippleConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -77,17 +98,13 @@ data class UiEvent(
     }
 }
 
-class ModuleHomeModel(val module: ModuleInstance) : ViewModel() {
-    val manifest: ModuleManifest = module.manifest
+class ModuleInstanceModel(manifest: ModuleManifest, viewModels: ViewModelReferences) : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         runBlocking {
             module.deregister()
         }
     }
-
-    private val _dashboardState = MutableStateFlow(DashboardState(manifest))
-    val dashboardState = _dashboardState.asStateFlow()
 
     val dashboardCallbacks: DashboardCallbacks = DashboardCallbacks(
         updateSettingPane = { pane, value ->
@@ -98,11 +115,20 @@ class ModuleHomeModel(val module: ModuleInstance) : ViewModel() {
         }
     )
 
+    private val _dashboardState = MutableStateFlow(DashboardState(manifest))
+    val dashboardState = _dashboardState.asStateFlow()
+
     private val _homeState = MutableStateFlow(HomeState())
     val homeState = _homeState.asStateFlow()
 
     private val _uiEvents = MutableSharedFlow<UiEvent>(replay = 1)
     val uiEvents = _uiEvents.asSharedFlow()
+
+    var module: ModuleInstance = ModuleInstance(manifest, this, viewModels)
+
+    init {
+        module.initThread()
+    }
 
     fun showDisconnectDialog(v: Boolean) {
         _homeState.update { homeState ->
@@ -321,6 +347,75 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
     }
 }
 
+val dummyOptions = listOf(
+    ModuleManifest.SetupOption("wifi", "WiFi"),
+    ModuleManifest.SetupOption("bluetooth", "Bluetooth"),
+    ModuleManifest.SetupOption("local", "Local Network (Foo Bar Foo Bar)"),
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
+@Composable
+fun InstanceSetup(options: List<ModuleManifest.SetupOption> = dummyOptions, onClick: (ModuleManifest.SetupOption) -> Unit = {}, back: () -> Unit = {}) {
+    return FudgeTheme {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(),
+                    title = {
+                        Text("Choose an mode to proceed")
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            back()
+                        }) {
+                            Icon(
+                                painter = painterResource(R.drawable.outline_arrow_back_24),
+                                contentDescription = null
+                            )
+                        }
+                    },
+                )
+            },
+        ) { innerPadding ->
+            Column(Modifier.padding(innerPadding).padding(10.dp).fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp, alignment = Alignment.Top)) {
+                for (e in options) {
+                    CompositionLocalProvider(LocalRippleConfiguration provides FudgeRippleConfig()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.primary)
+                                .clickable(onClick = {
+                                    onClick(e)
+                                })
+                                .indication(
+                                    indication = ripple(),
+                                    interactionSource = remember { MutableInteractionSource() }
+                                )
+                        ) {
+                            Row(Modifier.padding(20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Icon(
+                                    when (e.name) {
+                                        "wifi" -> painterResource(R.drawable.outline_wifi_24)
+                                        "bluetooth" -> painterResource(R.drawable.outline_bluetooth_24)
+                                        else -> painterResource(R.drawable.outline_general_device_24)
+                                    },
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimary
+                                )
+                                Text(e.title, color = MaterialTheme.colorScheme.onPrimary)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /**
  * Main navigation graph of module instance UI
  */
@@ -353,6 +448,16 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
         }
     }
 
+    val startScreen = if (module.manifest.setupOptions.isEmpty()) {
+        "connecting"
+    } else {
+        "setup"
+    }
+
+    val debugLogState by module.debugLogModel.uiState.collectAsStateWithLifecycle()
+    val viewerState by module.viewerViewModel.viewerState.collectAsStateWithLifecycle()
+    //val homeState by module.homeModelView.homeState.collectAsStateWithLifecycle()
+
     val duration = 200
     NavHost(
         enterTransition = {
@@ -379,22 +484,26 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
                 animationSpec = tween(duration, easing = FastOutSlowInEasing)
             )
         },
-        navController = navController, startDestination = "connecting") {
+        navController = navController, startDestination = startScreen) {
+        composable("setup") {
+            InstanceSetup(module.manifest.setupOptions, onClick = { option ->
+
+            }, back = {
+                backToMainScreen()
+            })
+        }
         composable("connecting") {
-            val state by module.debugLogModel.uiState.collectAsStateWithLifecycle()
-            ConsoleScreen(navController, state, title = "Connecting")
+            ConsoleScreen(navController, debugLogState, title = "Connecting")
         }
         composable("home") {
             ModuleHomeScreen(module, navController)
         }
         composable("disconnected") {
-            val state by module.debugLogModel.uiState.collectAsStateWithLifecycle()
             DisconnectedScreen(reason = module.disconnectReason ?: "...", backToMainScreen = backToMainScreen, info = {
-                Console(state)
+                Console(debugLogState)
             })
         }
         composable(Screen.FILE_VIEWER.strId) {
-            val viewerState by module.viewerViewModel.viewerState.collectAsStateWithLifecycle()
             ViewerScreen(viewerState, switchTo = { i ->
                 module.goToViewer(FileHandle(i, viewerState?.handle?.storageName))
             }, close = {

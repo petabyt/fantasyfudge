@@ -34,6 +34,8 @@ data class UserSetting(
 enum class Screen(val strId: String, val id: Int) {
     NONE("none", 0),
     CONNECT("connect", 1),
+    SETUP("setup", 10),
+
     CONSOLE("console", 100),
     DASHBOARD("dashboard", 101),
     FILE_GALLERY("filegallery", 102),
@@ -167,18 +169,6 @@ object Runtime {
         connectableDevices = listOf(
             ConnectableDevice("FooBar", dummyManifestList[0].targets[0], dummyManifestList[0], false)
         )
-    }
-
-    fun createModuleInstance(m: ModuleManifest): ModuleInstance {
-        return when (m.moduleType) {
-            ModuleManifest.ModuleType.CMF_NOTHING -> CmfNothingModule(m)
-            ModuleManifest.ModuleType.QUICKJS -> throw Exception("QuickJS")
-            ModuleManifest.ModuleType.WEBASSEMBLY -> throw Exception("Webassembly")
-            ModuleManifest.ModuleType.NATIVE -> throw Exception("Native module (?)")
-            ModuleManifest.ModuleType.DUMMY_MODULE -> DummyModule(m)
-            ModuleManifest.ModuleType.LIBFUJI -> LibFujiModule(m)
-            ModuleManifest.ModuleType.GOVEELIFE -> GoveeLifeModule(m)
-        }
     }
 
     fun getManifestFromName(name: String): ModuleManifest? {
