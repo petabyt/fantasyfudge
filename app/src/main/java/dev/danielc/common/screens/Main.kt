@@ -265,7 +265,7 @@ fun MainNav(navController: NavHostController) {
             val models = ViewModelReferences(
             viewModel(initializer = { ModuleGalleryViewModel() }),
             viewModel(initializer = { ViewerModel() }),
-            viewModel(initializer = { ConsoleStateModel() })
+            viewModel(initializer = { ConsoleViewModel() })
             )
             val model = viewModel(initializer = { ModuleInstanceModel(manifest, models) })
             ModuleInstanceNav(model.module, backToMainScreen = {
@@ -313,6 +313,8 @@ fun MainNav(navController: NavHostController) {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun MainScreen(navController: NavHostController = rememberNavController(), goToLocalGallery: () -> Unit = {}) {
+    val mainlog: ConsoleViewModel = viewModel(initializer = { ConsoleViewModel(Runtime.earlyConsoleLogs) })
+    Runtime.mainLog = mainlog
     val subNavController = rememberNavController()
     val haptic = LocalHapticFeedback.current
     val navBackStackEntry by subNavController.currentBackStackEntryAsState()
@@ -453,9 +455,6 @@ fun MainScreen(navController: NavHostController = rememberNavController(), goToL
                     }
                 }
             ) { innerPadding ->
-                LaunchedEffect(true) {
-                    Runtime.logGlobalLine("Hello")
-                }
                 NavHost(
                     enterTransition = { EnterTransition.None },
                     exitTransition = { ExitTransition.None },
@@ -475,7 +474,7 @@ fun MainScreen(navController: NavHostController = rememberNavController(), goToL
                         ModuleList(manifestList = Runtime.moduleManifests)
                     }
                     composable("console") {
-                        val state by Runtime.mainLog.uiState.collectAsStateWithLifecycle()
+                        val state by mainlog.uiState.collectAsStateWithLifecycle()
                         Console(state)
                     }
                 }

@@ -8,7 +8,9 @@ import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.media.MediaScannerConnection
 import android.net.Network
 import android.net.Uri
@@ -63,7 +65,7 @@ object AndroidRuntime {
         wasmPath: String?
     ): Int
 
-    fun decodeImageContents(data: ByteArray, imageHorizontalSize: Int?): ImageBitmap? {
+    fun decodeImageContents(data: ByteArray, imageHorizontalSize: Int? = null, orientation: Int? = null): ImageBitmap? {
         val options = BitmapFactory.Options()
         if (imageHorizontalSize != null && imageHorizontalSize > GL10.GL_MAX_TEXTURE_SIZE) {
             options.inSampleSize = 2
@@ -72,7 +74,14 @@ object AndroidRuntime {
             options.inScaled = true
         }
 
-        val bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, options)
+        var bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, options)
+
+        if (orientation != null) {
+            val matrix = Matrix()
+            matrix.postRotate(orientation.toFloat())
+            bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true)
+        }
+
         return bitmap.asImageBitmap()
     }
 
@@ -224,6 +233,7 @@ object AndroidRuntime {
                 MediaStore.Images.Media.WIDTH,
                 MediaStore.Images.Media.HEIGHT,
                 MediaStore.Images.Media.MIME_TYPE,
+                MediaStore.Images.Media.ORIENTATION,
             ),
             "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?",
             arrayOf("Pictures/${subfolder}/%"),
@@ -236,6 +246,7 @@ object AndroidRuntime {
             val widthColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.WIDTH)
             val heightColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.HEIGHT)
             val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
+            val orientationColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.ORIENTATION)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
                 list += MediaStoreFile(
@@ -247,6 +258,7 @@ object AndroidRuntime {
                         width = cursor.getInt(widthColumn),
                         height = cursor.getInt(heightColumn),
                         filesize = cursor.getInt(sizeColumn),
+                        orientation = cursor.getInt(orientationColumn),
                     )
                 )
             }
@@ -257,6 +269,6 @@ object AndroidRuntime {
     @JvmStatic
     fun logGlobalLine(s: String) {
         Log.d("logGlobalLine", s)
-        Runtime.mainLog.addLine(s)
+        Runtime.logGlobalLine(s)
     }
 }

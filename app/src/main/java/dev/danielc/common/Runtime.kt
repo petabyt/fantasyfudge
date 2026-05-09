@@ -1,7 +1,8 @@
 package dev.danielc.common
 
 import dev.danielc.R
-import dev.danielc.common.screens.ConsoleStateModel
+import dev.danielc.common.screens.ConsoleLine
+import dev.danielc.common.screens.ConsoleViewModel
 import dev.danielc.common.screens.MimeType
 import dev.danielc.common.screens.dummyManifestList
 import dev.danielc.libpak.Bluetooth
@@ -113,6 +114,7 @@ data class FileMetadata(
     val filesize: Int = 0,
     val createdDate: String? = null,
     val updatedDate: String? = null,
+    val orientation: Int = 0,
 ) {
     constructor(filename: String?, mimeTypeString: String?, width: Int, height: Int, size: Int) : this(filename, mimeType = getMimeType(mimeTypeString), width = width, height = height, filesize = size)
 }
@@ -145,7 +147,8 @@ data class ConnectableDevice(
 )
 
 object Runtime {
-    val mainLog = ConsoleStateModel()
+    var earlyConsoleLogs: MutableList<ConsoleLine> = mutableListOf()
+    var mainLog: ConsoleViewModel? = null
     var connectableDevices = listOf<ConnectableDevice>()
     var moduleManifests = mutableListOf<ModuleManifest>()
     var moduleInstances = mutableMapOf<Int, ModuleInstance>()
@@ -183,7 +186,10 @@ object Runtime {
     }
 
     fun logGlobalLine(s: String) {
-        mainLog.addLine(s)
+        if (mainLog == null) {
+            earlyConsoleLogs.add(ConsoleLine(s))
+        }
+        mainLog?.addLine(s)
     }
 
     fun loadModulesFromManifests(list: List<String>) {
@@ -273,8 +279,8 @@ object Runtime {
 
                 moduleManifests += manifest
             } catch (e: Exception) {
-                mainLog.addLine("Error parsing manifest: $filename")
-                mainLog.addLine(e.toString())
+                logGlobalLine("Error parsing manifest: $filename")
+                logGlobalLine(e.toString())
             }
         }
     }

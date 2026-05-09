@@ -49,17 +49,17 @@ import kotlin.time.DurationUnit
 import kotlin.time.TimeSource
 import kotlin.time.toDuration
 
-data class Line(
+data class ConsoleLine(
     val line: String,
     val timestamp: Duration? = null,
     val color: Color? = null,
 )
 
 data class ConsoleState(
-    val initialLines: List<Line> = emptyList(),
+    val initialLines: List<ConsoleLine> = emptyList(),
     val initialTime: TimeSource.Monotonic.ValueTimeMark = TimeSource.Monotonic.markNow(),
     var title: String = "Test Suite",
-    var lines: List<Line> = initialLines,
+    var lines: List<ConsoleLine> = initialLines,
 ) {
     override fun toString(): String {
         var text = ""
@@ -70,7 +70,7 @@ data class ConsoleState(
     }
 }
 
-class ConsoleStateModel(initialText: String? = null, initialLines: List<Line> = emptyList()) : ViewModel() {
+class ConsoleViewModel(initialLines: List<ConsoleLine> = emptyList()) : ViewModel() {
     private val _uiState = MutableStateFlow(ConsoleState(initialLines))
     val uiState: StateFlow<ConsoleState> = _uiState.asStateFlow()
 
@@ -78,7 +78,7 @@ class ConsoleStateModel(initialText: String? = null, initialLines: List<Line> = 
         viewModelScope.launch() {
             withContext(Dispatchers.Default) {
                 _uiState.update { currentState ->
-                    val newLine = Line(
+                    val newLine = ConsoleLine(
                         line = line,
                         timestamp = currentState.initialTime.elapsedNow()
                     )
@@ -183,15 +183,15 @@ fun ConsoleScreen(navController: NavHostController = rememberNavController(), st
 @Preview(showBackground = true, device = "id:pixel_9a", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun PreviewConsoleScreen(navController: NavHostController = rememberNavController()) {
-    var x: List<Line> = emptyList()
+    var x: List<ConsoleLine> = emptyList()
 
-    x += (Line(
+    x += (ConsoleLine(
         line = "Hello world asidkpaosdkpaoskdpaoskdpaoskdijoaisjdoaisjdoaisdj",
         timestamp = 0.toDuration(DurationUnit.SECONDS)
     ))
 
     for (i in 0..10) {
-        x += (Line(
+        x += (ConsoleLine(
             line = "Hello world",
             timestamp = i.toDuration(DurationUnit.SECONDS)
         ))

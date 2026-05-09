@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.ImageBitmap
@@ -108,7 +109,6 @@ class ViewerModel() : ViewModel() {
 
     override fun onCleared() {
         super.onCleared()
-        println("oncleared")
         clear()
     }
 
@@ -167,7 +167,10 @@ class ViewerModel() : ViewModel() {
                 isDecoding = true
             )
         }
-        val bitmap = AndroidRuntime.decodeImageContents(temporaryBuffer ?: data, null)
+        val bitmap = AndroidRuntime.decodeImageContents(
+            temporaryBuffer ?: data,
+            null,
+            _viewerState.value?.metadata?.orientation)
         if (bitmap == null) {
             setError("Failed to decode image contents")
         } else {
@@ -283,7 +286,7 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
     // Swipe image box down to exit the viewer screen
     val scope = rememberCoroutineScope()
     val screenHeightDp = LocalWindowInfo.current.containerSize.height
-    val minOffsetToClose = screenHeightDp / 10
+    val minOffsetToClose = screenHeightDp / 14
     val swipeToCloseGesture = Modifier.pointerInput(Unit) {
         detectDragGestures(
             onDrag = { _, dragAmount ->

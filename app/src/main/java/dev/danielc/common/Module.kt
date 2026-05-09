@@ -1,6 +1,6 @@
 package dev.danielc.common
 import dev.danielc.R
-import dev.danielc.common.screens.ConsoleStateModel
+import dev.danielc.common.screens.ConsoleViewModel
 import dev.danielc.common.screens.GalleryObjectReference
 import dev.danielc.common.screens.GalleryViewModel
 import dev.danielc.common.screens.ModuleInstanceModel
@@ -196,7 +196,7 @@ class ModuleGalleryViewModel(): GalleryViewModel() {
 data class ViewModelReferences(
     val galleryViewModel: ModuleGalleryViewModel,
     val viewerViewModel: ViewerModel,
-    val debugLogModel: ConsoleStateModel,
+    val debugLogModel: ConsoleViewModel,
 )
 
 /**
@@ -205,7 +205,7 @@ data class ViewModelReferences(
 class ModuleInstance(val manifest: ModuleManifest, val homeModelView: ModuleInstanceModel, viewModels: ViewModelReferences): NativeModule() {
     val galleryViewModel: ModuleGalleryViewModel = viewModels.galleryViewModel
     val viewerViewModel: ViewerModel = viewModels.viewerViewModel
-    val debugLogModel: ConsoleStateModel = viewModels.debugLogModel
+    val debugLogModel: ConsoleViewModel = viewModels.debugLogModel
     val serializableModuleInstance: SerializableModuleInstance
     init {
         galleryViewModel.module = this
@@ -396,7 +396,7 @@ class ModuleInstance(val manifest: ModuleManifest, val homeModelView: ModuleInst
             onSwitchScreen(prev.id, new.id, job.id)
         }
         if (new == Screen.FILE_GALLERY) {
-            galleryViewModel.setPaused(false)
+            galleryViewModel.start()
         } else if (prev == Screen.FILE_GALLERY) {
             galleryViewModel.setPaused(true)
         }

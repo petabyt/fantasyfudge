@@ -85,6 +85,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.lang.Exception
 import kotlin.coroutines.cancellation.CancellationException
@@ -217,6 +218,7 @@ abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewMod
     }
 
     fun start() {
+        threadIsPaused = false
         if (thread == null) {
             thread = CoroutineScope(Dispatchers.IO).launch {
                 val thread = thread
@@ -232,7 +234,6 @@ abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewMod
                 }
             }
         }
-        threadIsPaused = false
     }
 
     fun setPaused(v: Boolean) {
@@ -418,7 +419,7 @@ fun GalleryFile(obj: GalleryObject?, onClick: () -> Unit = {}) {
 }
 
 @Composable
-fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (Int) -> Unit = {}, onItemClick: (Int) -> Unit = {}) {
+fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (Int) -> Unit = {}, onItemClick: (Int) -> Unit = {}, onRefresh: () -> Unit = {}) {
     var isRefreshing by remember { mutableStateOf(false) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
     Box(modifier = modifier.fillMaxSize()) {
@@ -480,6 +481,7 @@ fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (In
                     onRefresh = {
                         CoroutineScope(Dispatchers.IO).launch {
                             isRefreshing = true
+                            onRefresh()
                             refreshTrigger++
                             isRefreshing = false
                         }

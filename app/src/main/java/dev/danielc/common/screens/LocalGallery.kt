@@ -25,8 +25,7 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
     var files = emptyList<AndroidRuntime.MediaStoreFile>()
     init {
         CoroutineScope(Dispatchers.IO).launch {
-            files = AndroidRuntime.getFiles()
-            setProperties(files.size, directory, SortBy.NEWEST_FIRST)
+            refresh()
         }
         start()
     }
@@ -34,6 +33,15 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
     override fun onCleared() {
         super.onCleared()
         stop()
+    }
+
+    fun refresh() {
+        files = AndroidRuntime.getFiles()
+        reset()
+        setProperties(files.size, directory, SortBy.NEWEST_FIRST)
+        for (i in files.indices) {
+            updateMetadata(i, files[i].metadata)
+        }
     }
 
     override fun fulfillThumbnail(file: GalleryObjectReference) {
@@ -90,6 +98,8 @@ fun LocalGallery(onBack: () -> Unit, onItemClick: (Int) -> Unit, modifier: Modif
                     model.enqueueObject(i, true)
                 }, onItemClick = { i ->
                     onItemClick(i)
+                }, onRefresh = {
+                    model.refresh()
                 })
             }
         }
