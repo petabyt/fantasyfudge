@@ -10,6 +10,7 @@ import dev.danielc.libpak.Bluetooth
 import dev.danielc.libpak.WiFi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlin.time.DurationUnit
@@ -298,11 +299,16 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
                 val rc = Bluetooth.pairWithDeviceCompanion(filter, "FudgeDevice1")
                 debugLog("Return code: ${rc}")
             } else {
-                if (findConnection() == 0) {
+                val rc = findConnection({ job ->
+                    homeModelView.connectProgress.update {
+                        job.progressBarValue
+                    }
+                })
+                if (rc == 0) {
                     setIsConnected()
                 } else {
                     disconnectReason = "Failed to connect"
-                    disconnectedErrorCode = 0
+                    disconnectedErrorCode = rc
                     switchScreen(Screen.DISCONNECTED, false)
                 }
             }

@@ -96,12 +96,11 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
 
     private val _dashboardState = MutableStateFlow(DashboardState(manifest))
     val dashboardState = _dashboardState.asStateFlow()
-
     private val _homeState = MutableStateFlow(HomeState())
     val homeState = _homeState.asStateFlow()
-
     private val _uiEvents = MutableSharedFlow<UiEvent>(replay = 1)
     val uiEvents = _uiEvents.asSharedFlow()
+    val connectProgress = MutableStateFlow<Int?>(null)
 
     var module: ModuleInstance = ModuleInstance(manifest, request, this, viewModels)
     init {
@@ -387,9 +386,10 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
         },
         navController = navController, startDestination = "connecting") {
         composable("connecting") {
+            val connectProgress by module.homeModelView.connectProgress.collectAsStateWithLifecycle()
             ConnectingScreen(backToMainScreen, {
                 module.tryConnectAgain()
-            }, debugLogState)
+            }, debugLogState, connectProgress)
         }
         composable("home") {
             ModuleHomeScreen(module, navController)

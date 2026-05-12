@@ -9,6 +9,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -28,7 +30,7 @@ import kotlinx.coroutines.launch
 @Preview(showBackground = true, device = "id:pixel_9a", uiMode = 32)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: ConsoleState = ConsoleState()) {
+fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: ConsoleState = ConsoleState(), progress: Int? = 50) {
     val clipboardManager = LocalClipboard.current
     val scope = rememberCoroutineScope()
     return FudgeTheme {
@@ -68,6 +70,13 @@ fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: Co
                     }
                     Button(onClick = back, Modifier.fillMaxWidth(), colors = errorButtonColors()) {
                         Text("Give up")
+                    }
+                    if (progress != null) {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.primary,
+                            progress = { progress.toFloat() / 100 }
+                        )
                     }
                 }
                 Console(Modifier.fillMaxSize(), state)

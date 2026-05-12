@@ -331,22 +331,17 @@ fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
                     MimeType.PNG -> R.drawable.baseline_landscape_24
                     MimeType.MOV -> R.drawable.baseline_movie_24
                 }
-
                 if (obj.thumbnail != null) {
                     // TODO: Better content scale handling?
                     Image(modifier = Modifier.fillMaxSize(), bitmap = obj.thumbnail, contentDescription = null, contentScale = ContentScale.FillHeight)
                 }
-
-                val iconModifier = if (obj.metadata?.mimeType == MimeType.FOLDER) {
-                    Modifier.align(Alignment.Center).size(45.dp)
-                } else {
-                    Modifier.align(Alignment.TopEnd)
+                if (obj.thumbnail == null || obj.metadata?.mimeType == MimeType.MOV) {
+                    Icon(
+                        modifier = Modifier.align(Alignment.Center).size(45.dp),
+                        painter = painterResource(icon),
+                        contentDescription = null,
+                    )
                 }
-                Icon(
-                    modifier = iconModifier,
-                    painter = painterResource(icon),
-                    contentDescription = null,
-                )
                 if (obj.metadata?.filename != null) {
                     Text(
                         obj.metadata.filename!!, modifier = Modifier.align(Alignment.BottomCenter)

@@ -74,7 +74,7 @@ fun SettingsScreen(navController: NavController = rememberNavController()) {
                     ClickableCard("Send feedback", painterResource(R.drawable.baseline_bug_report_24)) {
                         uriHandler.openUri("https://google.com/")
                     }
-                    ClickableCard("Global Console", painterResource(R.drawable.baseline_terminal_24)) {
+                    ClickableCard("Debug Console", painterResource(R.drawable.baseline_terminal_24)) {
                         navController.navigate("console")
                     }
                     HorizontalDivider()
