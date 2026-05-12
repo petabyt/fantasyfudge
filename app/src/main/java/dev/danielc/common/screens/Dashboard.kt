@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
@@ -106,11 +107,9 @@ fun cameraState(): DashboardState {
 fun PreviewDashboardCamera() {
     var state by remember { mutableStateOf(cameraState()) }
     return FudgeTheme {
-        Scaffold(
-            content = { innerPadding ->
-                Dashboard(Modifier.padding(innerPadding), state = state, callbacks = DashboardCallbacks())
-            }
-        )
+        Scaffold { innerPadding ->
+            Dashboard(Modifier.consumeWindowInsets(innerPadding), state = state, callbacks = DashboardCallbacks())
+        }
     }
 }
 

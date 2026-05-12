@@ -46,19 +46,23 @@ Java_dev_danielc_common_NativeModule_onFindConnection(JNIEnv *env, jobject thiz,
 	return rc;
 }
 
-JNIEXPORT jint JNICALL
-Java_dev_danielc_common_NativeModule_onTryConnectWiFi(JNIEnv *env, jobject thiz, jobject adapter,
-													  jint job) {
-//	struct TempStruct info;
-//	struct Module *mod = get_mod(env, thiz, &info);
-//
-//	int rc = 0;
-//	if (mod->on_try_connect_wifi) rc = mod->on_idle_tick(mod, (unsigned int)on_try_connect_wifi);
-//
-//	release_mod(env, &info);
-//	return rc;
+int pak_wifi_adapter_from_jobject(JNIEnv *env, struct PakWiFiAdapter *adapter, jobject wifi_adapter);
 
-	return -1;
+JNIEXPORT jint JNICALL
+Java_dev_danielc_common_NativeModule_onTryConnectWiFi(JNIEnv *env, jobject thiz, jobject adapter_o,
+													  jint job) {
+	struct TempStruct info;
+	struct Module *mod = get_mod(env, thiz, &info);
+
+	struct PakWiFiAdapter adapter;
+
+	pak_wifi_adapter_from_jobject(env, &adapter, adapter_o);
+
+	int rc = PAK_ERR_UNIMPLEMENTED;
+	if (mod->on_try_connect_wifi) rc = mod->on_try_connect_wifi(mod, &adapter, job);
+
+	release_mod(env, &info);
+	return rc;
 }
 
 JNIEXPORT jint JNICALL
@@ -66,7 +70,7 @@ Java_dev_danielc_common_NativeModule_onIdleTick(JNIEnv *env, jobject thiz, jint 
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
 
-	int rc = 0;
+	int rc = PAK_ERR_UNIMPLEMENTED;
 	if (mod->on_idle_tick) rc = mod->on_idle_tick(mod, (unsigned int)us_since_last_tick);
 
 	release_mod(env, &info);
@@ -78,7 +82,7 @@ Java_dev_danielc_common_NativeModule_onDisconnect(JNIEnv *env, jobject thiz) {
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
 
-	int rc = 0;
+	int rc = PAK_ERR_UNIMPLEMENTED;
 	if (mod->on_switch_screen) rc = mod->on_disconnect(mod);
 
 	release_mod(env, &info);
@@ -91,7 +95,7 @@ Java_dev_danielc_common_NativeModule_onSwitchScreen(JNIEnv *env, jobject thiz, j
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
 
-	int rc = 0;
+	int rc = PAK_ERR_UNIMPLEMENTED;
 	if (mod->on_switch_screen) rc = mod->on_switch_screen(mod, old_screen, new_screen, job);
 
 	release_mod(env, &info);

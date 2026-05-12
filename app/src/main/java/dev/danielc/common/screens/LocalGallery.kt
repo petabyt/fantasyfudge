@@ -56,8 +56,9 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
         val file = files[i]
         viewer.update(FileHandle(i), files.size)
         viewer.updateMetadata(file.metadata)
-        viewer.updateStats(10,"Reading file")
+        viewer.updateStats(10,"Reading image")
         val data = AndroidRuntime.readFile(file)
+        viewer.updateStats(60,"Decoding image")
         if (data == null) {
             viewer.setError("Failed to decode image")
         } else {

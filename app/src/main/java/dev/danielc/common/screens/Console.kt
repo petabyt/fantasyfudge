@@ -6,7 +6,9 @@ import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -98,12 +100,9 @@ class ConsoleViewModel(initialLines: List<ConsoleLine> = emptyList()) : ViewMode
 }
 
 @Composable
-fun Console(state: ConsoleState) {
+fun Console(modifier: Modifier = Modifier, state: ConsoleState) {
     SelectionContainer {
-        LazyColumn(
-            modifier = Modifier.fillMaxHeight().fillMaxWidth()
-                .background(Color.Black)
-        ) {
+        LazyColumn(modifier.background(Color.Black)) {
             items(state.lines) { line ->
                 Row(Modifier.fillMaxWidth()) {
                     Text(
@@ -136,7 +135,7 @@ fun Console(state: ConsoleState) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConsoleScreen(navController: NavHostController = rememberNavController(), state: ConsoleState = ConsoleState(), title: String = "Console") {
+fun ConsoleScreen(back: () -> Unit = {}, state: ConsoleState = ConsoleState(), title: String = "Console") {
     val clipboardManager = LocalClipboard.current
     val scope = rememberCoroutineScope()
     return FudgeTheme {
@@ -148,7 +147,7 @@ fun ConsoleScreen(navController: NavHostController = rememberNavController(), st
                     },
                     navigationIcon = {
                         IconButton(onClick = {
-                            navController.navigateUp()
+                            back()
                         }) {
                             Icon(painterResource(R.drawable.outline_arrow_back_24), contentDescription = null)
                         }
@@ -169,10 +168,8 @@ fun ConsoleScreen(navController: NavHostController = rememberNavController(), st
                 )
             },
         ) { innerPadding ->
-            Column(
-                modifier = Modifier.padding(innerPadding)
-            ) {
-                Console(state)
+            Column(Modifier.consumeWindowInsets(innerPadding)) {
+                Console(Modifier.fillMaxSize(), state)
             }
         }
     }
@@ -180,10 +177,10 @@ fun ConsoleScreen(navController: NavHostController = rememberNavController(), st
 
 @SuppressLint("ViewModelConstructorInComposable")
 @OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true, device = "id:pixel_9a", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(showBackground = true, device = "id:pixel_9a", uiMode = 32)
 @Composable
 fun PreviewConsoleScreen(navController: NavHostController = rememberNavController()) {
-    var x: List<ConsoleLine> = emptyList()
+    val x: MutableList<ConsoleLine> = mutableListOf()
 
     x += (ConsoleLine(
         line = "Hello world asidkpaosdkpaoskdpaoskdpaoskdijoaisjdoaisjdoaisdj",
@@ -197,5 +194,5 @@ fun PreviewConsoleScreen(navController: NavHostController = rememberNavControlle
         ))
     }
     val state = ConsoleState(initialLines = x)
-    ConsoleScreen(navController, state = state)
+    ConsoleScreen(state = state)
 }

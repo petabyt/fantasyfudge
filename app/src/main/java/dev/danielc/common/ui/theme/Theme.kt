@@ -3,7 +3,9 @@ package dev.danielc.common.ui.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.ripple.RippleAlpha
+import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RippleConfiguration
 import androidx.compose.material3.darkColorScheme
@@ -22,6 +24,34 @@ fun FudgeRippleConfig(fg: Color = Color.White): RippleConfiguration {
         0.08f,
         0.4f
     ))
+}
+
+@Composable
+fun errorButtonColors(): ButtonColors {
+    return ButtonColors(
+        containerColor = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
+        disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    )
+}
+@Composable
+fun errorIconButtonColors(): IconButtonColors {
+    return IconButtonColors(
+        containerColor = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
+        disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+    )
+}
+@Composable
+fun primaryIconButtonColors(): IconButtonColors {
+    return IconButtonColors(
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        disabledContainerColor = MaterialTheme.colorScheme.primary,
+        disabledContentColor = MaterialTheme.colorScheme.onPrimary,
+    )
 }
 
 private val DarkColorScheme = darkColorScheme(

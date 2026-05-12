@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -34,6 +35,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.R
+import dev.danielc.common.ui.theme.primaryIconButtonColors
 
 @Composable
 fun Intervalometer() {
@@ -63,17 +65,10 @@ fun Intervalometer() {
             label = { Text("Seconds inbetween each shot") }
         )
 
-        val colors = IconButtonColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
-            disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-        )
-
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             IconButton(
                 modifier = Modifier.size(100.dp),
-                colors = colors,
+                colors = primaryIconButtonColors(),
                 onClick = {
 
                 }
@@ -82,7 +77,7 @@ fun Intervalometer() {
             }
             IconButton(
                 modifier = Modifier.size(100.dp),
-                colors = colors,
+                colors = primaryIconButtonColors(),
                 onClick = {
 
                 }
@@ -124,7 +119,7 @@ fun IntervalometerScreen(navController: NavHostController = rememberNavControlle
                 )
             },
         ) { innerPadding ->
-            Box(Modifier.padding(innerPadding)) {
+            Column(Modifier.padding(innerPadding)) {
                 Intervalometer()
             }
         }

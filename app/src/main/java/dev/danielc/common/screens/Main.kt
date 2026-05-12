@@ -14,7 +14,10 @@ import androidx.compose.animation.slideOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +33,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -43,8 +47,9 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,6 +84,11 @@ import dev.danielc.common.ModuleInstanceRequest
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Runtime
 import dev.danielc.common.ViewModelReferences
+import dev.danielc.common.ui.ModuleList
+import dev.danielc.common.ui.ModuleListScreen
+import dev.danielc.common.ui.TargetCard
+import dev.danielc.common.ui.dummyManifestList
+import dev.danielc.common.ui.theme.FudgeRippleConfig
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
 import kotlinx.coroutines.CoroutineScope
@@ -89,6 +99,80 @@ val dummyConnectableDeviceList: List<ConnectableDevice> = listOf(
     ConnectableDevice("Daniel's Earbuds", manifest = dummyManifestList[0], target = dummyManifestList[0].targets[0], isConnected = true),
     ConnectableDevice("Samsung TV", isConnected = false)
 )
+
+val dummyOptions = listOf(
+    ModuleManifest.SetupOption("wifi", "WiFi"),
+    ModuleManifest.SetupOption("bluetooth", "Bluetooth"),
+    ModuleManifest.SetupOption("local", "Local Network (Foo Bar Foo Bar)"),
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Preview(showBackground = true, device = "id:pixel_9", uiMode = 32)
+@Composable
+fun InstanceSetup(options: List<ModuleManifest.SetupOption> = dummyOptions, onClick: (ModuleManifest.SetupOption) -> Unit = {}, back: () -> Unit = {}) {
+    return FudgeTheme {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(),
+                    title = {
+                        Text("Choose an mode to proceed")
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            back()
+                        }) {
+                            Icon(
+                                painter = painterResource(R.drawable.outline_arrow_back_24),
+                                contentDescription = null
+                            )
+                        }
+                    },
+                )
+            },
+        ) { innerPadding ->
+            Column(Modifier.padding(innerPadding).padding(10.dp).fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp, alignment = Alignment.Top)) {
+                for (e in options) {
+                    // TODO: Interesting colors
+                    val colors = when (e.name) {
+                        "bluetooth" -> Pair(MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.onTertiary)
+                        else -> Pair(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
+                    }
+                    CompositionLocalProvider(LocalRippleConfiguration provides FudgeRippleConfig()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.9f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(colors.first)
+                                .clickable(onClick = {
+                                    onClick(e)
+                                })
+                                .indication(
+                                    indication = ripple(),
+                                    interactionSource = remember { MutableInteractionSource() }
+                                )
+                        ) {
+                            Row(Modifier.padding(20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Icon(
+                                    when (e.name) {
+                                        "wifi" -> painterResource(R.drawable.outline_wifi_24)
+                                        "bluetooth" -> painterResource(R.drawable.outline_bluetooth_24)
+                                        else -> painterResource(R.drawable.outline_general_device_24)
+                                    },
+                                    contentDescription = null,
+                                    tint = colors.second
+                                )
+                                Text(e.title, color = colors.second)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun ConnectableDeviceCard(dev: ConnectableDevice, clicked: (String?) -> Unit = {}) {
@@ -151,7 +235,7 @@ fun ConnectableDeviceCard(dev: ConnectableDevice, clicked: (String?) -> Unit = {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<ConnectableDevice>, manifestList: List<ModuleManifest>, clicked: (ModuleManifest, String?) -> Unit) {
+fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<ConnectableDevice>, manifestList: List<ModuleManifest>, clicked: (ModuleManifest, ModuleManifest.Target) -> Unit) {
     var isRefreshing by remember { mutableStateOf(false) }
     var mutManifestList by remember { mutableStateOf(manifestList) }
     var mutDevList by remember { mutableStateOf(deviceList) }
@@ -171,9 +255,8 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
         },
         modifier = modifier
     ) {
-        Column(Modifier
-            .fillMaxSize()
-            .padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxSize().padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (mutDevList.isNotEmpty()) {
                 Text("Found the following devices nearby:")
                 AnimatedContent(
@@ -192,121 +275,29 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
                 }
             }
             Text("Select a type of device to connect to:")
+            val targets = mutableListOf<Pair<ModuleManifest.Target, ModuleManifest>>()
+            for (manifest in mutManifestList) {
+                for (target in manifest.targets) {
+                    targets += Pair(target, manifest)
+                }
+            }
             AnimatedContent(
-                targetState = mutManifestList,
+                targetState = targets,
                 transitionSpec = {
-                    fadeIn(animationSpec = tween(3000)
-                    ) togetherWith fadeOut(animationSpec = tween(3000))
+                    fadeIn(animationSpec = tween(1000)
+                    ) togetherWith fadeOut(animationSpec = tween(1000))
                 },
                 label = "ContentRefresh"
             ) { targetItems ->
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(targetItems) { manifest ->
-                        for (target in manifest.targets) {
-                            TargetCard(target, manifest, clicked = { product ->
-                                clicked(manifest, product)
-                            })
-                        }
+                LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(targetItems) { pair ->
+                        TargetCard(pair.first, pair.second, clicked = {
+                            clicked(pair.second, pair.first)
+                        })
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-fun MainNav(navController: NavHostController) {
-    var currentLocalGallery by remember { mutableStateOf<LocalGalleryViewModel?>(null) }
-    val duration = 200
-    NavHost(
-        enterTransition = {
-            slideIn(
-                initialOffset = { IntOffset(it.width, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-        exitTransition = {
-            slideOut(
-                targetOffset = { IntOffset(-it.width / 4, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-        popEnterTransition = {
-            slideIn(
-                initialOffset = { IntOffset(-it.width / 4, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-        popExitTransition = {
-            slideOut(
-                targetOffset = { IntOffset(it.width, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-
-        navController = navController, startDestination = "home") {
-        composable("home") {
-            MainScreen(navController, goToLocalGallery = {
-                navController.navigate("local-gallery")
-            })
-        }
-        composable("help") {
-            HelpScreen(navController)
-        }
-        composable("about") {
-            AboutScreen(navController)
-        }
-        composable("modules-list") {
-            ModuleListScreen(navController)
-        }
-        composable<ModuleInstanceRequest> { backStackEntry ->
-            val request = backStackEntry.toRoute<ModuleInstanceRequest>()
-            val manifest = Runtime.getManifestFromName(request.manifestName)!!
-            val models = ViewModelReferences(
-            viewModel(initializer = { ModuleGalleryViewModel() }),
-            viewModel(initializer = { ViewerModel() }),
-            viewModel(initializer = { ConsoleViewModel() })
-            )
-            val model = viewModel(initializer = { ModuleInstanceModel(manifest, models) })
-            ModuleInstanceNav(model.module, backToMainScreen = {
-                navController.popBackStack()
-            })
-        }
-        composable("local-viewer") {
-            currentLocalGallery?.let {
-                val state by it.viewer.viewerState.collectAsStateWithLifecycle()
-                ViewerScreen(state, { i ->
-                    CoroutineScope(Dispatchers.IO).launch {
-                        it.loadImage(i)
-                    }
-                }, {
-                    it.viewer.clear()
-                    navController.popBackStack()
-                })
-            }
-        }
-        composable("local-gallery") {
-            val viewer: ViewerModel = viewModel()
-            currentLocalGallery = viewModel(initializer = { LocalGalleryViewModel(AndroidRuntime.getDownloadDirectory(), viewer) })
-            fun back() {
-                navController.popBackStack()
-                currentLocalGallery = null
-            }
-            BackHandler {
-                back()
-            }
-            LocalGallery(onBack = {
-                back()
-            }, onItemClick = { i ->
-                navController.navigate("local-viewer")
-                CoroutineScope(Dispatchers.IO).launch {
-                    currentLocalGallery?.loadImage(i)
-                }
-            }, Modifier, currentLocalGallery)
-        }
-        composable("gallery") { PreviewGalleryScreen(navController) }
-        composable("preview-viewer") { PreviewViewer(navController) }
-        composable("test-dashboard1") { PreviewDashboardCamera() }
     }
 }
 
@@ -465,8 +456,8 @@ fun MainScreen(navController: NavHostController = rememberNavController(), goToL
                         ModuleDeviceList(
                             deviceList = Runtime.connectableDevices,
                             manifestList = Runtime.moduleManifests,
-                            clicked = { manifest, product ->
-                                navController.navigate(ModuleInstanceRequest(manifest.name, product))
+                            clicked = { manifest, target ->
+                                navController.navigate(ModuleInstanceRequest(manifest.name, manifest.targets.indexOf(target)))
                             }
                         )
                     }
@@ -475,7 +466,7 @@ fun MainScreen(navController: NavHostController = rememberNavController(), goToL
                     }
                     composable("console") {
                         val state by mainlog.uiState.collectAsStateWithLifecycle()
-                        Console(state)
+                        Console(Modifier.fillMaxSize(), state)
                     }
                 }
             }
@@ -488,4 +479,113 @@ fun MainScreen(navController: NavHostController = rememberNavController(), goToL
 fun PreviewMainScreen() {
     Runtime.moduleManifests = dummyManifestList as MutableList<ModuleManifest>
     MainScreen()
+}
+
+@Composable
+fun MainNav(navController: NavHostController) {
+    var currentLocalGallery by remember { mutableStateOf<LocalGalleryViewModel?>(null) }
+    val duration = 200
+    NavHost(
+        enterTransition = {
+            slideIn(
+                initialOffset = { IntOffset(it.width, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        exitTransition = {
+            slideOut(
+                targetOffset = { IntOffset(-it.width / 4, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        popEnterTransition = {
+            slideIn(
+                initialOffset = { IntOffset(-it.width / 4, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+        popExitTransition = {
+            slideOut(
+                targetOffset = { IntOffset(it.width, 0) },
+                animationSpec = tween(duration, easing = FastOutSlowInEasing)
+            )
+        },
+
+        navController = navController, startDestination = "home") {
+        composable("home") {
+            MainScreen(navController, goToLocalGallery = {
+                navController.navigate("local-gallery")
+            })
+        }
+        composable("help") {
+            HelpScreen(navController)
+        }
+        composable("about") {
+            AboutScreen(navController)
+        }
+        composable("modules-list") {
+            ModuleListScreen(navController)
+        }
+        composable<ModuleInstanceRequest> { backStackEntry ->
+            val request = backStackEntry.toRoute<ModuleInstanceRequest>()
+            val manifest = Runtime.getManifestFromName(request.manifestName)!!
+            val target = manifest.targets[request.targetIndex]
+            if (target.setupOptions.isNotEmpty() && request.chosenSetupOption == null) {
+                InstanceSetup(target.setupOptions, onClick = { opt ->
+                    navController.navigate(request.copy(chosenSetupOption = opt.name))
+                }, back = {
+                    navController.popBackStack()
+                })
+            } else {
+                val models = ViewModelReferences(
+                    viewModel(initializer = { ModuleGalleryViewModel() }),
+                    viewModel(initializer = { ViewerModel() }),
+                    viewModel(initializer = { ConsoleViewModel() })
+                )
+                val model = viewModel(initializer = { ModuleInstanceModel(manifest, request, models) })
+                ModuleInstanceNav(model.module, backToMainScreen = {
+                    navController.navigate("home") {
+                        popUpTo(navController.graph.startDestinationId) {
+                            inclusive = true
+                        }
+                    }
+                })
+            }
+        }
+        composable("local-viewer") {
+            currentLocalGallery?.let {
+                val state by it.viewer.viewerState.collectAsStateWithLifecycle()
+                ViewerScreen(state, { i ->
+                    CoroutineScope(Dispatchers.IO).launch {
+                        it.loadImage(i)
+                    }
+                }, {
+                    it.viewer.clear()
+                    navController.popBackStack()
+                })
+            }
+        }
+        composable("local-gallery") {
+            val viewer: ViewerModel = viewModel()
+            currentLocalGallery = viewModel(initializer = { LocalGalleryViewModel(AndroidRuntime.getDownloadDirectory(), viewer) })
+            fun back() {
+                navController.popBackStack()
+                currentLocalGallery = null
+            }
+            BackHandler {
+                back()
+            }
+            LocalGallery(onBack = {
+                back()
+            }, onItemClick = { i ->
+                navController.navigate("local-viewer")
+                CoroutineScope(Dispatchers.IO).launch {
+                    currentLocalGallery?.loadImage(i)
+                }
+            }, Modifier, currentLocalGallery)
+        }
+        composable("gallery") { PreviewGalleryScreen(navController) }
+        composable("preview-viewer") { PreviewViewer(navController) }
+        composable("test-dashboard1") { PreviewDashboardCamera() }
+    }
 }

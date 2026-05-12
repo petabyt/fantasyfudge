@@ -12,7 +12,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.MediaScannerConnection
-import android.net.Network
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -23,11 +22,10 @@ import android.util.Size
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.net.toUri
-import dev.danielc.common.Exif
+import dev.danielc.libpak.Exif
 import dev.danielc.common.FileMetadata
 import dev.danielc.common.ModuleInstance
 import dev.danielc.common.ModuleManifest
-import dev.danielc.common.NativeModule
 import dev.danielc.common.Runtime
 import dev.danielc.common.getMimeType
 import dev.danielc.libpak.Pak
@@ -37,10 +35,6 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.lang.ref.WeakReference
 import javax.microedition.khronos.opengles.GL10
-
-class WiFiAdapter {
-    var net: Network? = null
-}
 
 object AndroidRuntime {
     var hasInited: Boolean = false

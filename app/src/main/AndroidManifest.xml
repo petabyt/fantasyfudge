@@ -12,7 +12,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Fudge">
         <activity
-            android:name=".common.MainActivity"
+            android:name=".fudge.MainActivity"
             android:exported="true"
             android:theme="@style/Theme.Fudge">
             <intent-filter>

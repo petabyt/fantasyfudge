@@ -4,7 +4,7 @@ import dev.danielc.R
 import dev.danielc.common.screens.ConsoleLine
 import dev.danielc.common.screens.ConsoleViewModel
 import dev.danielc.common.screens.MimeType
-import dev.danielc.common.screens.dummyManifestList
+import dev.danielc.common.ui.dummyManifestList
 import dev.danielc.libpak.Bluetooth
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -44,6 +44,7 @@ enum class Screen(val strId: String, val id: Int) {
     GEOTAGGING("geotagging", 104),
     LIVEVIEW("liveview", 105),
     LIVE_FEED("livefeed", 106),
+    INTERVALOMETER("intervalometer", 107),
     DISCONNECTED("disconnected", 200);
 
     companion object {
@@ -57,30 +58,32 @@ enum class Screen(val strId: String, val id: Int) {
 
     fun getIcon(): Int {
         return when (this) {
-            Screen.CONNECT -> R.drawable.baseline_wifi_tethering_24
-            Screen.CONSOLE -> R.drawable.baseline_terminal_24
-            Screen.DASHBOARD -> R.drawable.outline_home_24
-            Screen.FILE_GALLERY -> R.drawable.outline_photo_library_24
-            Screen.FILE_VIEWER -> R.drawable.outline_photo_library_24
-            Screen.GEOTAGGING -> R.drawable.outline_globe_location_pin_24
-            Screen.LIVEVIEW -> R.drawable.outline_smart_display_24
-            Screen.LIVE_FEED -> R.drawable.outline_dynamic_feed_24
-            Screen.NONE -> R.drawable.baseline_question_mark_24
+            CONNECT -> R.drawable.baseline_wifi_tethering_24
+            CONSOLE -> R.drawable.baseline_terminal_24
+            DASHBOARD -> R.drawable.outline_home_24
+            FILE_GALLERY -> R.drawable.outline_photo_library_24
+            FILE_VIEWER -> R.drawable.outline_photo_library_24
+            GEOTAGGING -> R.drawable.outline_globe_location_pin_24
+            LIVEVIEW -> R.drawable.outline_smart_display_24
+            LIVE_FEED -> R.drawable.outline_dynamic_feed_24
+            INTERVALOMETER -> R.drawable.outline_timelapse_24
+            NONE -> R.drawable.baseline_question_mark_24
             else -> R.drawable.baseline_question_mark_24
         }
     }
 
     fun getName(): String {
         return when (this) {
-            Screen.CONNECT -> "Connect"
-            Screen.CONSOLE -> "Console"
-            Screen.DASHBOARD -> "Dashboard"
-            Screen.FILE_GALLERY -> "Gallery"
-            Screen.FILE_VIEWER -> "Viewer"
-            Screen.GEOTAGGING -> "Geotagging"
-            Screen.LIVEVIEW -> "Liveview"
-            Screen.LIVE_FEED -> "Live feed"
-            Screen.NONE -> "None"
+            CONNECT -> "Connect"
+            CONSOLE -> "Console"
+            DASHBOARD -> "Dashboard"
+            FILE_GALLERY -> "Gallery"
+            FILE_VIEWER -> "Viewer"
+            GEOTAGGING -> "Geotagging"
+            LIVEVIEW -> "Liveview"
+            LIVE_FEED -> "Live feed"
+            INTERVALOMETER -> "Intervalometer"
+            NONE -> "None"
             else -> "?"
         }
     }
@@ -150,7 +153,7 @@ object Runtime {
     var earlyConsoleLogs: MutableList<ConsoleLine> = mutableListOf()
     var mainLog: ConsoleViewModel? = null
     var connectableDevices = listOf<ConnectableDevice>()
-    var moduleManifests = mutableListOf<ModuleManifest>()
+    var moduleManifests = listOf<ModuleManifest>()
     var moduleInstances = mutableMapOf<Int, ModuleInstance>()
     private var moduleCounter = 0
 
@@ -168,10 +171,12 @@ object Runtime {
 
     fun refreshConnectableDevices() {
         val devices = Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())
-        // TODO
-        connectableDevices = listOf(
-            ConnectableDevice("FooBar", dummyManifestList[0].targets[0], dummyManifestList[0], false)
-        )
+        val list = mutableListOf<ConnectableDevice>()
+        for (d in devices) {
+            // TODO filter devices through modules
+            list += ConnectableDevice(d.name, dummyManifestList[0].targets[0], dummyManifestList[0], d.isConnected)
+        }
+        //connectableDevices = list
     }
 
     fun getManifestFromName(name: String): ModuleManifest? {
@@ -182,7 +187,8 @@ object Runtime {
     }
 
     fun refreshManifests() {
-        // TODO:
+        val manifests = AndroidRuntime.getJsonManifestList()
+        loadModulesFromManifests(manifests)
     }
 
     fun logGlobalLine(s: String) {
@@ -192,8 +198,9 @@ object Runtime {
         mainLog?.addLine(s)
     }
 
-    fun loadModulesFromManifests(list: List<String>) {
-        moduleManifests += ModuleManifest(
+    fun loadModulesFromManifests(pathList: List<String>) {
+        val list = mutableListOf<ModuleManifest>()
+        list += ModuleManifest(
             name = "dummymod",
             description = "Test module that calls some internal C code",
             moduleType = ModuleManifest.ModuleType.DUMMY_MODULE,
@@ -205,26 +212,34 @@ object Runtime {
             ),
         )
 
-        moduleManifests += ModuleManifest(
+        list += ModuleManifest(
             name = "libfuji",
             description = "All Fujifilm cameras",
             moduleType = ModuleManifest.ModuleType.LIBFUJI,
-            setupOptions = listOf(
-                ModuleManifest.SetupOption("wifi", "WiFi (Legacy)"),
-                ModuleManifest.SetupOption("local-network", "PC AutoSave & Wireless Tether Shoot"),
-                ModuleManifest.SetupOption("bluetooth", "Bluetooth"),
-                ModuleManifest.SetupOption("usb", "USB"),
-            ),
             targets = listOf(
                 ModuleManifest.Target(
                     company = "Fujifilm",
                     deviceId = Device.PROFESSIONAL_CAMERA,
-                    products = listOf("X-T1", "X-T2", "X-T3", "X-T4", "X-T5")
+                    products = listOf("X-T1", "X-T2", "X-T3", "X-T4", "X-T5"),
+                    wifiDiscovery = ModuleManifest.WiFiDiscovery("FUJIFILM-.*"),
+                    bleDiscovery = ModuleManifest.BleDiscovery(namePattern = "FUJIFILM-.*",
+                        serviceUuids = listOf("af854c2e-b214-458e-97e2-912c4ecf2cb8"),
+//                        mfgData = byteArrayOf(0xD8.toByte(), 0x04, 0x02, 0xA0.toByte(), 0x48, 0x21,
+//                            0x80.toByte()
+//                        ),
+//                        mfgDataMask = byteArrayOf(0xff.toByte())
+                    ),
+                    setupOptions = listOf(
+                        ModuleManifest.SetupOption("wifi", "WiFi (Legacy)", ModuleManifest.Transport.WIFI_AP),
+                        ModuleManifest.SetupOption("local-network", "PC AutoSave & Wireless Tether Shoot", ModuleManifest.Transport.LOCAL_NETWORK_UPNP_LISTEN),
+                        ModuleManifest.SetupOption("bluetooth", "Bluetooth", ModuleManifest.Transport.BLE),
+                        ModuleManifest.SetupOption("usb", "USB", ModuleManifest.Transport.USB),
+                    ),
                 )
             ),
         )
 
-        moduleManifests += ModuleManifest(
+        list += ModuleManifest(
             name = "cmf-nothing-audio",
             description = "CMF Nothing Audio devices",
             moduleType = ModuleManifest.ModuleType.CMF_NOTHING,
@@ -237,7 +252,7 @@ object Runtime {
             ),
         )
 
-        moduleManifests += ModuleManifest(
+        list += ModuleManifest(
             name = "goveelife",
             description = "GoveeLife smart home devices",
             moduleType = ModuleManifest.ModuleType.GOVEELIFE,
@@ -245,12 +260,20 @@ object Runtime {
                 ModuleManifest.Target(
                     company = "GoveeLife",
                     deviceId = Device.GENERIC_HOME_DEVICE,
-                    products = listOf("thermometer")
+                    products = listOf("thermometer"),
+                    bleDiscovery = ModuleManifest.BleDiscovery(
+                        namePattern = "GVH...._....",
+                        serviceUuids = listOf("0000ec88-0000-1000-8000-00805f9b34fb"),
+                        mfgData = byteArrayOf(0x4c, 0x0, 0x02, 0x15, 0x49, 0x4E, 0x54, 0x45, 0x4C, 0x4C, 0x49, 0x5F, 0x52, 0x4F, 0x43, 0x4B, 0x53, 0x5F, 0x48, 0x57, 0x50, 0x75,
+                            0xF2.toByte(),
+                            0xFF.toByte(), 0x0C),
+                        // byteArrayOf(0x01, 0x00, 0x01, 0x01, 0x14, 0x48, 0x46, 0xA8.toByte())
+                    )
                 )
             ),
         )
 
-        for (filename in list) {
+        for (filename in pathList) {
             try {
                 val text = AndroidRuntime.readAssetsFile(filename)
                 val obj: JsonElement = Json.parseToJsonElement(String(text))
@@ -277,11 +300,12 @@ object Runtime {
                     targets = targets,
                 )
 
-                moduleManifests += manifest
+                list += manifest
             } catch (e: Exception) {
                 logGlobalLine("Error parsing manifest: $filename")
                 logGlobalLine(e.toString())
             }
         }
+        moduleManifests = list
     }
 }

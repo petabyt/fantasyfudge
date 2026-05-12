@@ -1,12 +1,12 @@
 package dev.danielc.common;
 
 import androidx.annotation.NonNull;
-import dev.danielc.fudge.WiFiAdapter;
+import dev.danielc.libpak.WiFi;
 
 public class NativeModule {
     byte[] struct;
     public native int onFindConnection(int job);
-    public native int onTryConnectWiFi(@NonNull WiFiAdapter adapter, int job);
+    public native int onTryConnectWiFi(@NonNull WiFi.Adapter adapter, int job);
     public native int onIdleTick(int usSinceLastTick);
     public native int onDisconnect();
     public native int onSwitchScreen(int oldScreen, int newScreen, int job);

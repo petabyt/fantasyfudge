@@ -293,7 +293,7 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
                 scope.launch {
                     if ((imageYOffset.value + dragAmount.y) >= 0) {
                         launch {
-                            imageYOffset.animateTo(imageYOffset.value + dragAmount.y)
+                            imageYOffset.animateTo(imageYOffset.value + (dragAmount.y * 1.3f))
                         }
                         launch {
                             scaleFactor.animateTo(
@@ -386,6 +386,8 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
         handle = FileHandle(index = 10, "sdcard"),
         metadata = FileMetadata("DSCF00001.JPG", mimeType = MimeType.JPEG),
         bitmap = painterToImageBitmap(painter),
+        bitmapLeft = painterToImageBitmap(painter),
+        bitmapRight = painterToImageBitmap(painter),
         isLoading = false,
         currentDownloadSpeed = "5 mbps",
         currentDownloadProgress = 40,
@@ -395,6 +397,7 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
     )) }
     ViewerScreen(state, switchTo = { i ->
         state = state.copy(
+            handle = state.handle.copy(index = i),
             currentDownloadProgress = 0,
             isLoading = true
         )

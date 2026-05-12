@@ -1,4 +1,4 @@
-package dev.danielc.common
+package dev.danielc.fudge
 
 import android.app.ComponentCaller
 import android.content.Intent
@@ -8,9 +8,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.compose.rememberNavController
+import dev.danielc.common.ModuleInstanceRequest
+import dev.danielc.common.Runtime
 import dev.danielc.common.screens.MainNav
-import dev.danielc.fudge.AndroidRuntime
+import dev.danielc.libpak.Bluetooth
 import dev.danielc.libpak.Pak
+import dev.danielc.libpak.WiFi
 
 class MainActivity : ComponentActivity() {
     override fun onRequestPermissionsResult(
@@ -40,9 +43,11 @@ class MainActivity : ComponentActivity() {
         if (!AndroidRuntime.hasInited) {
             System.loadLibrary("fudge")
             AndroidRuntime.init()
-            val manifests = AndroidRuntime.getJsonManifestList()
-            Runtime.loadModulesFromManifests(manifests)
             AndroidRuntime.hasInited = true
+            Runtime.refreshManifests()
+            Runtime.refreshConnectableDevices()
+            Bluetooth.init(this)
+            WiFi.startNetworkListeners(this)
         }
         enableEdgeToEdge()
         setContent {
@@ -50,7 +55,7 @@ class MainActivity : ComponentActivity() {
             MainNav(navController)
             if (false) {
                 LaunchedEffect(Unit) {
-                    navController.navigate(ModuleInstanceRequest("goveelife", null))
+                    navController.navigate(ModuleInstanceRequest("goveelife", 0))
                 }
             }
         }

@@ -8,26 +8,20 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -40,7 +34,6 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -56,8 +49,9 @@ import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
@@ -65,17 +59,15 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
 import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
-import dev.danielc.common.Runtime
-import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.FudgeRippleConfig
+import dev.danielc.common.ui.theme.FudgeTheme
+import dev.danielc.common.ui.theme.primaryIconButtonColors
 import dev.danielc.fudge.AndroidRuntime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -85,9 +77,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
-import java.lang.Exception
 import kotlin.coroutines.cancellation.CancellationException
 
 fun bitmapFromColor(
@@ -420,6 +409,7 @@ fun GalleryFile(obj: GalleryObject?, onClick: () -> Unit = {}) {
 
 @Composable
 fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (Int) -> Unit = {}, onItemClick: (Int) -> Unit = {}, onRefresh: () -> Unit = {}) {
+    val haptic = LocalHapticFeedback.current
     var isRefreshing by remember { mutableStateOf(false) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
     Box(modifier = modifier.fillMaxSize()) {
@@ -433,13 +423,6 @@ fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (In
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(2.dp),
                     ) {
-                        val iconButtonColors = IconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                            disabledContainerColor = MaterialTheme.colorScheme.primary,
-                            disabledContentColor = MaterialTheme.colorScheme.onPrimary,
-                        )
-
                         Row(Modifier.weight(1f)) {
                             Box(Modifier.padding(5.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp))) {
                                 Text("sdcard", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(5.dp))
@@ -447,7 +430,7 @@ fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (In
                         }
 
                         IconButton(
-                            colors = iconButtonColors,
+                            colors = primaryIconButtonColors(),
                             onClick = {},
                             modifier = Modifier,
                         ) {
@@ -458,7 +441,7 @@ fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (In
                             )
                         }
                         IconButton(
-                            colors = iconButtonColors,
+                            colors = primaryIconButtonColors(),
                             onClick = {},
                             modifier = Modifier,
                         ) {
@@ -495,6 +478,7 @@ fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (In
                             itemsIndexed(state.objects) { index, obj ->
                                 GalleryThumbnail(obj, onClick = {
                                     onItemClick(index)
+                                    haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
                                 })
                             }
                         }
@@ -503,8 +487,11 @@ fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (In
                             state = listState,
                             columns = GridCells.Fixed(1)
                         ) {
-                            items(state.objects) { obj ->
-                                GalleryFile(obj)
+                            itemsIndexed(state.objects) { index, obj ->
+                                GalleryFile(obj, onClick = {
+                                    onItemClick(index)
+                                    haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                                })
                             }
                         }
                     }
@@ -538,13 +525,13 @@ fun PreviewGalleryScreen(navController: NavHostController = rememberNavControlle
         GalleryObject(FileMetadata("DSC1234.MOV", mimeType = MimeType.MOV), thumbnail = bitmapFromColor(Color.Green)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Cyan)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Magenta)),
-        GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Yellow)),
+        GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Yellow, width = 300)),
         null,
         null,
         null,
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Gray)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.LightGray)),
-        GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.DarkGray)),
+        GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.DarkGray, width = 250)),
         GalleryObject(FileMetadata("DSC1132.JPG"), thumbnail = bitmapFromColor(Color.Red)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Green)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Blue)),
