@@ -303,15 +303,10 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun MainScreen(navController: NavHostController = rememberNavController(), goToLocalGallery: () -> Unit = {}) {
-    val mainlog: ConsoleViewModel = viewModel(initializer = { ConsoleViewModel(Runtime.earlyConsoleLogs) })
-    Runtime.mainLog = mainlog
+fun MainScreen(navController: NavHostController = rememberNavController(), localGallery: @Composable () -> Unit = {}) {
     val subNavController = rememberNavController()
     val haptic = LocalHapticFeedback.current
     val navBackStackEntry by subNavController.currentBackStackEntryAsState()
-    val uriHandler = LocalUriHandler.current
-    val scope = rememberCoroutineScope()
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
     data class NavItem(
         val icon: Int,
@@ -321,153 +316,89 @@ fun MainScreen(navController: NavHostController = rememberNavController(), goToL
     val items = listOf(
         NavItem(R.drawable.outline_devices_other_24, "Connect", "connect"),
         NavItem(R.drawable.outline_deployed_code_24, "Modules", "modules"),
-        NavItem(R.drawable.baseline_terminal_24, "Console", "console"),
+        NavItem(R.drawable.outline_photo_library_24, "Downloads", "local-gallery"),
     )
 
     return FudgeTheme {
-        ModalNavigationDrawer(
-            drawerState = drawerState,
-            drawerContent = {
-                ModalDrawerSheet {
-                    Text("FantasyFudge", modifier = Modifier.padding(16.dp))
-                    HorizontalDivider()
-                    NavigationDrawerItem(
-                        icon = {
-                            Icon(painter = painterResource(R.drawable.baseline_help_24), contentDescription = null)
-                        },
-                        label = { Text(text = "Help") },
-                        selected = false,
-                        onClick = {
-                            navController.navigate("help")
-                        }
-                    )
-                    NavigationDrawerItem(
-                        icon = {
-                            Icon(painter = painterResource(R.drawable.baseline_bug_report_24), contentDescription = null)
-                        },
-                        label = { Text(text = "Send Feedback") },
-                        selected = false,
-                        onClick = {
-                            uriHandler.openUri("https://danielc.dev/")
-                        }
-                    )
-                    NavigationDrawerItem(
-                        icon = {
-                            Icon(painter = painterResource(R.drawable.outline_info_24), contentDescription = null)
-                        },
-                        label = { Text(text = "About") },
-                        selected = false,
-                        onClick = {
-                            navController.navigate("about")
-                        }
-                    )
-                    HorizontalDivider()
-                    NavigationDrawerItem(
-                        label = { Text(text = "Preview viewer") },
-                        selected = false,
-                        onClick = {
-                            navController.navigate("preview-viewer")
-                        }
-                    )
-                    NavigationDrawerItem(
-                        label = { Text(text = "view dashboard") },
-                        selected = false,
-                        onClick = {
-                            navController.navigate("test-dashboard1")
-                        }
-                    )
-                }
-            }
-        ) {
-            Scaffold(
-                topBar = {
-                    TopAppBar(
-                        colors = TopAppBarDefaults.topAppBarColors(),
-                        title = {
-                            Text("FantasyFudge")
-                        },
-                        actions = {
-                            IconButton(onClick = {
-                                goToLocalGallery()
-                            }) {
-                                Icon(
-                                    painter = painterResource(R.drawable.baseline_folder_open_24),
-                                    contentDescription = null
-                                )
-                            }
-                            IconButton(onClick = {}) {
-                                Icon(
-                                    painter = painterResource(R.drawable.baseline_settings_24),
-                                    contentDescription = null
-                                )
-                            }
-                        },
-                        navigationIcon = {
-                            IconButton(onClick = {
-                                scope.launch {
-                                    if (drawerState.isClosed) {
-                                        drawerState.open()
-                                    } else {
-                                        drawerState.close()
-                                    }
-                                }
-                            }) {
-                                Icon(painterResource(R.drawable.outline_menu_24), contentDescription = "Menu")
-                            }
-                        }
-                    )
-                },
-                bottomBar = {
-                    NavigationBar {
-                        items.forEach { item ->
-                            NavigationBarItem(
-                                icon = {
-                                    Icon(
-                                        painter = painterResource(item.icon),
-                                        contentDescription = null
-                                    )
-                                },
-                                label = {
-                                    Text(item.text)
-                                },
-                                selected = navBackStackEntry?.destination?.hierarchy?.any { it.route == item.route } == true,
-                                onClick = {
-                                    subNavController.navigate(item.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                    haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                                }
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(),
+                    title = {
+                        Text("FantasyFudge")
+                    },
+                    navigationIcon = {
+                        Icon(painterResource(R.drawable.outline_construction_24), contentDescription = null, modifier = Modifier.padding(5.dp))
+                    },
+                    actions = {
+//                        IconButton(onClick = {
+//                            goToLocalGallery()
+//                        }) {
+//                            Icon(
+//                                painter = painterResource(R.drawable.baseline_folder_open_24),
+//                                contentDescription = null
+//                            )
+//                        }
+                        IconButton(onClick = {
+                            navController.navigate("settings")
+                        }) {
+                            Icon(
+                                painter = painterResource(R.drawable.baseline_settings_24),
+                                contentDescription = null
                             )
                         }
                     }
-                }
-            ) { innerPadding ->
-                NavHost(
-                    enterTransition = { EnterTransition.None },
-                    exitTransition = { ExitTransition.None },
-                    modifier = Modifier.padding(innerPadding),
-                    navController = subNavController, startDestination = "connect"
-                ) {
-                    composable("connect") {
-                        ModuleDeviceList(
-                            deviceList = Runtime.connectableDevices,
-                            manifestList = Runtime.moduleManifests,
-                            clicked = { manifest, target ->
-                                navController.navigate(ModuleInstanceRequest(manifest.name, manifest.targets.indexOf(target)))
+                )
+            },
+            bottomBar = {
+                NavigationBar {
+                    items.forEach { item ->
+                        NavigationBarItem(
+                            icon = {
+                                Icon(
+                                    painter = painterResource(item.icon),
+                                    contentDescription = null
+                                )
+                            },
+                            label = {
+                                Text(item.text)
+                            },
+                            selected = navBackStackEntry?.destination?.hierarchy?.any { it.route == item.route } == true,
+                            onClick = {
+                                subNavController.navigate(item.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
                             }
                         )
                     }
-                    composable("modules") {
-                        ModuleList(manifestList = Runtime.moduleManifests)
-                    }
-                    composable("console") {
-                        val state by mainlog.uiState.collectAsStateWithLifecycle()
-                        Console(Modifier.fillMaxSize(), state)
-                    }
+                }
+            }
+        ) { innerPadding ->
+            NavHost(
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None },
+                modifier = Modifier.padding(innerPadding),
+                navController = subNavController, startDestination = "connect"
+            ) {
+                composable("connect") {
+                    ModuleDeviceList(
+                        deviceList = Runtime.connectableDevices,
+                        manifestList = Runtime.moduleManifests,
+                        clicked = { manifest, target ->
+                            navController.navigate(ModuleInstanceRequest(manifest.name, manifest.targets.indexOf(target)))
+                        }
+                    )
+                }
+                composable("modules") {
+                    ModuleList(manifestList = Runtime.moduleManifests)
+                }
+                composable("local-gallery") {
+                    localGallery()
                 }
             }
         }
@@ -485,6 +416,34 @@ fun PreviewMainScreen() {
 fun MainNav(navController: NavHostController) {
     var currentLocalGallery by remember { mutableStateOf<LocalGalleryViewModel?>(null) }
     val duration = 200
+
+    val mainlog: ConsoleViewModel = viewModel(initializer = {
+        val vm = ConsoleViewModel(Runtime.earlyConsoleLogs)
+        Runtime.mainLog = vm
+        vm
+    })
+
+    @Composable
+    fun localGallery() {
+        val viewer: ViewerModel = viewModel()
+        currentLocalGallery = viewModel(initializer = { LocalGalleryViewModel(AndroidRuntime.getDownloadDirectory(), viewer) })
+        fun back() {
+            navController.popBackStack()
+            currentLocalGallery = null
+        }
+        BackHandler {
+            back()
+        }
+        LocalGallery(onBack = {
+            back()
+        }, onItemClick = { i ->
+            navController.navigate("local-viewer")
+            CoroutineScope(Dispatchers.IO).launch {
+                currentLocalGallery?.loadImage(i)
+            }
+        }, Modifier, currentLocalGallery)
+    }
+
     NavHost(
         enterTransition = {
             slideIn(
@@ -513,15 +472,24 @@ fun MainNav(navController: NavHostController) {
 
         navController = navController, startDestination = "home") {
         composable("home") {
-            MainScreen(navController, goToLocalGallery = {
-                navController.navigate("local-gallery")
+            MainScreen(navController, {
+                localGallery()
             })
         }
         composable("help") {
             HelpScreen(navController)
         }
+        composable("console") {
+            val state by mainlog.uiState.collectAsStateWithLifecycle()
+            ConsoleScreen({
+                navController.navigateUp()
+            }, state, "Debug Console")
+        }
         composable("about") {
             AboutScreen(navController)
+        }
+        composable("settings") {
+            SettingsScreen(navController)
         }
         composable("modules-list") {
             ModuleListScreen(navController)
@@ -565,27 +533,5 @@ fun MainNav(navController: NavHostController) {
                 })
             }
         }
-        composable("local-gallery") {
-            val viewer: ViewerModel = viewModel()
-            currentLocalGallery = viewModel(initializer = { LocalGalleryViewModel(AndroidRuntime.getDownloadDirectory(), viewer) })
-            fun back() {
-                navController.popBackStack()
-                currentLocalGallery = null
-            }
-            BackHandler {
-                back()
-            }
-            LocalGallery(onBack = {
-                back()
-            }, onItemClick = { i ->
-                navController.navigate("local-viewer")
-                CoroutineScope(Dispatchers.IO).launch {
-                    currentLocalGallery?.loadImage(i)
-                }
-            }, Modifier, currentLocalGallery)
-        }
-        composable("gallery") { PreviewGalleryScreen(navController) }
-        composable("preview-viewer") { PreviewViewer(navController) }
-        composable("test-dashboard1") { PreviewDashboardCamera() }
     }
 }

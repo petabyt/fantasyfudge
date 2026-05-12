@@ -75,34 +75,14 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocalGallery(onBack: () -> Unit, onItemClick: (Int) -> Unit, modifier: Modifier, model: LocalGalleryViewModel?) {
-    return FudgeTheme {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(),
-                    title = {
-                        Text("Local Files")
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = {
-                            onBack()
-                        }) {
-                            Icon(painterResource(R.drawable.outline_arrow_back_24), contentDescription = null)
-                        }
-                    },
-                )
-            },
-        ) { innerPadding ->
-            if (model != null) {
-                val state by model.uiState.collectAsStateWithLifecycle()
-                Gallery(modifier.padding(innerPadding), state, requestLoad = { i ->
-                    model.enqueueObject(i, true)
-                }, onItemClick = { i ->
-                    onItemClick(i)
-                }, onRefresh = {
-                    model.refresh()
-                })
-            }
-        }
+    if (model != null) {
+        val state by model.uiState.collectAsStateWithLifecycle()
+        Gallery(Modifier, state, requestLoad = { i ->
+            model.enqueueObject(i, true)
+        }, onItemClick = { i ->
+            onItemClick(i)
+        }, onRefresh = {
+            model.refresh()
+        })
     }
 }

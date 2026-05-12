@@ -102,13 +102,13 @@ fun cameraState(): DashboardState {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true, device = "id:pixel_9_pro", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(showSystemUi = true, showBackground = true, device = "id:pixel_9_pro", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun PreviewDashboardCamera() {
     var state by remember { mutableStateOf(cameraState()) }
     return FudgeTheme {
         Scaffold { innerPadding ->
-            Dashboard(Modifier.consumeWindowInsets(innerPadding), state = state, callbacks = DashboardCallbacks())
+            Dashboard(Modifier.padding(innerPadding), state = state, callbacks = DashboardCallbacks())
         }
     }
 }

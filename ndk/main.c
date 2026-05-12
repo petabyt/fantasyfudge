@@ -144,8 +144,8 @@ void pak_rt_fatal_error(struct Module *mod, const char *fmt, ...) {
 	(*env)->PushLocalFrame(env, 10);
 	jstring buffer_s = (*env)->NewStringUTF(env, buffer);
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
-	jmethodID debug_log_m = (*env)->GetMethodID(env, module_c, "reportFatalError", "(ILjava/lang/String;)V");
-	(*env)->CallVoidMethod(env, mod->rt->obj, debug_log_m, -1, buffer_s);
+	jmethodID debug_log_m = (*env)->GetMethodID(env, module_c, "forceDisconnect", "(Ljava/lang/String;I)V");
+	(*env)->CallVoidMethod(env, mod->rt->obj, debug_log_m, buffer_s, 0);
 	(*env)->PopLocalFrame(env, NULL);
 }
 

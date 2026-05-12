@@ -249,8 +249,6 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         )
     }
 
-
-
     fun setIsConnected() {
         isConnected = true
         startMainLoop()
@@ -297,14 +295,14 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
                 filter.serviceUuids = target.bleDiscovery.serviceUuids.toTypedArray()
                 filter.isClassic = false
                 filter.manufacData = target.bleDiscovery.mfgData
-                Bluetooth.pairWithDeviceCompanion(filter, "FudgeDevice1")
+                val rc = Bluetooth.pairWithDeviceCompanion(filter, "FudgeDevice1")
+                debugLog("Return code: ${rc}")
             } else {
                 if (findConnection() == 0) {
-                    isConnected = true
-                    startMainLoop()
-                    switchScreen(Screen.DASHBOARD, false)
+                    setIsConnected()
                 } else {
-                    debugLog("Failed to find connection")
+                    disconnectReason = "Failed to connect"
+                    disconnectedErrorCode = 0
                     switchScreen(Screen.DISCONNECTED, false)
                 }
             }
@@ -319,7 +317,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
             while (job != null && !job.isCancelled) {
                 val rc = module.onIdleTick(curr.elapsedNow().toInt(DurationUnit.MICROSECONDS))
                 if (rc != 0) {
-                    module.reportFatalError(rc, "onIdleTick")
+                    forceDisconnect( "onIdleTick", rc)
                     break
                 }
                 curr = TimeSource.Monotonic.markNow()
@@ -328,18 +326,14 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         }
     }
 
-    private fun reportFatalError(code: Int, reason: String) {
-        disconnectedErrorCode = code
-        disconnect(reason)
-    }
-
-    fun disconnect(reason: String) {
+    fun forceDisconnect(reason: String, code: Int = 0) {
         if (isConnected) {
             isConnected = false
             withJob({}) { job ->
                 onDisconnect()
             }
             disconnectReason = reason
+            disconnectedErrorCode = code
             homeModelView.goToScreen(Screen.DISCONNECTED)
         }
     }

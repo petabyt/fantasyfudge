@@ -143,6 +143,7 @@ data class GalleryState(
     val displayType: DisplayType = DisplayType.THUMBNAILS,
     val objectListSortedOrder: SortBy = SortBy.NEWEST_FIRST,
     // TODO: Tree of objects, maintain current directory
+    // TODO: free objects if needed
     // object if null if it hasn't been loaded/checked yet
     val objects: List<GalleryObject?> = emptyList(),
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()

@@ -168,7 +168,7 @@ fun ConsoleScreen(back: () -> Unit = {}, state: ConsoleState = ConsoleState(), t
                 )
             },
         ) { innerPadding ->
-            Column(Modifier.consumeWindowInsets(innerPadding)) {
+            Column(Modifier.padding(innerPadding)) {
                 Console(Modifier.fillMaxSize(), state)
             }
         }

@@ -23,6 +23,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
@@ -47,9 +48,9 @@ fun About() {
         // TODO: Automate adding android deps
     )
 
-    LazyColumn {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         items(deps) { dep ->
-            Surface(Modifier.fillMaxWidth().padding(10.dp).clickable(onClick = {
+            Surface(Modifier.fillMaxWidth().clickable(onClick = {
                 uriHandler.openUri(dep.url)
             }), color = MaterialTheme.colorScheme.surfaceContainer, shape = RoundedCornerShape(16.dp)) {
                 Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -73,7 +74,7 @@ fun AboutScreen(navController: NavHostController = rememberNavController()) {
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(),
                     title = {
-                        Text("Help")
+                        Text("About")
                     },
                     navigationIcon = {
                         IconButton(onClick = {
@@ -85,7 +86,9 @@ fun AboutScreen(navController: NavHostController = rememberNavController()) {
                 )
             },
         ) { innerPadding ->
-            Box(Modifier.padding(innerPadding)) {
+            Column(Modifier.padding(innerPadding).padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("${stringResource(R.string.app_name)} - based on Fudge (2023-2025)")
+                Text("Copyright (C) ${stringResource(R.string.app_name)} 2026, license TBD")
                 About()
             }
         }

@@ -8,7 +8,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideIn
 import androidx.compose.animation.slideOut
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Icon
@@ -314,7 +313,7 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
             }
             if (homeState.showDisconnectDialog) {
                 DisconnectDialog(dashboardState.nameOfDevice ?: "Device", yes = {
-                    module.disconnect("Manual disconnect")
+                    module.forceDisconnect("Manual disconnect")
                     model.showDisconnectDialog(false)
                 },
                 no = {
@@ -389,7 +388,7 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
         navController = navController, startDestination = "connecting") {
         composable("connecting") {
             ConnectingScreen(backToMainScreen, {
-
+                module.tryConnectAgain()
             }, debugLogState)
         }
         composable("home") {
