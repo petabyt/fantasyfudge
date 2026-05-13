@@ -50,6 +50,7 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,6 +69,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -351,7 +353,7 @@ fun MainScreen(navController: NavHostController = rememberNavController(), local
                 )
             },
             bottomBar = {
-                NavigationBar {
+                NavigationBar() {
                     items.forEach { item ->
                         NavigationBarItem(
                             icon = {
@@ -366,11 +368,8 @@ fun MainScreen(navController: NavHostController = rememberNavController(), local
                             selected = navBackStackEntry?.destination?.hierarchy?.any { it.route == item.route } == true,
                             onClick = {
                                 subNavController.navigate(item.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
                                     launchSingleTop = true
-                                    restoreState = true
+                                    restoreState = false
                                 }
                                 haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
                             }
@@ -383,7 +382,7 @@ fun MainScreen(navController: NavHostController = rememberNavController(), local
                 enterTransition = { EnterTransition.None },
                 exitTransition = { ExitTransition.None },
                 modifier = Modifier.padding(innerPadding),
-                navController = subNavController, startDestination = "connect"
+                navController = subNavController, startDestination = "connect", route = "route"
             ) {
                 composable("connect") {
                     ModuleDeviceList(
@@ -397,8 +396,13 @@ fun MainScreen(navController: NavHostController = rememberNavController(), local
                 composable("modules") {
                     ModuleList(manifestList = Runtime.moduleManifests)
                 }
-                composable("local-gallery") {
-                    localGallery()
+                composable("local-gallery") { backStackEntry ->
+                    val parentEntry = remember(backStackEntry) {
+                        subNavController.getBackStackEntry("route")
+                    }
+                    CompositionLocalProvider(LocalViewModelStoreOwner provides parentEntry) {
+                        localGallery()
+                    }
                 }
             }
         }
@@ -427,16 +431,7 @@ fun MainNav(navController: NavHostController) {
     fun localGallery() {
         val viewer: ViewerModel = viewModel()
         currentLocalGallery = viewModel(initializer = { LocalGalleryViewModel(AndroidRuntime.getDownloadDirectory(), viewer) })
-        fun back() {
-            navController.popBackStack()
-            currentLocalGallery = null
-        }
-        BackHandler {
-            back()
-        }
-        LocalGallery(onBack = {
-            back()
-        }, onItemClick = { i ->
+        LocalGallery(onItemClick = { i ->
             navController.navigate("local-viewer")
             CoroutineScope(Dispatchers.IO).launch {
                 currentLocalGallery?.loadImage(i)
