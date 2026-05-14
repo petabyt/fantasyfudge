@@ -1,12 +1,16 @@
-package dev.danielc.common;
+package dev.danielc.fudge;
 
 import androidx.annotation.NonNull;
+
+import dev.danielc.common.FileHandle;
+import dev.danielc.libpak.Bluetooth;
 import dev.danielc.libpak.WiFi;
 
 public class NativeModule {
     byte[] struct;
     public native int onFindConnection(int job);
     public native int onTryConnectWiFi(@NonNull WiFi.Adapter adapter, int job);
+    public native int onTryConnectBluetooth(@NonNull Bluetooth.Device adapter, int job);
     public native int onIdleTick(int usSinceLastTick);
     public native int onDisconnect();
     public native int onSwitchScreen(int oldScreen, int newScreen, int job);

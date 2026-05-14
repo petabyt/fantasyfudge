@@ -38,7 +38,11 @@ option(PAK_INCLUDE_BT "Bluetooth APIs" ON)
 option(PAK_INCLUDE_EXIF "EXIF Parser" ON)
 option(PAK_QUICKJS "QuickJS bindings" ${APP_QUICKJS_SUPPORT})
 option(PAK_WASM "" ${APP_WASM_SUPPORT})
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../libpak ${CMAKE_CURRENT_BINARY_DIR}/libpak)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../../pak)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../pak ${CMAKE_CURRENT_BINARY_DIR}/libpak)
+else()
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../libpak ${CMAKE_CURRENT_BINARY_DIR}/libpak)
+endif()
 
 # libfuji static module
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/libfuji ${CMAKE_CURRENT_BINARY_DIR}/libfuji)
@@ -46,13 +50,17 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/libfuji ${CMAKE_CURRENT_
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/dummy ${CMAKE_CURRENT_BINARY_DIR}/dummy)
 # dummy cmf module
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/nothing-buds ${CMAKE_CURRENT_BINARY_DIR}/nothing)
+# dummy goveelife module
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/goveelife ${CMAKE_CURRENT_BINARY_DIR}/goveelife)
 
 add_library(${CMAKE_PROJECT_NAME} SHARED
     main.c
     thread.c
     module.c
-    goveelife.c
 )
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE libfuji dummy pak libjpeg-turbo cmfnothingaudio $<$<BOOL:${APP_WASM_SUPPORT}>:vmlib> $<$<BOOL:${APP_QUICKJS_SUPPORT}>:qjs>)
+target_compile_options(${CMAKE_PROJECT_NAME}
+    PRIVATE -Wall -Wshadow -Wcast-qual -Wpedantic -Werror=incompatible-pointer-types -Werror=incompatible-pointer-types -Werror=deprecated-declarations -Wstrict-aliasing=3 -Werror=narrowing
+)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE libfuji dummy pak libjpeg-turbo cmfnothingaudio goveelife $<$<BOOL:${APP_WASM_SUPPORT}>:vmlib> $<$<BOOL:${APP_QUICKJS_SUPPORT}>:qjs>)
 target_link_options(${CMAKE_PROJECT_NAME} PRIVATE "-Wl,-z,max-page-size=16384")
 target_link_options(pak PRIVATE "-Wl,-z,max-page-size=16384")

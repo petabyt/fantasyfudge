@@ -28,7 +28,7 @@ import dev.danielc.common.ui.theme.FudgeTheme
 @OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
 @Composable
-fun DisconnectedScreen(reason: String = "Reason: XXX", backToMainScreen: () -> Unit = {}, consoleState: ConsoleState = ConsoleState()) {
+fun DisconnectedScreen(reason: String = "Reason: Failed to connect - (Disconnected)", backToMainScreen: () -> Unit = {}, consoleState: ConsoleState = ConsoleState()) {
     return FudgeTheme {
         BackHandler {
             backToMainScreen()

@@ -25,17 +25,15 @@ void release_mod(JNIEnv *env, struct TempStruct *info) {
 }
 
 JNIEXPORT void JNICALL
-Java_dev_danielc_common_NativeModule_free(JNIEnv *env, jobject thiz) {
+Java_dev_danielc_fudge_NativeModule_free(JNIEnv *env, jobject thiz) {
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
-
 	free(mod->rt);
-
 	release_mod(env, &info);
 }
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_common_NativeModule_onFindConnection(JNIEnv *env, jobject thiz, jint job) {
+Java_dev_danielc_fudge_NativeModule_onFindConnection(JNIEnv *env, jobject thiz, jint job) {
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
 
@@ -49,7 +47,7 @@ Java_dev_danielc_common_NativeModule_onFindConnection(JNIEnv *env, jobject thiz,
 int pak_wifi_adapter_from_jobject(JNIEnv *env, struct PakWiFiAdapter *adapter, jobject wifi_adapter);
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_common_NativeModule_onTryConnectWiFi(JNIEnv *env, jobject thiz, jobject adapter_o,
+Java_dev_danielc_fudge_NativeModule_onTryConnectWiFi(JNIEnv *env, jobject thiz, jobject adapter_o,
 													  jint job) {
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
@@ -65,8 +63,27 @@ Java_dev_danielc_common_NativeModule_onTryConnectWiFi(JNIEnv *env, jobject thiz,
 	return rc;
 }
 
+int pak_bt_device_from_jobject(JNIEnv *env, jobject dev_o, struct PakBtDevice *device);
+
 JNIEXPORT jint JNICALL
-Java_dev_danielc_common_NativeModule_onIdleTick(JNIEnv *env, jobject thiz, jint us_since_last_tick) {
+Java_dev_danielc_fudge_NativeModule_onTryConnectBluetooth(JNIEnv *env, jobject thiz, jobject device_o,
+													  jint job) {
+	struct TempStruct info;
+	struct Module *mod = get_mod(env, thiz, &info);
+
+	struct PakBtDevice device;
+
+	pak_bt_device_from_jobject(env, device_o, &device);
+
+	int rc = PAK_ERR_UNIMPLEMENTED;
+	if (mod->on_try_connect_bluetooth) rc = mod->on_try_connect_bluetooth(mod, &device, job);
+
+	release_mod(env, &info);
+	return rc;
+}
+
+JNIEXPORT jint JNICALL
+Java_dev_danielc_fudge_NativeModule_onIdleTick(JNIEnv *env, jobject thiz, jint us_since_last_tick) {
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
 
@@ -78,7 +95,7 @@ Java_dev_danielc_common_NativeModule_onIdleTick(JNIEnv *env, jobject thiz, jint 
 }
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_common_NativeModule_onDisconnect(JNIEnv *env, jobject thiz) {
+Java_dev_danielc_fudge_NativeModule_onDisconnect(JNIEnv *env, jobject thiz) {
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
 
@@ -90,7 +107,7 @@ Java_dev_danielc_common_NativeModule_onDisconnect(JNIEnv *env, jobject thiz) {
 }
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_common_NativeModule_onSwitchScreen(JNIEnv *env, jobject thiz, jint old_screen,
+Java_dev_danielc_fudge_NativeModule_onSwitchScreen(JNIEnv *env, jobject thiz, jint old_screen,
 													jint new_screen, jint job) {
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
@@ -129,7 +146,7 @@ static void free_wrapper(JNIEnv *env, struct FileHandleWrapper *wrapper) {
 }
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_common_NativeModule_onRequestFileThumbnail(JNIEnv *env, jobject thiz, jint job,
+Java_dev_danielc_fudge_NativeModule_onRequestFileThumbnail(JNIEnv *env, jobject thiz, jint job,
 															jobject file) {
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
@@ -149,7 +166,7 @@ Java_dev_danielc_common_NativeModule_onRequestFileThumbnail(JNIEnv *env, jobject
 }
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_common_NativeModule_onRequestFileContents(JNIEnv *env, jobject thiz, jint job,
+Java_dev_danielc_fudge_NativeModule_onRequestFileContents(JNIEnv *env, jobject thiz, jint job,
 														   jobject file) {
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
@@ -169,7 +186,7 @@ Java_dev_danielc_common_NativeModule_onRequestFileContents(JNIEnv *env, jobject 
 }
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_common_NativeModule_onRequestFileMetadata(JNIEnv *env, jobject thiz, jint job,
+Java_dev_danielc_fudge_NativeModule_onRequestFileMetadata(JNIEnv *env, jobject thiz, jint job,
 														   jobject file) {
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);

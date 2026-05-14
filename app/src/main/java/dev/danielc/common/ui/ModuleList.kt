@@ -63,14 +63,14 @@ import dev.danielc.common.ui.theme.primaryIconButtonColors
 import kotlinx.coroutines.launch
 
 val dummyManifestList: List<ModuleManifest> = listOf(
-    ModuleManifest(name = "libfuji", description = "All Fujifilm cameras", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA, company = "Fujifilm", listOf("x-t1", "x-t2", "x-t3", "x-t4", "x-t5")))),
-    ModuleManifest(name = "canon", description = "Canon DSLRs and mirrorless camerasbalblahblahblablabhb", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA, company = "Canon", listOf("EOS 5D", "EOS 5D II", "EOS 5D III")))),
-    ModuleManifest(name = "veement", description = "Veement/veecar dashcams", targets = listOf(ModuleManifest.Target(deviceId = Device.DASHCAM, company = "Veement"), ModuleManifest.Target(deviceId = Device.DASHCAM, company = "Veement2"))),
-    ModuleManifest(name = "toyota", description = "Toyota infotainment system", targets = listOf(ModuleManifest.Target(deviceId = Device.AUTOMOTIVE_INFOTAINMENT, company = "Toyota"))),
-    ModuleManifest(name = "libroku", description = "Roku TV and media systems", targets = listOf(ModuleManifest.Target(deviceId = Device.SMART_TV, company = "Roku"))),
+    ModuleManifest(name = "libfuji", description = "libfuji", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA, "Fujifilm", "All Fujifilm cameras", listOf("x-t1", "x-t2", "x-t3", "x-t4", "x-t5")))),
+    ModuleManifest(name = "libgphoto2", description = "ptp2 from the libgphoto2 project", targets = listOf(ModuleManifest.Target(Device.PROFESSIONAL_CAMERA, "Canon", "Canon DSLRs and mirrorless cameras", listOf("EOS 5D", "EOS 5D II", "EOS 5D III")))),
+    ModuleManifest(name = "veement", description = "Veement/veecar", targets = listOf(ModuleManifest.Target(Device.DASHCAM, "Veement", "Veement dashcams"), ModuleManifest.Target(deviceId = Device.DASHCAM, company = "FITCAMX"))),
+    ModuleManifest(name = "toyota", description = "Toyota infotainment system", targets = listOf(ModuleManifest.Target(Device.AUTOMOTIVE_INFOTAINMENT, "Toyota", "Toyota infotainment system"))),
+    ModuleManifest(name = "libroku", description = "Roku TV and media systems", targets = listOf(ModuleManifest.Target(Device.SMART_TV, "Roku", "Roku TV and media systems"))),
 )
 
-@Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
+@Preview(showBackground = true, device = "id:pixel_9", uiMode = 32)
 @Composable
 fun ManifestInfoDialog(manifest: ModuleManifest = dummyManifestList[0], close: () -> Unit = {}) {
     Dialog(onDismissRequest = {
@@ -79,8 +79,7 @@ fun ManifestInfoDialog(manifest: ModuleManifest = dummyManifestList[0], close: (
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.5f)
-                .padding(16.dp),
+                .fillMaxHeight(0.5f),
             shape = RoundedCornerShape(16.dp),
         ) {
             Column(Modifier.fillMaxSize().padding(10.dp)) {
@@ -91,9 +90,8 @@ fun ManifestInfoDialog(manifest: ModuleManifest = dummyManifestList[0], close: (
                         fontSize = 20.sp
                     ),
                 )
-                Text("Author: ${manifest.author}")
-                if (manifest.authorUrl != null) Text("Author URL: ${manifest.authorUrl}")
-                Text("Description: ${manifest.description}")
+                if (manifest.author != null) Text("Author: ${manifest.author}")
+                if (manifest.description != null) Text("Description: ${manifest.description}")
                 if (manifest.targets.isNotEmpty()) {
                     Text("Targets:")
                     Column(Modifier.padding(horizontal = 5.dp)) {
@@ -118,16 +116,16 @@ fun ModuleCard(manifest: ModuleManifest, info: () -> Unit, delete: () -> Unit) {
         .clip(RoundedCornerShape(12.dp))
         .background(MaterialTheme.colorScheme.surfaceContainer)
         .clickable(onClick = {
-
+            info()
         })
         .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    for (e in manifest.targets) {
+                    if (manifest.targets.isNotEmpty()) {
                         Icon(
-                            painter = painterResource(e.deviceId.getIcon()),
+                            painter = painterResource(manifest.targets[0].deviceId.getIcon()),
                             contentDescription = null,
                             modifier = Modifier.size(32.dp),
                             tint = MaterialTheme.colorScheme.primary,
@@ -156,7 +154,7 @@ fun ModuleCard(manifest: ModuleManifest, info: () -> Unit, delete: () -> Unit) {
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 Column {
-                    Text(
+                    if (manifest.author != null) Text(
                         text = "Author: ${manifest.author}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -168,12 +166,7 @@ fun ModuleCard(manifest: ModuleManifest, info: () -> Unit, delete: () -> Unit) {
                     )
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                IconButton(colors = primaryIconButtonColors(), onClick = {
-                    info()
-                }) {
-                    Icon(painterResource(R.drawable.outline_info_24), contentDescription = null)
-                }
+            Column() {
                 IconButton(onClick = {
                     delete()
                 }, colors = errorIconButtonColors()) {
@@ -310,9 +303,9 @@ fun TargetCard(target: ModuleManifest.Target, manifest: ModuleManifest, clicked:
                         maxLines = 1,
                     )
                 }
-                if (manifest.description != null) {
+                if (target.summary != null) {
                     Text(
-                        text = manifest.description,
+                        text = target.summary,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 2,

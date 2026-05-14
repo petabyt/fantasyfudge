@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
         caller: ComponentCaller
     ) {
         super.onActivityResult(requestCode, resultCode, data, caller)
-        Pak.onActivityResult(requestCode, resultCode)
+        Pak.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,7 +46,6 @@ class MainActivity : ComponentActivity() {
             AndroidRuntime.hasInited = true
             Runtime.refreshManifests()
             Runtime.refreshConnectableDevices()
-            Bluetooth.init(this)
             WiFi.startNetworkListeners(this)
         }
         enableEdgeToEdge()

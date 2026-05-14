@@ -202,7 +202,7 @@ class ViewerModel() : ViewModel() {
 }
 
 @Composable
-fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) -> Unit, close: () -> Unit) {
+fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) -> Unit, close: () -> Unit, cancel: () -> Unit) {
     val filename = state.metadata?.filename ?: "File"
 
     if (state.isError) {
@@ -266,7 +266,7 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
                             modifier = Modifier,
                         )
                         Button(onClick = {
-                            close()
+                            cancel()
                         }) {
                             Text("Cancel")
                         }
@@ -415,7 +415,7 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ViewerScreen(state: ViewerState?, switchTo: (Int) -> Unit, close: () -> Unit) {
+fun ViewerScreen(state: ViewerState?, switchTo: (Int) -> Unit, close: () -> Unit, cancel: () -> Unit = {}) {
     return FudgeTheme {
         BackHandler {
             close()
@@ -457,9 +457,8 @@ fun ViewerScreen(state: ViewerState?, switchTo: (Int) -> Unit, close: () -> Unit
             if (state != null) {
                 Viewer(Modifier.padding(innerPadding), state,
                     switchTo = switchTo,
-                    close = {
-                        close()
-                    }
+                    close = close,
+                    cancel = cancel
                 )
             }
         }

@@ -1,4 +1,5 @@
 package dev.danielc.common
+import dev.danielc.common.screens.ConnectingRequiredAction
 import dev.danielc.common.screens.ConsoleViewModel
 import dev.danielc.common.screens.GalleryObjectReference
 import dev.danielc.common.screens.GalleryViewModel
@@ -6,12 +7,16 @@ import dev.danielc.common.screens.ModuleInstanceModel
 import dev.danielc.common.screens.SortBy
 import dev.danielc.common.screens.ViewerModel
 import dev.danielc.fudge.AndroidRuntime
+import dev.danielc.fudge.NativeModule
 import dev.danielc.libpak.Bluetooth
+import dev.danielc.libpak.Pak
 import dev.danielc.libpak.WiFi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import kotlin.time.DurationUnit
 import kotlin.time.TimeSource
@@ -81,7 +86,8 @@ abstract class ModuleBase(): NativeModule() {
 
     fun withJob(callback: JobUpdateCallback, block: (ModuleJob) -> Int): Int {
         val job = createJob(callback)
-        val rc = block(job)
+        var rc = block(job)
+        if (job.isCancelled) rc = Pak.Error.CANCELLED
         job.progressBarValue = null
         job.isFinished = true
         callback(job)
@@ -106,16 +112,19 @@ abstract class ModuleBase(): NativeModule() {
             onRequestFileThumbnail(job.id, file)
         }
     }
-
     fun getFileContents(onUpdate: JobUpdateCallback = {}, file: FileHandle): Int {
         return withJob(onUpdate) { job ->
             onRequestFileContents(job.id, file)
         }
     }
-
     fun tryConnectWiFi(net: WiFi.Adapter, onUpdate: JobUpdateCallback = {}): Int {
         return withJob(onUpdate) { job ->
             onTryConnectWiFi(net, job.id)
+        }
+    }
+    fun tryConnectBluetooth(device: Bluetooth.Device, onUpdate: JobUpdateCallback = {}): Int {
+        return withJob(onUpdate) { job ->
+            onTryConnectBluetooth(device, job.id)
         }
     }
 }
@@ -152,16 +161,17 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
     override val serializableModuleInstance = SerializableModuleInstance(Runtime.addModuleInstance(this))
     val galleryViewModel: ModuleGalleryViewModel = viewModels.galleryViewModel
     val viewerViewModel: ViewerModel = viewModels.viewerViewModel
+    var viewerDownloadJob: ModuleJob? = null
     val debugLogModel: ConsoleViewModel = viewModels.debugLogModel
     init {
         galleryViewModel.module = this
         when (manifest.moduleType) {
-            ModuleManifest.ModuleType.CMF_NOTHING -> AndroidRuntime.setupCmfNothingAudioModule(this, manifest)
+            ModuleManifest.ModuleType.CMF_NOTHING -> AndroidRuntime.setupCmfNothingAudioModule(this)
             ModuleManifest.ModuleType.QUICKJS -> throw Exception("QuickJS")
             ModuleManifest.ModuleType.WEBASSEMBLY -> throw Exception("Webassembly")
-            ModuleManifest.ModuleType.DUMMY_MODULE -> AndroidRuntime.setupDummyNativeModule(this, manifest)
-            ModuleManifest.ModuleType.LIBFUJI -> AndroidRuntime.setupLibFujiModule(this, manifest)
-            ModuleManifest.ModuleType.GOVEELIFE -> AndroidRuntime.setupGoveeLifeModule(this, manifest)
+            ModuleManifest.ModuleType.DUMMY_MODULE -> AndroidRuntime.setupDummyNativeModule(this)
+            ModuleManifest.ModuleType.LIBFUJI -> AndroidRuntime.setupLibFujiModule(this)
+            ModuleManifest.ModuleType.GOVEELIFE -> AndroidRuntime.setupGoveeLifeModule(this)
         }
     }
 
@@ -181,6 +191,9 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
     fun debugLog(s: String) {
         debugLogModel.addLine(s)
     }
+    fun getSetupOptionName(): String? {
+        return request.chosenSetupOption
+    }
     suspend fun deregister() {
         println("Deregistering module")
         galleryViewModel.stop()
@@ -194,10 +207,10 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
     fun getMetadata(file: FileHandle): FileMetadata? {
         return galleryViewModel.getMetadata(file)
     }
-    fun setProperty(type: ModuleProperty, value: String) {
-        homeModelView.setProperty(type, value)
-    }
     fun setProperty(type: String, value: String) {
+        homeModelView.setProperty(ModuleProperty.fromId(type)!!, value)
+    }
+    fun setProperty(type: String, value: Int) {
         homeModelView.setProperty(ModuleProperty.fromId(type)!!, value)
     }
     fun setScreenSupported(id: Int, v: Boolean) {
@@ -209,18 +222,15 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
     fun setProgressBar(job: Int, v: Int) {
         val jobObj = getJob(job)
         if (jobObj != null) {
-            // Do on separate thread?
             jobObj.progressBarValue = v
             jobObj.onUpdate(jobObj)
         }
-        // throw err?
     }
     fun isJobCancelled(job: Int): Boolean {
         val jobObj = getJob(job)
         if (jobObj != null) {
             return jobObj.isCancelled
         }
-        // throw err?
         return false
     }
     fun addFileMetadata(file: FileHandle, v: FileMetadata?) {
@@ -266,17 +276,65 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         val filter = WiFi.ApFilter()
         filter.ssidPattern = wifi.ssidPattern
         val callback = object : WiFi.WiFiDiscoveryCallback() {
-            override fun failed(reason: String?, code: Int) {
-                debugLog(reason!!)
+            override fun failed(reason: String, code: Int) {
+                debugLog(reason)
             }
 
-            override fun found(net: WiFi.Adapter?) {
-                if (tryConnectWiFi(net!!) == 0) {
+            override fun found(net: WiFi.Adapter) {
+                if (tryConnectWiFi(net) == 0) {
                     setIsConnected()
                 }
             }
         }
         WiFi.connectToAccessPoint(filter, callback)
+    }
+
+    fun bluetoothConnectRoutine(info: ModuleManifest.BluetoothDiscovery) {
+        if (!Bluetooth.checkPermission()) {
+            homeModelView.connectRequiredAction.value = ConnectingRequiredAction.ACCEPT_BLUETOOTH_PERMISSION
+            Bluetooth.requestConnectPermission()
+        } else if (!Bluetooth.isBluetoothEnabled()) {
+            homeModelView.connectRequiredAction.value = ConnectingRequiredAction.TURN_ON_BLUETOOTH
+            Bluetooth.openEnableBluetoothDialog()
+        } else {
+            fun doConnect(dev: Bluetooth.Device) {
+                debugLog("Connecting to '${dev.name}'")
+                val rc = tryConnectBluetooth(dev)
+                if (rc == 0) {
+                    setIsConnected()
+                } else {
+                    disconnectReason = "Failed to connect"
+                    disconnectedErrorCode = rc
+                    switchScreen(Screen.DISCONNECTED, false)
+                }
+            }
+
+            val devices = Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())
+            if (devices != null && info.namePattern != null) {
+                for (dev in devices) {
+                    val r = Regex(info.namePattern)
+                    if (r.matches(dev.name)) {
+                        doConnect(dev)
+                        return
+                    }
+                }
+            }
+
+            val filter = Bluetooth.BtFilter()
+            filter.serviceUuids = info.serviceUuids.toTypedArray()
+            filter.isClassic = false
+            filter.manufacData = info.mfgData
+            val callback = object : Bluetooth.ScanCallback() {
+                override fun onFound(device: Bluetooth.Device) {
+                    doConnect(device)
+                }
+                override fun onFailure(reason: String) {
+                    debugLog(reason)
+                }
+            }
+            val rc = Bluetooth.pairWithDeviceCompanion(filter, "FudgeDevice1", callback)
+            debugLog("pairWithDeviceCompanion: ${rc}")
+        }
     }
 
     fun tryConnectAgain() {
@@ -287,17 +345,13 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
 
     fun initThread() {
         initJob = CoroutineScope(Dispatchers.IO).launch {
+            homeModelView.connectRequiredAction.value = ConnectingRequiredAction.NONE
             val option = request.getSetupOption()
-            val transport = option?.transport ?: ModuleManifest.Transport.BLE
+            val transport = option?.transport ?: ModuleManifest.Transport.BLUETOOTH
             if (target.wifiDiscovery != null && transport == ModuleManifest.Transport.WIFI_AP) {
                 wifiConnectRoutine(target.wifiDiscovery)
-            } else if (target.bleDiscovery != null && transport == ModuleManifest.Transport.BLE) {
-                val filter = Bluetooth.BtFilter()
-                filter.serviceUuids = target.bleDiscovery.serviceUuids.toTypedArray()
-                filter.isClassic = false
-                filter.manufacData = target.bleDiscovery.mfgData
-                val rc = Bluetooth.pairWithDeviceCompanion(filter, "FudgeDevice1")
-                debugLog("Return code: ${rc}")
+            } else if (target.bluetoothDiscovery != null && transport == ModuleManifest.Transport.BLUETOOTH) {
+                bluetoothConnectRoutine(target.bluetoothDiscovery)
             } else {
                 val rc = findConnection({ job ->
                     homeModelView.connectProgress.update {
@@ -327,7 +381,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
                     break
                 }
                 curr = TimeSource.Monotonic.markNow()
-                Thread.sleep(currentTickIntervalUs.toLong() / 1000)
+                delay(currentTickIntervalUs.toLong() / 1000)
             }
         }
     }
@@ -335,6 +389,10 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
     fun forceDisconnect(reason: String, code: Int = 0) {
         if (isConnected) {
             isConnected = false
+            runBlocking {
+                mainLoopJob?.cancel()
+                mainLoopJob?.join()
+            }
             withJob({}) { job ->
                 onDisconnect()
             }
@@ -344,8 +402,8 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         }
     }
 
-    fun switchScreen(prev: Screen, new: Screen, callback: JobUpdateCallback) {
-        withJob(callback) { job ->
+    fun switchScreen(prev: Screen, new: Screen, callback: JobUpdateCallback): Int {
+        val rc = withJob(callback) { job ->
             onSwitchScreen(prev.id, new.id, job.id)
         }
         if (new == Screen.FILE_GALLERY) {
@@ -353,18 +411,21 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         } else if (prev == Screen.FILE_GALLERY) {
             galleryViewModel.setPaused(true)
         }
+        return rc
     }
 
-    fun switchScreen(screen: Screen, isInNavBar: Boolean, callback: JobUpdateCallback = {}) {
+    fun switchScreen(screen: Screen, isInNavBar: Boolean, callback: JobUpdateCallback = {}): Int {
         if (!isNavigating) {
             isNavigating = true
             if (currentScreen != screen) {
                 homeModelView.goToScreen(screen, isInNavBar)
             }
-            switchScreen(currentScreen, screen, callback)
+            val rc = switchScreen(currentScreen, screen, callback)
             currentScreen = screen
             isNavigating = false
+            return rc
         }
+        return 0
     }
 
     fun goBack(previous: Screen, isInNavBar: Boolean, callback: JobUpdateCallback = {}) {
@@ -379,22 +440,40 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
 
     fun goToViewer(file: FileHandle) {
         CoroutineScope(Dispatchers.IO).launch {
-            //viewerViewModel.clear()
-
             val galleryState = galleryViewModel.uiState.value
             viewerViewModel.update(file, galleryState.objects.size)
             viewerViewModel.updateMetadata(galleryViewModel.getMetadata(file))
             viewerViewModel.updateSideBitmaps(galleryViewModel.getThumbnail(file, -1), galleryViewModel.getThumbnail(file, 1))
 
-            switchScreen(Screen.FILE_VIEWER, false, { job ->
+            fun onCancel() {
+                CoroutineScope(Dispatchers.IO).launch {
+                    goBack(Screen.FILE_GALLERY, false)
+                }
+            }
+
+            var rc = switchScreen(Screen.FILE_VIEWER, false, { job ->
+                viewerDownloadJob = job
+                if (job.isFinished) {
+                    viewerDownloadJob = null
+                }
                 viewerViewModel.updateStats(job.progressBarValue ?: 0, "switching to viewer")
             })
-
-            val rc = getFileContents({ job ->
-                viewerViewModel.updateStats(job.progressBarValue ?: 0, "speed")
-            }, file)
-            if (rc != 0) {
-                viewerViewModel.setError("Image load error: ${rc}")
+            if (rc == Pak.Error.CANCELLED) {
+                onCancel()
+            } else {
+                rc = getFileContents({ job ->
+                    viewerDownloadJob = job
+                    if (job.isCancelled) {
+                        viewerViewModel.setError("Cancelling...")
+                        viewerDownloadJob = null
+                    }
+                    viewerViewModel.updateStats(job.progressBarValue ?: 0, "download speed")
+                }, file)
+                if (rc == Pak.Error.CANCELLED) {
+                    onCancel()
+                } else if (rc != 0) {
+                    viewerViewModel.setError("Image load error: ${rc}")
+                }
             }
         }
     }

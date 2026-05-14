@@ -156,6 +156,11 @@ abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewMod
     var threadIsPaused: Boolean = true
     var isThumbnailPriority: Boolean = true
 
+    override fun onCleared() {
+        super.onCleared()
+        stop()
+    }
+
     fun getMetadata(file: FileHandle): FileMetadata? {
         return _uiState.value.objects.getOrNull(file.index)?.metadata
     }

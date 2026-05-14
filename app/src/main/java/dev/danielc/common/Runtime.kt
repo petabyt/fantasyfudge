@@ -16,6 +16,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import dev.danielc.fudge.AndroidRuntime
+import dev.danielc.libpak.Pak
 
 /**
  * Module defined setting that can be updated by the user or the module
@@ -157,6 +158,20 @@ object Runtime {
     var moduleInstances = mutableMapOf<Int, ModuleInstance>()
     private var moduleCounter = 0
 
+    fun errorCodeToString(rc: Int): String {
+        return when (rc) {
+            Pak.Error.IO -> "IO Error"
+            Pak.Error.CANCELLED -> "Cancelled"
+            Pak.Error.DISCONNECTED -> "Disconnected"
+            Pak.Error.NO_CONNECTION -> "Can't connect"
+            Pak.Error.PERMISSION -> "Permission error"
+            Pak.Error.UNSUPPORTED -> "Unsupported"
+            Pak.Error.UNIMPLEMENTED -> "Unimplemented method"
+            Pak.Error.NON_FATAL -> "Non fatal error"
+            else -> ""
+        }
+    }
+
     fun addModuleInstance(mod: ModuleInstance): Int {
         moduleInstances.put(++moduleCounter, mod)
         return moduleCounter
@@ -202,11 +217,11 @@ object Runtime {
         val list = mutableListOf<ModuleManifest>()
         list += ModuleManifest(
             name = "dummymod",
-            description = "Test module that calls some internal C code",
             moduleType = ModuleManifest.ModuleType.DUMMY_MODULE,
             targets = listOf(
                 ModuleManifest.Target(
                     company = "Dummy Company",
+                    summary = "Test module that calls some internal C code",
                     deviceId = Device.GAME_CONTROLLER
                 )
             ),
@@ -214,15 +229,18 @@ object Runtime {
 
         list += ModuleManifest(
             name = "libfuji",
-            description = "All Fujifilm cameras",
+            description = "libfuji port",
+            website = "https://github.com/petabyt/libfuji",
+            author = "Daniel Cook",
             moduleType = ModuleManifest.ModuleType.LIBFUJI,
             targets = listOf(
                 ModuleManifest.Target(
                     company = "Fujifilm",
+                    summary = "All Fujifilm digital cameras",
                     deviceId = Device.PROFESSIONAL_CAMERA,
                     products = listOf("X-T1", "X-T2", "X-T3", "X-T4", "X-T5"),
                     wifiDiscovery = ModuleManifest.WiFiDiscovery("FUJIFILM-.*"),
-                    bleDiscovery = ModuleManifest.BleDiscovery(namePattern = "FUJIFILM-.*",
+                    bluetoothDiscovery = ModuleManifest.BluetoothDiscovery(namePattern = "FUJIFILM-.*",
                         serviceUuids = listOf("af854c2e-b214-458e-97e2-912c4ecf2cb8"),
 //                        mfgData = byteArrayOf(0xD8.toByte(), 0x04, 0x02, 0xA0.toByte(), 0x48, 0x21,
 //                            0x80.toByte()
@@ -231,8 +249,8 @@ object Runtime {
                     ),
                     setupOptions = listOf(
                         ModuleManifest.SetupOption("wifi", "WiFi (Legacy)", ModuleManifest.Transport.WIFI_AP),
-                        ModuleManifest.SetupOption("local-network", "PC AutoSave & Wireless Tether Shoot", ModuleManifest.Transport.LOCAL_NETWORK_UPNP_LISTEN),
-                        ModuleManifest.SetupOption("bluetooth", "Bluetooth", ModuleManifest.Transport.BLE),
+                        ModuleManifest.SetupOption("local-network", "PC AutoSave & Wireless Tether Shoot", ModuleManifest.Transport.INTERNET),
+                        ModuleManifest.SetupOption("bluetooth", "Bluetooth", ModuleManifest.Transport.BLUETOOTH),
                         ModuleManifest.SetupOption("usb", "USB", ModuleManifest.Transport.USB),
                     ),
                 )
@@ -241,11 +259,11 @@ object Runtime {
 
         list += ModuleManifest(
             name = "cmf-nothing-audio",
-            description = "CMF Nothing Audio devices",
             moduleType = ModuleManifest.ModuleType.CMF_NOTHING,
             targets = listOf(
                 ModuleManifest.Target(
                     company = "Nothing",
+                    summary = "CMF Nothing Audio devices",
                     deviceId = Device.EARBUDS,
                     products = listOf("Buds Pro 2", "Buds 2")
                 )
@@ -254,14 +272,14 @@ object Runtime {
 
         list += ModuleManifest(
             name = "goveelife",
-            description = "GoveeLife smart home devices",
             moduleType = ModuleManifest.ModuleType.GOVEELIFE,
             targets = listOf(
                 ModuleManifest.Target(
                     company = "GoveeLife",
+                    summary = "GoveeLife smart home devices",
                     deviceId = Device.GENERIC_HOME_DEVICE,
                     products = listOf("thermometer"),
-                    bleDiscovery = ModuleManifest.BleDiscovery(
+                    bluetoothDiscovery = ModuleManifest.BluetoothDiscovery(
                         namePattern = "GVH...._....",
                         serviceUuids = listOf("0000ec88-0000-1000-8000-00805f9b34fb"),
                         mfgData = byteArrayOf(0x4c, 0x0, 0x02, 0x15, 0x49, 0x4E, 0x54, 0x45, 0x4C, 0x4C, 0x49, 0x5F, 0x52, 0x4F, 0x43, 0x4B, 0x53, 0x5F, 0x48, 0x57, 0x50, 0x75,
@@ -293,8 +311,8 @@ object Runtime {
                 val manifest = ModuleManifest(
                     name = root["name"]?.jsonPrimitive?.content!!,
                     description = root["description"]?.jsonPrimitive?.content,
-                    author = root["author"]?.jsonPrimitive?.content!!,
-                    authorUrl = root["authorUrl"]?.jsonPrimitive?.content,
+                    author = root["author"]?.jsonPrimitive?.content,
+                    website = root["website"]?.jsonPrimitive?.content,
                     version = root["version"]?.jsonPrimitive?.int!!,
                     isDraft = root["isDraft"]?.jsonPrimitive?.booleanOrNull == true,
                     targets = targets,

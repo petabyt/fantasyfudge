@@ -44,19 +44,17 @@ object AndroidRuntime {
     }
 
     external fun init()
-    external fun setupDummyNativeModule(mod: ModuleInstance?, manifest: ModuleManifest?): Int
-    external fun setupCmfNothingAudioModule(mod: ModuleInstance?, manifest: ModuleManifest?): Int
-    external fun setupLibFujiModule(mod: ModuleInstance?, manifest: ModuleManifest?): Int
-    external fun setupGoveeLifeModule(mod: ModuleInstance?, manifest: ModuleManifest?): Int
+    external fun setupDummyNativeModule(mod: ModuleInstance): Int
+    external fun setupCmfNothingAudioModule(mod: ModuleInstance): Int
+    external fun setupLibFujiModule(mod: ModuleInstance): Int
+    external fun setupGoveeLifeModule(mod: ModuleInstance): Int
     external fun setupJavascriptModule(
-        mod: ModuleInstance?,
-        manifest: ModuleManifest?,
-        jsPath: String?
+        mod: ModuleInstance,
+        jsPath: String
     ): Int
     external fun setupWebassemblyModule(
-        mod: ModuleInstance?,
-        manifest: ModuleManifest?,
-        wasmPath: String?
+        mod: ModuleInstance,
+        wasmPath: String
     ): Int
 
     fun decodeImageContents(data: ByteArray, imageHorizontalSize: Int? = null, orientation: Int? = null): ImageBitmap? {

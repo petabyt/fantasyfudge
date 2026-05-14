@@ -10,6 +10,7 @@
 
 struct RuntimePriv {
 	jobject obj;
+	char *setup_option;
 };
 
 
@@ -24,12 +25,19 @@ int get_module_libfuji(struct Module *mod);
 int get_module_cmfnothingaudio(struct Module *mod);
 int get_module_goveelife(struct Module *mod);
 
-int pak_ndk_create_module(JNIEnv *env, jobject o_mod, int (*get_fn)(struct Module *mod), jobject manifest) {
+int pak_ndk_create_module(JNIEnv *env, jobject o_mod, int (*get_fn)(struct Module *mod)) {
 	struct Module *mod = calloc(1, sizeof(struct Module));
 	mod->rt = malloc(sizeof(struct RuntimePriv));
 
-	jclass class = (*env)->FindClass(env, "dev/danielc/common/NativeModule");
 	mod->rt->obj = (*env)->NewGlobalRef(env, o_mod);
+	jstring str = (*env)->CallObjectMethod(env, o_mod, (*env)->GetMethodID(env, (*env)->FindClass(env, "dev/danielc/common/ModuleInstance"), "getSetupOptionName", "()Ljava/lang/String;"));
+	if (str == NULL) {
+		mod->rt->setup_option = NULL;
+	} else {
+		const char *setup_option = (*env)->GetStringUTFChars(env, str, 0);
+		mod->rt->setup_option = strdup(setup_option);
+		(*env)->ReleaseStringUTFChars(env, str, setup_option);
+	}
 
 	get_fn(mod);
 
@@ -42,7 +50,7 @@ int pak_ndk_create_module(JNIEnv *env, jobject o_mod, int (*get_fn)(struct Modul
 	jbyteArray struct_ = (*env)->NewByteArray(env, sizeof(struct Module));
 	(*env)->SetByteArrayRegion(env, struct_, 0, sizeof(struct Module), (const jbyte *)mod);
 
-	jfieldID struct_field = (*env)->GetFieldID(env, class, "struct", "[B");
+	jfieldID struct_field = (*env)->GetFieldID(env, (*env)->FindClass(env, "dev/danielc/fudge/NativeModule"), "struct", "[B");
 	(*env)->SetObjectField(env, o_mod, struct_field, struct_);
 
 	return rc;
@@ -54,7 +62,7 @@ Java_dev_danielc_fudge_AndroidRuntime_init(JNIEnv *env, jclass clazz) {
 	pak_global_log("AndroidRuntime init");
 }
 
-static uint8_t *file_add(void *arg, const uint8_t *buffer, unsigned int new_len, unsigned int old_len) {
+static uint8_t *file_add(void *arg, uint8_t *buffer, unsigned int new_len, unsigned int old_len) {
 	uint8_t *new = realloc(buffer, new_len);
 	fread(new + old_len, 1, new_len - old_len, (FILE *)arg);
 	return new;
@@ -111,7 +119,7 @@ int pak_rt_set_tick_interval(struct Module *mod, unsigned int us) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
-	jmethodID method = (*env)->GetMethodID(env, module_c, "setCurrentTickIntervalUs", "(I)V");
+	jmethodID method = (*env)->GetMethodID(env, module_c, "setTickRate", "(I)V");
 	(*env)->CallVoidMethod(env, mod->rt->obj, method, (int)us);
 	(*env)->PopLocalFrame(env, NULL);
 	return 0;
@@ -273,6 +281,17 @@ int pak_rt_set_session_property(struct Module *mod, const char *key, const char 
 	return 0;
 }
 
+int pak_rt_set_session_property_int(struct Module *mod, const char *key, int value) {
+	JNIEnv *env = get_jni_env();
+	(*env)->PushLocalFrame(env, 10);
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
+	jmethodID set_screen_supported = (*env)->GetMethodID(env, module_c, "setProperty", "(Ljava/lang/String;I)V");
+	jstring key_s = (*env)->NewStringUTF(env, key);
+	(*env)->CallVoidMethod(env, mod->rt->obj, set_screen_supported, key_s, value);
+	(*env)->PopLocalFrame(env, NULL);
+	return 0;
+}
+
 int pak_rt_add_user_setting(struct Module *mod, const struct PakUserSetting *s) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
@@ -327,6 +346,10 @@ static char *strdup_jstring(JNIEnv *env, jstring s_o) {
 	return s2;
 }
 
+const char *pak_rt_get_setup_option(struct Module *mod) {
+	return mod->rt->setup_option;
+}
+
 struct FileMetadata *pak_rt_get_metadata(struct Module *mod, struct FileHandle *file) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
@@ -351,32 +374,30 @@ struct FileMetadata *pak_rt_get_metadata(struct Module *mod, struct FileHandle *
 }
 
 void pak_rt_release_metadata(struct Module *mod, struct FileMetadata *md) {
-	free((void *)md->filename);
+	free((char *)md->filename);
 	free(md);
 }
 
-
-
 JNIEXPORT int JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupLibFujiModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest) {
+Java_dev_danielc_fudge_AndroidRuntime_setupLibFujiModule(JNIEnv *env, jclass clazz, jobject mod_o) {
 	set_jni_env_ctx(env, clazz);
-	return pak_ndk_create_module(env, mod_o, get_module_libfuji, manifest);
+	return pak_ndk_create_module(env, mod_o, get_module_libfuji);
 }
 
 JNIEXPORT int JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupDummyNativeModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest) {
+Java_dev_danielc_fudge_AndroidRuntime_setupDummyNativeModule(JNIEnv *env, jclass clazz, jobject mod_o) {
 	set_jni_env_ctx(env, clazz);
-	return pak_ndk_create_module(env, mod_o, get_module_dummy, manifest);
+	return pak_ndk_create_module(env, mod_o, get_module_dummy);
 }
 
 JNIEXPORT int JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupWebassemblyModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest, jstring path) {
+Java_dev_danielc_fudge_AndroidRuntime_setupWebassemblyModule(JNIEnv *env, jclass clazz, jobject mod_o, jstring path) {
 	abort();
 	return -1;
 }
 
 JNIEXPORT int JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupJavascriptModule(JNIEnv *env, jclass clazz, jobject mod_o, jobject manifest, jstring jsPath) {
+Java_dev_danielc_fudge_AndroidRuntime_setupJavascriptModule(JNIEnv *env, jclass clazz, jobject mod_o, jstring jsPath) {
 	set_jni_env_ctx(env, clazz);
 
 	const char *js_path = (*env)->GetStringUTFChars(env, jsPath, 0);
@@ -390,7 +411,7 @@ Java_dev_danielc_fudge_AndroidRuntime_setupJavascriptModule(JNIEnv *env, jclass 
 	jbyteArray struct_ = (*env)->NewByteArray(env, sizeof(struct Module));
 	(*env)->SetByteArrayRegion(env, struct_, 0, sizeof(struct Module), (const jbyte *)mod);
 
-	jfieldID struct_field = (*env)->GetFieldID(env, (*env)->FindClass(env, "dev/danielc/common/NativeModule"), "struct", "[B");
+	jfieldID struct_field = (*env)->GetFieldID(env, (*env)->FindClass(env, "dev/danielc/fudge/NativeModule"), "struct", "[B");
 	(*env)->SetObjectField(env, mod_o, struct_field, struct_);
 
 	if (mod->init != NULL) rc = mod->init(mod);
@@ -400,13 +421,13 @@ Java_dev_danielc_fudge_AndroidRuntime_setupJavascriptModule(JNIEnv *env, jclass 
 }
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupCmfNothingAudioModule(JNIEnv *env, jclass clazz, jobject mod, jobject manifest) {
+Java_dev_danielc_fudge_AndroidRuntime_setupCmfNothingAudioModule(JNIEnv *env, jclass clazz, jobject mod) {
 	set_jni_env_ctx(env, clazz);
-	return pak_ndk_create_module(env, mod, get_module_cmfnothingaudio, manifest);
+	return pak_ndk_create_module(env, mod, get_module_cmfnothingaudio);
 }
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupGoveeLifeModule(JNIEnv *env, jobject thiz, jobject mod, jobject manifest) {
+Java_dev_danielc_fudge_AndroidRuntime_setupGoveeLifeModule(JNIEnv *env, jobject thiz, jobject mod) {
 	set_jni_env_ctx(env, thiz);
-	return pak_ndk_create_module(env, mod, get_module_goveelife, manifest);
+	return pak_ndk_create_module(env, mod, get_module_goveelife);
 }

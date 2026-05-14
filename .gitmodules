@@ -10,3 +10,6 @@
 [submodule "modules"]
 	path = modules
 	url = git@github.com:petabyt/modules.git
+[submodule "libpak"]
+	path = libpak
+	url = https://github.com/petabyt/libpak

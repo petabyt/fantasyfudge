@@ -16,7 +16,6 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
     var files = emptyList<AndroidRuntime.MediaStoreFile>()
     init {
         CoroutineScope(Dispatchers.IO).launch {
-            println("Init vm")
             refresh()
             start()
         }
@@ -66,7 +65,7 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LocalGallery(onBack: () -> Unit, onItemClick: (Int) -> Unit, modifier: Modifier, model: LocalGalleryViewModel?) {
+fun LocalGallery(onItemClick: (Int) -> Unit, modifier: Modifier, model: LocalGalleryViewModel?) {
     if (model != null) {
         val state by model.uiState.collectAsStateWithLifecycle()
         Gallery(Modifier, state, requestLoad = { i ->

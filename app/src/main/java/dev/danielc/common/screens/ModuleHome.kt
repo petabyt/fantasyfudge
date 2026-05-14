@@ -44,6 +44,7 @@ import dev.danielc.common.ModuleInstance
 import dev.danielc.common.ModuleInstanceRequest
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.ModuleProperty
+import dev.danielc.common.Runtime
 import dev.danielc.common.Screen
 import dev.danielc.common.UserSetting
 import dev.danielc.common.ViewModelReferences
@@ -101,6 +102,7 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
     private val _uiEvents = MutableSharedFlow<UiEvent>(replay = 1)
     val uiEvents = _uiEvents.asSharedFlow()
     val connectProgress = MutableStateFlow<Int?>(null)
+    val connectRequiredAction = MutableStateFlow<ConnectingRequiredAction>(ConnectingRequiredAction.NONE)
 
     var module: ModuleInstance = ModuleInstance(manifest, request, this, viewModels)
     init {
@@ -142,9 +144,19 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
                 when (type) {
                     ModuleProperty.NAME_OF_DEVICE -> currentState.copy(nameOfDevice = value)
                     ModuleProperty.FIRMWARE_VERSION -> currentState.copy(firmwareVersion = value)
-                    ModuleProperty.BATTERY_LEFT -> currentState.copy(batteryLevelLeft = value.toInt())
-                    ModuleProperty.BATTERY_MAIN -> currentState.copy(batteryLevelMain = value.toInt())
-                    ModuleProperty.BATTERY_RIGHT -> currentState.copy(batteryLevelRight = value.toInt())
+                    else -> currentState
+                }
+            }
+        }
+    }
+    fun setProperty(type: ModuleProperty, value: Int) {
+        viewModelScope.launch(Dispatchers.Default) {
+            _dashboardState.update { currentState ->
+                when (type) {
+                    ModuleProperty.BATTERY_LEFT -> currentState.copy(batteryLevelLeft = value)
+                    ModuleProperty.BATTERY_MAIN -> currentState.copy(batteryLevelMain = value)
+                    ModuleProperty.BATTERY_RIGHT -> currentState.copy(batteryLevelRight = value)
+                    else -> currentState
                 }
             }
         }
@@ -387,24 +399,35 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
         navController = navController, startDestination = "connecting") {
         composable("connecting") {
             val connectProgress by module.homeModelView.connectProgress.collectAsStateWithLifecycle()
-            ConnectingScreen(backToMainScreen, {
+            val action by module.homeModelView.connectRequiredAction.collectAsStateWithLifecycle()
+            ConnectingScreen({
+                backToMainScreen()
+            }, {
                 module.tryConnectAgain()
-            }, debugLogState, connectProgress)
+            }, debugLogState, connectProgress, action)
         }
         composable("home") {
             ModuleHomeScreen(module, navController)
         }
         composable("disconnected") {
-            DisconnectedScreen(reason = module.disconnectReason ?: "...", backToMainScreen = backToMainScreen, consoleState = debugLogState)
+            val reason = "${module.disconnectReason ?: "(no reason)"} - (${Runtime.errorCodeToString(module.disconnectedErrorCode ?: 0)})"
+            DisconnectedScreen(reason, backToMainScreen = backToMainScreen, consoleState = debugLogState)
         }
         composable(Screen.FILE_VIEWER.strId) {
-            ViewerScreen(viewerState, switchTo = { i ->
-                module.goToViewer(FileHandle(i, viewerState?.handle?.storageName))
-            }, close = {
-                CoroutineScope(Dispatchers.IO).launch {
-                    module.goBack(Screen.FILE_GALLERY, false)
+            ViewerScreen(viewerState,
+                switchTo = { i ->
+                    module.goToViewer(FileHandle(i, viewerState?.handle?.storageName))
+                }, close = {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        module.goBack(Screen.FILE_GALLERY, false)
+                    }
+                },
+                cancel = {
+                    module.viewerDownloadJob?.let {
+                        module.cancelJob(it)
+                    }
                 }
-            })
+            )
         }
     }
 }

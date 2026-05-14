@@ -91,8 +91,8 @@ enum class Device(val id: String) {
 data class ModuleManifest(
     val name: String,
     val description: String? = null,
-    val author: String = "Daniel Cook",
-    val authorUrl: String? = null,
+    val website: String? = null,
+    val author: String? = null,
     val version: Int = 0,
     val requiredRuntimeVersion: Int? = null,
     val runtimeVersion: Int = 0,
@@ -100,19 +100,15 @@ data class ModuleManifest(
     val isDraft: Boolean = false,
     val moduleType: ModuleType = ModuleType.WEBASSEMBLY,
     val scriptPath: String? = null,
-    val targets: List<Target> = emptyList(),
-    ) {
-
+    val targets: List<Target> = emptyList()
+) {
     enum class Transport(value: Int) {
-        BLE(1),
-        BTC(2),
-        USB(3),
+        BLUETOOTH(1),
+        USB(2),
+        WIFI_AP(3),
         USB_DEVICE_MODE(4),
-        WIFI_AP(5),
-        HOST_WIFI_AP(6),
-        LOCAL_NETWORK_UPNP_LISTEN(7),
-        LOCAL_NETWORK_UPNP_BROADCAST(8),
-        INTERNET(9),
+        HOST_WIFI_AP(5),
+        INTERNET(6),
     }
 
     enum class ModuleType() {
@@ -141,17 +137,19 @@ data class ModuleManifest(
     data class Target(
         val deviceId: Device = Device.PROFESSIONAL_CAMERA,
         val company: String = "",
+        val summary: String? = null,
         val products: List<String> = emptyList(),
         val setupOptions: List<SetupOption> = emptyList(),
         val wifiDiscovery: WiFiDiscovery? = null,
-        val bleDiscovery: BleDiscovery? = null,
+        val bluetoothDiscovery: BluetoothDiscovery? = null,
     )
     data class WiFiDiscovery(
         val ssidPattern: String,
     )
     @Suppress("ArrayInDataClass")
-    data class BleDiscovery(
+    data class BluetoothDiscovery(
         val namePattern: String? = null,
+        val isClassic: Boolean = false,
         val mfgData: ByteArray? = null,
         val mfgDataMask: ByteArray? = null,
         val serviceUuids: List<String> = emptyList(),
