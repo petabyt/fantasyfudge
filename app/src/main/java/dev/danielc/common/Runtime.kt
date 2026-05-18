@@ -32,6 +32,24 @@ data class UserSetting(
     val dropDownOptions: List<String>? = null,
 )
 
+sealed interface DashboardPane {
+    val args: Properties
+    data class Properties(
+        val name: String,
+        val title: String,
+    )
+    data class Button(override val args: Properties): DashboardPane
+    data class BooleanSetting(override val args: Properties, val value: Boolean): DashboardPane
+    data class IntSetting(override val args: Properties, val value: Int): DashboardPane
+    data class SliderSetting(override val args: Properties, val value: Int, val min: Int, val max: Int): DashboardPane
+    data class DropdownSetting(override val args: Properties, val index: Int, val options: List<String>): DashboardPane
+    @Suppress("ArrayInDataClass")
+    data class Graph(
+        override val args: Properties,
+        val points: IntArray,
+    ): DashboardPane
+}
+
 @Serializable
 enum class Screen(val strId: String, val id: Int) {
     NONE("none", 0),
@@ -127,6 +145,8 @@ data class FileMetadata(
  * Property IDs for the module instance
  */
 enum class ModuleProperty(val id: String) {
+    TEMPERATURE("temperature"),
+    HUMIDITY("humidity"),
     NAME_OF_DEVICE("name"),
     FIRMWARE_VERSION("firmware-version"),
     BATTERY_MAIN("battery-main"),

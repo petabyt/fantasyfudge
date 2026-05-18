@@ -292,29 +292,29 @@ int pak_rt_set_session_property_int(struct Module *mod, const char *key, int val
 	return 0;
 }
 
-int pak_rt_add_user_setting(struct Module *mod, const struct PakUserSetting *s) {
+int pak_rt_set_dashboard_pane(struct Module *mod, const struct PakUserSetting *s) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
-	jclass setting_c = (*env)->FindClass(env, "dev/danielc/common/UserSetting");
-	jmethodID constructor = (*env)->GetMethodID(env, setting_c, "<init>",
-												"(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Boolean;Ljava/lang/Integer;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Integer;Ljava/util/List;)V");
+	jclass properties_c = (*env)->FindClass(env, "dev/danielc/common/DashboardPane$Properties");
 	jstring name_s = (*env)->NewStringUTF(env, s->name);
 	jstring title_s = (*env)->NewStringUTF(env, s->title);
-	jobject boolv = NULL;
-	jobject intv = NULL;
-	jobject stringv = NULL;
-	jobject min_o = NULL;
-	jobject max_o = NULL;
-	jobject dropdownlist_o = NULL;
-	if (s->type == PAK_BOOLEAN) {
-		jclass clazz = (*env)->FindClass(env, "java/lang/Boolean");
-		boolv = (*env)->NewObject(env, clazz, (*env)->GetMethodID(env, clazz, "<init>", "(Z)V"), s->u.boolv.v);
-	}
-	jobject setting_o = (*env)->NewObject(env, setting_c, constructor, name_s, title_s, boolv, intv, stringv, min_o, max_o, dropdownlist_o);
+	jobject properties_o = (*env)->NewObject(env, properties_c, (*env)->GetMethodID(env, properties_c, "<init>", "(Ljava/lang/String;Ljava/lang/String;)V"), name_s, title_s);
 
-	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
-	jmethodID add_setting = (*env)->GetMethodID(env, module_c, "addUserSetting", "(Ldev/danielc/common/UserSetting;)V");
-	(*env)->CallVoidMethod(env, mod->rt->obj, add_setting, setting_o);
+	jobject pane_o = NULL;
+	if (s->type == PAK_BOOLEAN) {
+		jclass booleansetting_c = (*env)->FindClass(env, "dev/danielc/common/DashboardPane$BooleanSetting");
+		pane_o = (*env)->NewObject(env, booleansetting_c, (*env)->GetMethodID(env, booleansetting_c, "<init>", "(Ldev/danielc/common/DashboardPane$Properties;Z)V"), properties_o, (jboolean)s->u.boolv.v);
+	} else if (s->type == PAK_GRAPH) {
+		jclass booleansetting_c = (*env)->FindClass(env, "dev/danielc/common/DashboardPane$Graph");
+		jintArray arr = (*env)->NewIntArray(env, (jsize)s->u.graphv.n_points);
+		(*env)->SetIntArrayRegion(env, arr, 0, (jsize)s->u.graphv.n_points, (const jint *)s->u.graphv.points);
+		pane_o = (*env)->NewObject(env, booleansetting_c, (*env)->GetMethodID(env, booleansetting_c, "<init>", "(Ldev/danielc/common/DashboardPane$Properties;[I)V"), properties_o, arr);
+	}
+	if (pane_o != NULL) {
+		jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
+		jmethodID add_setting = (*env)->GetMethodID(env, module_c, "setDashboardPane", "(Ldev/danielc/common/DashboardPane;)V");
+		(*env)->CallVoidMethod(env, mod->rt->obj, add_setting, pane_o);
+	}
 
 	(*env)->PopLocalFrame(env, NULL);
 	return 0;

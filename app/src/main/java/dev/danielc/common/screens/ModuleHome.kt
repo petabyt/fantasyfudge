@@ -39,6 +39,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import dev.danielc.common.DashboardPane
 import dev.danielc.common.FileHandle
 import dev.danielc.common.ModuleInstance
 import dev.danielc.common.ModuleInstanceRequest
@@ -46,7 +47,6 @@ import dev.danielc.common.ModuleManifest
 import dev.danielc.common.ModuleProperty
 import dev.danielc.common.Runtime
 import dev.danielc.common.Screen
-import dev.danielc.common.UserSetting
 import dev.danielc.common.ViewModelReferences
 import dev.danielc.common.ui.DisconnectDialog
 import dev.danielc.common.ui.theme.FudgeTheme
@@ -87,8 +87,8 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
     }
 
     val dashboardCallbacks: DashboardCallbacks = DashboardCallbacks(
-        updateSettingPane = { pane, value ->
-            updateSettingPane(pane, value)
+        updatePaneValue = { pane ->
+            updateSettingPane(pane)
         },
         disconnect = {
             showDisconnectDialog(true)
@@ -107,6 +107,14 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
     var module: ModuleInstance = ModuleInstance(manifest, request, this, viewModels)
     init {
         module.initThread()
+    }
+
+    fun updateNFiles(files: Int?) {
+        _dashboardState.update { state ->
+            state.copy(
+                filesOnStorage = files
+            )
+        }
     }
 
     fun showDisconnectDialog(v: Boolean) {
@@ -153,6 +161,8 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
         viewModelScope.launch(Dispatchers.Default) {
             _dashboardState.update { currentState ->
                 when (type) {
+                    ModuleProperty.TEMPERATURE -> currentState.copy(temperature = value)
+                    ModuleProperty.HUMIDITY -> currentState.copy(humidity = value)
                     ModuleProperty.BATTERY_LEFT -> currentState.copy(batteryLevelLeft = value)
                     ModuleProperty.BATTERY_MAIN -> currentState.copy(batteryLevelMain = value)
                     ModuleProperty.BATTERY_RIGHT -> currentState.copy(batteryLevelRight = value)
@@ -187,28 +197,29 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
         }
     }
 
-    fun addSettingPane(pane: UserSetting) {
+    fun setDashboardPane(pane: DashboardPane) {
         viewModelScope.launch(Dispatchers.Default) {
             _dashboardState.update { currentState ->
-                currentState.copy(customSettings = currentState.customSettings + pane)
+                if (currentState.panes.find { it.args.name == pane.args.name } == null) {
+                    currentState.copy(panes = currentState.panes + pane)
+                } else {
+                    currentState
+                }
             }
         }
     }
 
-    fun updateSettingPane(pane: UserSetting, value: Any) {
+    fun updateSettingPane(pane: DashboardPane) {
         viewModelScope.launch(Dispatchers.Default) {
             _dashboardState.update { currentState ->
-                currentState.copy(customSettings = currentState.customSettings.map { curr ->
-                    if (curr == pane) {
-                        if (value is Boolean) {
-                            curr.copy(currentBooleanValue = value)
-                        } else {
-                            curr
-                        }
-                    } else {
-                        curr
-                    }
-                })
+                val index = currentState.panes.find { it.args.name == pane.args.name }
+                val list = currentState.panes.toMutableList()
+                if (index != null) {
+                    list[currentState.panes.indexOf(index)] = pane
+                    currentState.copy(panes = list)
+                } else {
+                    currentState
+                }
             }
         }
     }
@@ -305,9 +316,7 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                 navController = navController, startDestination = Screen.DASHBOARD.strId) {
                 composable(Screen.DASHBOARD.strId) {
                     BackHandler { goBack() }
-                    Dashboard(Modifier.padding(innerPadding), navController, state = dashboardState.copy(
-                        filesOnStorage = galleryState.objects.size
-                    ), callbacks = model.dashboardCallbacks)
+                    Dashboard(Modifier.padding(innerPadding), navController, state = dashboardState, callbacks = model.dashboardCallbacks)
                 }
                 composable(Screen.FILE_GALLERY.strId) {
                     BackHandler { goBack() }

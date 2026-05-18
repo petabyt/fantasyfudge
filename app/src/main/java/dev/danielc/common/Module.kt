@@ -216,8 +216,8 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
     fun setScreenSupported(id: Int, v: Boolean) {
         homeModelView.setSupportedScreen(Screen.fromId(id)!!, v)
     }
-    fun addUserSetting(pane: UserSetting) {
-        homeModelView.addSettingPane(pane)
+    fun setDashboardPane(pane: DashboardPane) {
+        homeModelView.setDashboardPane(pane)
     }
     fun setProgressBar(job: Int, v: Int) {
         val jobObj = getJob(job)
@@ -255,9 +255,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         // TODO: Manage multiple storage devices
         galleryViewModel.setProperties(nItems, name, SortBy.fromId(sortBy)!!)
         // TODO: Count total files if needed
-        homeModelView.dashboardState.value.copy(
-            filesOnStorage = nItems
-        )
+        homeModelView.updateNFiles(nItems)
     }
 
     fun setIsConnected() {
@@ -298,7 +296,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
             Bluetooth.openEnableBluetoothDialog()
         } else {
             fun doConnect(dev: Bluetooth.Device) {
-                debugLog("Connecting to '${dev.name}'")
+                debugLog("Connecting to '${dev.name}'...")
                 val rc = tryConnectBluetooth(dev)
                 if (rc == 0) {
                     setIsConnected()

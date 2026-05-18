@@ -1,7 +1,5 @@
 package dev.danielc.common.screens
 
-import android.annotation.SuppressLint
-import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.indication
@@ -11,7 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
@@ -35,38 +33,37 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
-import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.R
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontStyle
+import dev.danielc.common.DashboardPane
 import dev.danielc.common.Device
 import dev.danielc.common.ModuleManifest
-import dev.danielc.common.UserSetting
+import dev.danielc.common.ui.IntGridGraph
 import dev.danielc.common.ui.theme.FudgeRippleConfig
+import dev.danielc.common.ui.theme.FudgeTheme
 
 data class DashboardState(
     val manifest: ModuleManifest?,
-    val customSettings: List<UserSetting> = emptyList(),
+    val panes: List<DashboardPane> = emptyList(),
     val batteryLevelMain: Int? = null,
     val batteryLevelLeft: Int? = null,
     val batteryLevelRight: Int? = null,
     val nameOfDevice: String? = null,
     val filesOnStorage: Int? = null,
+    val temperature: Int? = null,
+    val humidity: Int? = null,
     val firmwareVersion: String? = null,
-    val supportsGeoTag: Boolean = false,
-    val supportsLiveView: Boolean = false,
-    val supportsGallery: Boolean = false,
-    val supportsFirmwareUpdate: Boolean = false,
 )
 
 data class DashboardCallbacks(
-    val updateSettingPane: (UserSetting, Any) -> Unit = { pane, value -> },
+    val updatePaneValue: (DashboardPane) -> Unit = { pane -> },
     val disconnect: () -> Unit = { },
 )
 
@@ -94,15 +91,11 @@ fun cameraState(): DashboardState {
         filesOnStorage = 321,
         batteryLevelMain = 78,
         firmwareVersion = "0.1.0",
-        supportsLiveView = true,
-        supportsGallery = true,
-        supportsFirmwareUpdate = true,
-        supportsGeoTag = true,
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Preview(showSystemUi = true, showBackground = true, device = "id:pixel_9_pro", uiMode = Configuration.UI_MODE_NIGHT_YES)
+//@Preview(showSystemUi = true, showBackground = true, device = "id:pixel_9_pro", uiMode = 32)
 @Composable
 fun PreviewDashboardCamera() {
     var state by remember { mutableStateOf(cameraState()) }
@@ -114,23 +107,27 @@ fun PreviewDashboardCamera() {
 }
 
 fun budsState(): DashboardState {
-    val manifest = ModuleManifest(name = "CMF Nothing", description = "Supports ", targets = listOf(ModuleManifest.Target(deviceId = Device.EARBUDS)))
+    val manifest = ModuleManifest(name = "CMF Nothing", description = "Supports", targets = listOf(ModuleManifest.Target(deviceId = Device.EARBUDS)))
     val state = DashboardState(
         manifest = manifest,
         nameOfDevice = "CMF Buds Pro 2",
         firmwareVersion = "5.0",
-        customSettings = listOf(
-            UserSetting(
-                "nc", "Noise cancellation",
-                currentBooleanValue = true
+        panes = listOf(
+            DashboardPane.BooleanSetting(
+                DashboardPane.Properties("nc", "Noise cancellation"),
+                value = true
             ),
-            UserSetting(
-                "be", "Bass enhancement",
-                currentBooleanValue = false
+            DashboardPane.BooleanSetting(
+                DashboardPane.Properties("be", "Bass enhancement"),
+                value = false
             ),
-            UserSetting(
-               "s", "Something",
-                currentIntValue = 123
+            DashboardPane.IntSetting(
+               DashboardPane.Properties("st", "Something"),
+                value = 123
+            ),
+            DashboardPane.Graph(
+                DashboardPane.Properties("temp", "Graph"),
+                points = intArrayOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 5, 7, 8, 5)
             )
         )
     )
@@ -138,7 +135,7 @@ fun budsState(): DashboardState {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-//@Preview(showBackground = true, device = "id:tv_1080p", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(showBackground = true, device = "id:tv_1080p", uiMode = 32)
 @Composable
 fun PreviewDashboardBuds() {
     var state by remember { mutableStateOf(budsState()) }
@@ -153,7 +150,6 @@ fun PreviewDashboardBuds() {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-@SuppressLint("ModifierParameter")
 fun DashboardPane(modifier: Modifier = Modifier, bg: Color, fg: Color, content: @Composable () -> Unit, onClick: () -> Unit) {
     CompositionLocalProvider(LocalRippleConfiguration provides FudgeRippleConfig(fg)) {
         Box(
@@ -265,30 +261,67 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
             }),
         )
 
-        if (state.supportsGeoTag) {
-            panes += PaneState(PaneState.Color.TERTIARY, "Geotagging", R.drawable.outline_globe_location_pin_24)
-        }
-        if (state.supportsFirmwareUpdate) {
-            panes += PaneState(PaneState.Color.TERTIARY, "Update Firmware", R.drawable.outline_developer_board_24)
-        }
-
         val batteries = mutableListOf<PaneBatteryStatus>()
         if (state.batteryLevelLeft != null) batteries.add(PaneBatteryStatus("Left", state.batteryLevelLeft))
         if (state.batteryLevelMain != null) batteries.add(PaneBatteryStatus("Base", state.batteryLevelMain))
         if (state.batteryLevelRight != null) batteries.add(PaneBatteryStatus("Right", state.batteryLevelRight))
         if (batteries.size > 1) panes += BatteryListPane(batteries)
 
-        for (pane in state.customSettings) {
-            val booleanValue = pane.currentBooleanValue
-            if (booleanValue != null) {
-                panes += PaneState(PaneState.Color.NEUTRAL, content = {
-                    Text(pane.title, color = MaterialTheme.colorScheme.onSurface)
-                    Switch(booleanValue,
-                        onCheckedChange = {
-                            callbacks.updateSettingPane(pane, !booleanValue)
+        if (state.temperature != null) {
+            panes += PaneState(PaneState.Color.NEUTRAL, content = {
+                Row(Modifier.fillMaxWidth()) {
+                    Icon(painterResource(R.drawable.outline_device_thermostat_24), contentDescription = null)
+                    Text("Temperature", color = MaterialTheme.colorScheme.onSurface)
+                }
+                val c = state.temperature.toFloat() / 100
+                Text("%.2f C / %.2f F".format(c, c * 1.8 + 32))
+            })
+        }
+
+        if (state.humidity != null) {
+            panes += PaneState(PaneState.Color.NEUTRAL, content = {
+                Row(Modifier.fillMaxWidth()) {
+                    Icon(painterResource(R.drawable.outline_humidity_percentage_24), contentDescription = null)
+                    Text("Humidity", color = MaterialTheme.colorScheme.onSurface)
+                }
+                Text("%.2f%%".format(state.humidity.toFloat() / 100))
+            })
+        }
+
+        for (pane in state.panes) {
+            panes += when (pane) {
+                is DashboardPane.BooleanSetting -> {
+                    PaneState(PaneState.Color.NEUTRAL, content = {
+                        Text(pane.args.title, color = MaterialTheme.colorScheme.onSurface)
+                        Switch(pane.value,
+                            onCheckedChange = {
+                                callbacks.updatePaneValue(pane.copy(value = !pane.value))
+                            }
+                        )
+                    })
+                }
+                is DashboardPane.Graph -> {
+                    PaneState(PaneState.Color.NEUTRAL, content = {
+                        val coords = mutableListOf<Pair<Int, Int>>()
+                        for (i in pane.points.indices) coords += Pair(i, pane.points[i])
+                        Text(pane.args.title)
+                        Box(Modifier.aspectRatio(1f)) {
+                            IntGridGraph(coords, Modifier)
                         }
-                    )
-                })
+                    })
+                }
+                is DashboardPane.Button -> {
+                    PaneState()
+                }
+                is DashboardPane.DropdownSetting -> {
+                    PaneState()
+                }
+                is DashboardPane.IntSetting -> {
+                    PaneState()
+                }
+                is DashboardPane.SliderSetting -> {
+                    PaneState()
+                }
             }
         }
 
@@ -329,12 +362,14 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                         content = {
                             if (pane.content == null) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        painter = painterResource(pane.icon!!),
-                                        contentDescription = null,
-                                        tint = fg,
-                                        modifier = Modifier.padding(20.dp)
-                                    )
+                                    if (pane.icon != null) {
+                                        Icon(
+                                            painter = painterResource(pane.icon),
+                                            contentDescription = null,
+                                            tint = fg,
+                                            modifier = Modifier.padding(20.dp)
+                                        )
+                                    }
                                     Text(pane.text.orEmpty(), color = fg, modifier = Modifier.padding(10.dp))
                                 }
                             } else {
