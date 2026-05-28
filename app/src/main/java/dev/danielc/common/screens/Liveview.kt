@@ -1,6 +1,5 @@
 package dev.danielc.common.screens
 
-import android.content.res.Configuration
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,7 +56,7 @@ fun GrayButton(
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true, device = "id:pixel_9a", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(showBackground = true, device = "id:pixel_9a", uiMode = 32)
 @Composable
 fun PreviewLiveview(navController: NavHostController = rememberNavController()) {
     val state = LiveviewState(
@@ -71,7 +70,7 @@ fun PreviewLiveview(navController: NavHostController = rememberNavController()) 
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true, device = "spec:width=411dp,height=891dp,dpi=420,isRound=false,chinSize=0dp,orientation=landscape", uiMode = 32)
+//@Preview(showBackground = true, device = "spec:width=411dp,height=891dp,dpi=420,isRound=false,chinSize=0dp,orientation=landscape", uiMode = 32)
 @Composable
 fun PreviewLiveview2() {
     PreviewLiveview()
@@ -89,7 +88,6 @@ fun LiveviewButton(modifier: Modifier = Modifier, text: String, icon: Int, short
                 tint = Color.White,
                 contentDescription = text
             )
-            //Text(text, color = Color.White, style = MaterialTheme.typography.labelSmall)
         }
     }
 }
@@ -105,7 +103,7 @@ fun Liveview(modifier: Modifier = Modifier, navController: NavHostController = r
             LiveviewButton(modifier, text = "Aperture", R.drawable.outline_camera_24, "APERT")
             LiveviewButton(modifier, text = "Format", R.drawable.outline_style_24, "FORMAT")
         }
-        if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+        if (LocalConfiguration.current.orientation == 2) {
             Column(Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 val modifier = Modifier.weight(1f)
                 buttons(modifier)

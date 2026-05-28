@@ -185,6 +185,9 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
     var disconnectedErrorCode: Int? = null
     private var isNavigating = false
 
+    fun trimMemory() {
+        galleryViewModel.trimMemory()
+    }
     fun setTickRate(us: Int) {
         currentTickIntervalUs = us
     }

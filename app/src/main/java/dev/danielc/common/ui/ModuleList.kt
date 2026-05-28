@@ -24,7 +24,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonColors
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -52,14 +51,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
+import dev.danielc.R
 import dev.danielc.common.Device
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Runtime
 import dev.danielc.common.ui.theme.FudgeTheme
-import kotlinx.coroutines.delay
-import dev.danielc.R
 import dev.danielc.common.ui.theme.errorIconButtonColors
-import dev.danielc.common.ui.theme.primaryIconButtonColors
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 val dummyManifestList: List<ModuleManifest> = listOf(

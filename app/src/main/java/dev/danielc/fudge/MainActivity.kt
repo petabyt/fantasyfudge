@@ -1,8 +1,10 @@
 package dev.danielc.fudge
 
 import android.app.ComponentCaller
+import android.content.ComponentCallbacks2
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -14,8 +16,12 @@ import dev.danielc.common.screens.MainNav
 import dev.danielc.libpak.Bluetooth
 import dev.danielc.libpak.Pak
 import dev.danielc.libpak.WiFi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), ComponentCallbacks2 {
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String?>,
@@ -34,6 +40,17 @@ class MainActivity : ComponentActivity() {
     ) {
         super.onActivityResult(requestCode, resultCode, data, caller)
         Pak.onActivityResult(requestCode, resultCode, data)
+    }
+
+    override fun onTrimMemory(level: Int) {
+        super<ComponentActivity>.onTrimMemory(level)
+        Log.d("main", "onTrimMemory")
+        for (e in Runtime.moduleInstances) {
+            e.value.trimMemory()
+        }
+        CoroutineScope(Dispatchers.Default).launch {
+            Runtime._trimMemorySignal.emit(Unit)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

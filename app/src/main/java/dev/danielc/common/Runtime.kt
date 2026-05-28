@@ -4,6 +4,7 @@ import dev.danielc.R
 import dev.danielc.common.screens.ConsoleLine
 import dev.danielc.common.screens.ConsoleViewModel
 import dev.danielc.common.screens.MimeType
+import dev.danielc.common.screens.UiEvent
 import dev.danielc.common.ui.dummyManifestList
 import dev.danielc.libpak.Bluetooth
 import kotlinx.serialization.Serializable
@@ -17,21 +18,12 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import dev.danielc.fudge.AndroidRuntime
 import dev.danielc.libpak.Pak
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 /**
- * Module defined setting that can be updated by the user or the module
+ * Module defined setting or widget that can be updated by the user or the module
   */
-data class UserSetting(
-    val name: String,
-    val title: String,
-    var currentBooleanValue: Boolean? = null,
-    val currentIntValue: Int? = null,
-    val currentStringValue: String? = null,
-    val intMin: Int? = null,
-    val intMax: Int? = null,
-    val dropDownOptions: List<String>? = null,
-)
-
 sealed interface DashboardPane {
     val args: Properties
     data class Properties(
@@ -171,6 +163,8 @@ data class ConnectableDevice(
 )
 
 object Runtime {
+    val _trimMemorySignal = MutableSharedFlow<Unit>()
+    val trimMemorySignal = _trimMemorySignal.asSharedFlow()
     var earlyConsoleLogs: MutableList<ConsoleLine> = mutableListOf()
     var mainLog: ConsoleViewModel? = null
     var connectableDevices = listOf<ConnectableDevice>()
@@ -206,10 +200,12 @@ object Runtime {
 
     fun refreshConnectableDevices() {
         val devices = Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())
-        val list = mutableListOf<ConnectableDevice>()
-        for (d in devices) {
-            // TODO filter devices through modules
-            list += ConnectableDevice(d.name, dummyManifestList[0].targets[0], dummyManifestList[0], d.isConnected)
+        if (devices != null) {
+            val list = mutableListOf<ConnectableDevice>()
+            for (d in devices) {
+                // TODO filter devices through modules
+                list += ConnectableDevice(d.name, dummyManifestList[0].targets[0], dummyManifestList[0], d.isConnected)
+            }
         }
         //connectableDevices = list
     }
@@ -261,7 +257,7 @@ object Runtime {
                     products = listOf("X-T1", "X-T2", "X-T3", "X-T4", "X-T5"),
                     wifiDiscovery = ModuleManifest.WiFiDiscovery("FUJIFILM-.*"),
                     bluetoothDiscovery = ModuleManifest.BluetoothDiscovery(namePattern = "FUJIFILM-.*",
-                        serviceUuids = listOf("af854c2e-b214-458e-97e2-912c4ecf2cb8"),
+                        serviceUuids = listOf("af854c2e-b214-458e-97e2-912c4ecf2cb8", "117c4142-edd4-4c77-8696-dd18eebb770a"),
 //                        mfgData = byteArrayOf(0xD8.toByte(), 0x04, 0x02, 0xA0.toByte(), 0x48, 0x21,
 //                            0x80.toByte()
 //                        ),

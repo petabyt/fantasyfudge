@@ -154,15 +154,9 @@ data class ModuleManifest(
         val mfgDataMask: ByteArray? = null,
         val serviceUuids: List<String> = emptyList(),
     )
-
     data class UsbDiscovery(
         val pid: Int? = null,
         val vid: Int? = null,
         val usbClass: Int? = null,
-    )
-
-    data class RememberedDevice(
-        val uniqueId: String,
-        val name: String,
     )
 }

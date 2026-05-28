@@ -2,7 +2,6 @@ package dev.danielc.common.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -44,6 +43,8 @@ fun About() {
         Dep("libfuji", "https://github.com/petabyt/libfuji", "MIT License"),
         Dep("ezxml", "https://ezxml.sourceforge.net/", "MIT License"),
         Dep("libjpeg-turbo", "https://github.com/libjpeg-turbo/libjpeg-turbo", "IJG License, Modified (3-clause) BSD License"),
+        Dep("quickjs", "https://github.com/bellard/quickjs", "MIT license"),
+        Dep("Webassembly Micro Runtime (WAMR)", "https://github.com/bytecodealliance/wasm-micro-runtime", "Apache 2.0 License"),
         Dep("app icon courtesy of Sincerely Media", "https://unsplash.com/photos/a-stack-of-three-pieces-of-food-sitting-on-top-of-a-table-D1zuILDUNzc", "Upsplash License"),
         // TODO: Automate adding android deps
     )

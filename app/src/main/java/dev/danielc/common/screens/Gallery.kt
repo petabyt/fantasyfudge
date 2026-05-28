@@ -78,6 +78,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.TimeSource
 
 fun bitmapFromColor(
     color: Color,
@@ -128,6 +129,7 @@ enum class SortBy(val id: Int) {
 data class GalleryObject(
     val metadata: FileMetadata? = null,
     val thumbnail: ImageBitmap? = null,
+    var lastChecked: TimeSource.Monotonic.ValueTimeMark = TimeSource.Monotonic.markNow(),
     var invalidMetadata: Boolean = false,
     var invalidThumbnail: Boolean = false,
 )
@@ -149,7 +151,7 @@ data class GalleryState(
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
 )
 
-abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewModel() {
+abstract class GalleryViewModel() : ViewModel() {
     private val _uiState = MutableStateFlow(GalleryState())
     val uiState = _uiState.asStateFlow()
     var thread: Job? = null
@@ -171,17 +173,18 @@ abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewMod
     abstract fun fulfillThumbnail(file: GalleryObjectReference)
     abstract fun fulfillMetadata(file: GalleryObjectReference)
 
-    fun checkObject(obj: GalleryObject?, ref: GalleryObjectReference): Boolean {
+    fun checkObject(obj: GalleryObject?, ref: GalleryObjectReference, doThumbnail: Boolean = true): Boolean {
         if (obj == null) {
-            if (isThumbnailPriority) {
+            if (isThumbnailPriority && doThumbnail) {
                 fulfillThumbnail(ref)
             } else {
                 fulfillMetadata(ref)
             }
         } else {
+            obj.lastChecked = TimeSource.Monotonic.markNow()
             if (obj.metadata == null && !obj.invalidMetadata) {
                 fulfillMetadata(ref)
-            } else if (obj.thumbnail == null && !obj.invalidThumbnail) {
+            } else if (obj.thumbnail == null && !obj.invalidThumbnail && doThumbnail) {
                 fulfillThumbnail(ref)
             } else {
                 return false
@@ -196,7 +199,7 @@ abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewMod
         if (queue.isEmpty()) {
             // If queue is empty, iterate all objects and check for any work to do
             for (i in objects.indices) {
-                if (checkObject(objects[i], GalleryObjectReference(i, true))) {
+                if (checkObject(objects[i], GalleryObjectReference(i, true), doThumbnail = false)) {
                     return true
                 }
             }
@@ -264,11 +267,11 @@ abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewMod
     }
 
     fun updateObject(i: Int, block: (GalleryObject) -> GalleryObject) {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.Default) {
             _uiState.update { currentState ->
                 val list = currentState.objects.toMutableList()
                 while (list.size <= i) list.add(null)
-                val obj = list[i] ?: GalleryObject(null)
+                val obj = list[i] ?: GalleryObject()
                 list[i] = block(obj)
                 currentState.copy(objects = list)
             }
@@ -302,15 +305,30 @@ abstract class GalleryViewModel(val requestThumbnails: Boolean = true) : ViewMod
     fun enqueueObject(index: Int, isPriority: Boolean = false) {
         _uiState.value.queue.addLast(GalleryObjectReference(index, isPriority))
     }
+    fun trimMemory(nObjectsToFree: Int = 10) {
+        viewModelScope.launch(Dispatchers.Default) {
+            _uiState.update { currentState ->
+                val list = currentState.objects.toMutableList()
+                val oldest = _uiState.value.objects.sortedByDescending { it?.lastChecked }
+                var nFreed = 0
+                for (e in oldest) {
+                    if (e != null && e.thumbnail == null) {
+                        val index = list.indexOf(e)
+                        list[index] = list[index]?.copy(thumbnail = null)
+                        nFreed++
+                    }
+                    if (nFreed >= nObjectsToFree) break else nFreed++
+                }
+                currentState.copy(objects = list)
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
-    var boxModifier = Modifier.aspectRatio(1f)
-
-    boxModifier = boxModifier.background(MaterialTheme.colorScheme.surfaceContainer)
-
+    val boxModifier = Modifier.aspectRatio(1f).background(MaterialTheme.colorScheme.surfaceContainer)
     CompositionLocalProvider(LocalRippleConfiguration provides FudgeRippleConfig(Color.White)) {
         Box(
             boxModifier

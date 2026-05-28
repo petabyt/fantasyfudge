@@ -43,6 +43,7 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -85,6 +86,8 @@ import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 val dummyConnectableDeviceList: List<ConnectableDevice> = listOf(
@@ -411,6 +414,12 @@ fun PreviewMainScreen() {
 fun MainNav(navController: NavHostController) {
     var currentLocalGallery by remember { mutableStateOf<LocalGalleryViewModel?>(null) }
     val duration = 200
+
+    LaunchedEffect(Unit) {
+        Runtime._trimMemorySignal.collect { event ->
+            currentLocalGallery?.trimMemory()
+        }
+    }
 
     val mainlog: ConsoleViewModel = viewModel(initializer = {
         val vm = ConsoleViewModel(Runtime.earlyConsoleLogs)

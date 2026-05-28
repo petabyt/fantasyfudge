@@ -9,7 +9,6 @@ import dev.danielc.common.FileHandle
 import dev.danielc.fudge.AndroidRuntime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : GalleryViewModel() {
@@ -68,7 +67,7 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
 fun LocalGallery(onItemClick: (Int) -> Unit, modifier: Modifier, model: LocalGalleryViewModel?) {
     if (model != null) {
         val state by model.uiState.collectAsStateWithLifecycle()
-        Gallery(Modifier, state, requestLoad = { i ->
+        Gallery(modifier, state, requestLoad = { i ->
             model.enqueueObject(i, true)
         }, onItemClick = { i ->
             onItemClick(i)
