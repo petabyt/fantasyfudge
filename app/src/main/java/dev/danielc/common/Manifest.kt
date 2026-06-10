@@ -111,7 +111,7 @@ data class ModuleManifest(
         INTERNET(6),
     }
 
-    enum class ModuleType() {
+    enum class ModuleType {
         QUICKJS,
         WEBASSEMBLY,
         DUMMY_MODULE,

@@ -13,13 +13,11 @@ import androidx.navigation.compose.rememberNavController
 import dev.danielc.common.ModuleInstanceRequest
 import dev.danielc.common.Runtime
 import dev.danielc.common.screens.MainNav
-import dev.danielc.libpak.Bluetooth
 import dev.danielc.libpak.Pak
 import dev.danielc.libpak.WiFi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
 class MainActivity : ComponentActivity(), ComponentCallbacks2 {
     override fun onRequestPermissionsResult(
@@ -49,13 +47,13 @@ class MainActivity : ComponentActivity(), ComponentCallbacks2 {
             e.value.trimMemory()
         }
         CoroutineScope(Dispatchers.Default).launch {
-            Runtime._trimMemorySignal.emit(Unit)
+            Runtime.emitMemoryTrimSignal()
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        AndroidRuntime.setupAndroidContext(this)
+        AndroidRuntime.setup(this)
         Pak.setupAndroidContext(this)
         if (!AndroidRuntime.hasInited) {
             System.loadLibrary("fudge")

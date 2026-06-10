@@ -122,9 +122,13 @@ abstract class ModuleBase(): NativeModule() {
             onTryConnectWiFi(net, job.id)
         }
     }
-    fun tryConnectBluetooth(device: Bluetooth.Device, onUpdate: JobUpdateCallback = {}): Int {
+    fun tryConnectBluetooth(device: Bluetooth.Device, saved: SavedDeviceEntity?, onUpdate: JobUpdateCallback = {}): Int {
         return withJob(onUpdate) { job ->
-            onTryConnectBluetooth(device, job.id)
+            onTryConnectBluetooth(device, if (saved == null) null else SavedDeviceInfo(
+                saved.uniqueIdentifier,
+                saved.name,
+                saved.privateData,
+            ), job.id)
         }
     }
 }
@@ -137,6 +141,7 @@ data class ModuleInstanceRequest(
     val manifestName: String,
     val targetIndex: Int,
     val chosenSetupOption: String? = null,
+    val savedDeviceUniqueId: String? = null,
 ) {
     fun getManifest(): ModuleManifest {
         return Runtime.getManifestFromName(manifestName)!!
@@ -151,6 +156,9 @@ data class ModuleInstanceRequest(
             }
         }
         return null
+    }
+    fun getSavedDeviceEntity(): SavedDeviceEntity? {
+        return if (savedDeviceUniqueId == null) null else Runtime.findSavedDeviceEntity(savedDeviceUniqueId)
     }
 }
 
@@ -184,7 +192,21 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
     var disconnectReason: String? = null
     var disconnectedErrorCode: Int? = null
     private var isNavigating = false
+    private var connectedBluetoothMacAddress: String? = null
 
+    fun saveDeviceSignature(info: SavedDeviceInfo) {
+        CoroutineScope(Dispatchers.IO).launch {
+            AndroidRuntime.getDatabase().deviceDao().saveDevice(SavedDeviceEntity(
+                info.uniqueIdentifier,
+                name = info.name,
+                privateData = info.privateData,
+                manifestName = manifest.name,
+                targetIndex = request.targetIndex,
+                setupOption = request.chosenSetupOption,
+                bluetoothMacAddress = connectedBluetoothMacAddress,
+            ))
+        }
+    }
     fun trimMemory() {
         galleryViewModel.trimMemory()
     }
@@ -269,6 +291,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
 
     fun wifiConnectRoutine(wifi: ModuleManifest.WiFiDiscovery) {
         val primaryAdapter = WiFi.getPrimaryAdapter()
+        debugLog("Connecting over primary adapter...")
         if (tryConnectWiFi(primaryAdapter) == 0) {
             setIsConnected()
             return
@@ -290,7 +313,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         WiFi.connectToAccessPoint(filter, callback)
     }
 
-    fun bluetoothConnectRoutine(info: ModuleManifest.BluetoothDiscovery) {
+    fun bluetoothConnectRoutine(info: ModuleManifest.BluetoothDiscovery, saved: SavedDeviceEntity?) {
         if (!Bluetooth.checkPermission()) {
             homeModelView.connectRequiredAction.value = ConnectingRequiredAction.ACCEPT_BLUETOOTH_PERMISSION
             Bluetooth.requestConnectPermission()
@@ -300,7 +323,8 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         } else {
             fun doConnect(dev: Bluetooth.Device) {
                 debugLog("Connecting to '${dev.name}'...")
-                val rc = tryConnectBluetooth(dev)
+                connectedBluetoothMacAddress = dev.address
+                val rc = tryConnectBluetooth(dev, saved)
                 if (rc == 0) {
                     setIsConnected()
                 } else {
@@ -308,6 +332,11 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
                     disconnectedErrorCode = rc
                     switchScreen(Screen.DISCONNECTED, false)
                 }
+            }
+
+            if (saved != null && saved.bluetoothMacAddress != null) {
+                doConnect(Bluetooth.fromAddress(saved.bluetoothMacAddress))
+                return
             }
 
             val devices = Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())
@@ -347,12 +376,13 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
     fun initThread() {
         initJob = CoroutineScope(Dispatchers.IO).launch {
             homeModelView.connectRequiredAction.value = ConnectingRequiredAction.NONE
+            val savedDeviceInfo = request.getSavedDeviceEntity()
             val option = request.getSetupOption()
             val transport = option?.transport ?: ModuleManifest.Transport.BLUETOOTH
             if (target.wifiDiscovery != null && transport == ModuleManifest.Transport.WIFI_AP) {
                 wifiConnectRoutine(target.wifiDiscovery)
             } else if (target.bluetoothDiscovery != null && transport == ModuleManifest.Transport.BLUETOOTH) {
-                bluetoothConnectRoutine(target.bluetoothDiscovery)
+                bluetoothConnectRoutine(target.bluetoothDiscovery, savedDeviceInfo)
             } else {
                 val rc = findConnection({ job ->
                     homeModelView.connectProgress.update {

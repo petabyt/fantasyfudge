@@ -1,5 +1,7 @@
 package dev.danielc.common
 
+import androidx.compose.runtime.MutableState
+import androidx.room.PrimaryKey
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleLine
 import dev.danielc.common.screens.ConsoleViewModel
@@ -18,8 +20,18 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import dev.danielc.fudge.AndroidRuntime
 import dev.danielc.libpak.Pak
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+
+@Suppress("ArrayInDataClass")
+data class SavedDeviceInfo(
+    val uniqueIdentifier: String,
+    val name: String,
+    val privateData: ByteArray?,
+)
 
 /**
  * Module defined setting or widget that can be updated by the user or the module
@@ -163,14 +175,21 @@ data class ConnectableDevice(
 )
 
 object Runtime {
-    val _trimMemorySignal = MutableSharedFlow<Unit>()
+    private val _trimMemorySignal = MutableSharedFlow<Unit>()
     val trimMemorySignal = _trimMemorySignal.asSharedFlow()
+    suspend fun emitMemoryTrimSignal() { _trimMemorySignal.emit(Unit) }
     var earlyConsoleLogs: MutableList<ConsoleLine> = mutableListOf()
     var mainLog: ConsoleViewModel? = null
     var connectableDevices = listOf<ConnectableDevice>()
     var moduleManifests = listOf<ModuleManifest>()
+    var savedDevices: Flow<List<SavedDeviceEntity>> = MutableStateFlow(emptyList())
     var moduleInstances = mutableMapOf<Int, ModuleInstance>()
     private var moduleCounter = 0
+
+    fun findSavedDeviceEntity(id: String): SavedDeviceEntity? {
+        val list = AndroidRuntime.getDatabase().deviceDao().getAllDevicesList()
+        return list.find { it.uniqueIdentifier == id }
+    }
 
     fun errorCodeToString(rc: Int): String {
         return when (rc) {
@@ -256,8 +275,9 @@ object Runtime {
                     deviceId = Device.PROFESSIONAL_CAMERA,
                     products = listOf("X-T1", "X-T2", "X-T3", "X-T4", "X-T5"),
                     wifiDiscovery = ModuleManifest.WiFiDiscovery("FUJIFILM-.*"),
-                    bluetoothDiscovery = ModuleManifest.BluetoothDiscovery(namePattern = "FUJIFILM-.*",
-                        serviceUuids = listOf("af854c2e-b214-458e-97e2-912c4ecf2cb8", "117c4142-edd4-4c77-8696-dd18eebb770a"),
+                    bluetoothDiscovery = ModuleManifest.BluetoothDiscovery(
+                        // "af854c2e-b214-458e-97e2-912c4ecf2cb8"
+                        serviceUuids = listOf("117c4142-edd4-4c77-8696-dd18eebb770a"),
 //                        mfgData = byteArrayOf(0xD8.toByte(), 0x04, 0x02, 0xA0.toByte(), 0x48, 0x21,
 //                            0x80.toByte()
 //                        ),

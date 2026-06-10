@@ -23,4 +23,4 @@ rootProject.name = "FantasyFudge"
 include(":app")
 
 include(":libpak")
-project(":libpak").projectDir = File("./libpak/android")
+project(":libpak").projectDir = File("../pak/android")

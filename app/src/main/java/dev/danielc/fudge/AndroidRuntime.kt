@@ -22,13 +22,19 @@ import android.util.Size
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.net.toUri
+import androidx.room.Room
+import dev.danielc.common.AppDatabase
 import dev.danielc.libpak.Exif
 import dev.danielc.common.FileMetadata
 import dev.danielc.common.ModuleInstance
-import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Runtime
+import dev.danielc.common.SavedDeviceEntity
 import dev.danielc.common.getMimeType
 import dev.danielc.libpak.Pak
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -39,8 +45,25 @@ import javax.microedition.khronos.opengles.GL10
 object AndroidRuntime {
     var hasInited: Boolean = false
     var weakCtx: WeakReference<Context>? = null
-    fun setupAndroidContext(ctx: Context?) {
+    private var databaseInstance: AppDatabase? = null
+    fun setup(ctx: Context) {
         weakCtx = WeakReference<Context>(ctx)
+        databaseInstance = Room.databaseBuilder(
+            ctx,
+            AppDatabase::class.java,
+            "app_database"
+        )
+        .fallbackToDestructiveMigration(true)
+        .build()
+        Runtime.savedDevices = getDatabase().deviceDao().getAllDevices()
+    }
+    fun getDatabase(): AppDatabase {
+        return databaseInstance!!
+    }
+    fun resetDatabase() {
+        CoroutineScope(Dispatchers.IO).launch {
+            getDatabase().clearAllTables()
+        }
     }
 
     external fun init()

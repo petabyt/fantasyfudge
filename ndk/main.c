@@ -335,6 +335,31 @@ int pak_rt_add_file_metadata(struct Module *mod, struct FileHandle *file, const 
 	return 0;
 }
 
+int pak_rt_save_session_signature(struct Module *mod, struct PakSavedConnection *info) {
+	JNIEnv *env = get_jni_env();
+	(*env)->PushLocalFrame(env, 10);
+
+	jbyteArray data = NULL;
+	if (info->aux_data != NULL) {
+		data = (*env)->NewByteArray(env, (jsize)info->aux_data_length);
+		(*env)->SetByteArrayRegion(env, data, 0, (jsize)info->aux_data_length, (const jbyte *)info->aux_data);
+	}
+
+	jclass saveddeviceinfo_c = (*env)->FindClass(env, "dev/danielc/common/SavedDeviceInfo");
+	jobject obj = (*env)->NewObject(env, saveddeviceinfo_c, (*env)->GetMethodID(env, saveddeviceinfo_c, "<init>", "(Ljava/lang/String;Ljava/lang/String;[B)V"),
+		(*env)->NewStringUTF(env, info->unique_id),
+		(*env)->NewStringUTF(env, info->name),
+		data
+	);
+
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
+	jmethodID method = (*env)->GetMethodID(env, module_c, "saveDeviceSignature", "(Ldev/danielc/common/SavedDeviceInfo;)V");
+	(*env)->CallVoidMethod(env, mod->rt->obj, method, obj);
+
+	(*env)->PopLocalFrame(env, NULL);
+	return 0;
+}
+
 int pak_rt_test_module(struct Module *mod) {
 	return 0;
 }

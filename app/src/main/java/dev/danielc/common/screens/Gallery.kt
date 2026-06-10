@@ -474,60 +474,65 @@ fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (In
                 }
             }
 
-            if (state.objects.isNotEmpty()) {
-                val listState = rememberLazyGridState()
-
-                PullToRefreshBox(
-                    state = rememberPullToRefreshState(),
-                    isRefreshing = isRefreshing,
-                    onRefresh = {
-                        CoroutineScope(Dispatchers.IO).launch {
-                            isRefreshing = true
-                            onRefresh()
-                            refreshTrigger++
-                            isRefreshing = false
-                        }
-                    }
-                ) {
-                    if (state.displayType == DisplayType.THUMBNAILS) {
-                        LazyVerticalGrid(
-                            state = listState,
-                            columns = GridCells.Fixed(4)
-                        ) {
-                            itemsIndexed(state.objects) { index, obj ->
-                                GalleryThumbnail(obj, onClick = {
-                                    onItemClick(index)
-                                    haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                                })
-                            }
-                        }
-                    } else if (state.displayType == DisplayType.VERTICAL_TABLE) {
-                        LazyVerticalGrid(
-                            state = listState,
-                            columns = GridCells.Fixed(1)
-                        ) {
-                            itemsIndexed(state.objects) { index, obj ->
-                                GalleryFile(obj, onClick = {
-                                    onItemClick(index)
-                                    haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                                })
-                            }
-                        }
+            val listState = rememberLazyGridState()
+            PullToRefreshBox(
+                state = rememberPullToRefreshState(),
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        isRefreshing = true
+                        onRefresh()
+                        refreshTrigger++
+                        isRefreshing = false
                     }
                 }
-
-                // Monitor recently viewed items so it can be sent to the queue
-                LaunchedEffect(listState) {
-                    snapshotFlow { listState.layoutInfo.visibleItemsInfo }
-                    .collect { visibleItems ->
-                        for (e in visibleItems) {
-                            requestLoad(e.index)
+            ) {
+                if (state.objects.isNotEmpty()) {
+                    when (state.displayType) {
+                        DisplayType.THUMBNAILS -> {
+                            LazyVerticalGrid(
+                                state = listState,
+                                columns = GridCells.Fixed(4)
+                            ) {
+                                itemsIndexed(state.objects) { index, obj ->
+                                    GalleryThumbnail(obj, onClick = {
+                                        onItemClick(index)
+                                        haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                                    })
+                                }
+                            }
+                        }
+                        DisplayType.VERTICAL_TABLE -> {
+                            LazyVerticalGrid(
+                                state = listState,
+                                columns = GridCells.Fixed(1)
+                            ) {
+                                itemsIndexed(state.objects) { index, obj ->
+                                    GalleryFile(obj, onClick = {
+                                        onItemClick(index)
+                                        haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                                    })
+                                }
+                            }
                         }
                     }
-                }
-            } else {
-                Row(Modifier.fillMaxWidth().padding(10.dp), horizontalArrangement = Arrangement.Center) {
-                    Text("No files are present.")
+
+                    // Monitor recently viewed items so it can be sent to the queue
+                    LaunchedEffect(listState) {
+                        snapshotFlow { listState.layoutInfo.visibleItemsInfo }
+                            .collect { visibleItems ->
+                                for (e in visibleItems) {
+                                    requestLoad(e.index)
+                                }
+                            }
+                    }
+                } else {
+                    Row(
+                        Modifier.fillMaxWidth().padding(10.dp),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text("No files are present.")
+                    }
                 }
             }
         }

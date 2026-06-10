@@ -6,6 +6,10 @@
 #include <runtime.h>
 #include "thread.h"
 
+int pak_bt_device_from_jobject(JNIEnv *env, jobject dev_o, struct PakBtDevice *device);
+
+int pak_wifi_adapter_from_jobject(JNIEnv *env, struct PakWiFiAdapter *adapter, jobject wifi_adapter);
+
 struct TempStruct {
 	jobject byte_array;
 	jbyte *data;
@@ -44,8 +48,6 @@ Java_dev_danielc_fudge_NativeModule_onFindConnection(JNIEnv *env, jobject thiz, 
 	return rc;
 }
 
-int pak_wifi_adapter_from_jobject(JNIEnv *env, struct PakWiFiAdapter *adapter, jobject wifi_adapter);
-
 JNIEXPORT jint JNICALL
 Java_dev_danielc_fudge_NativeModule_onTryConnectWiFi(JNIEnv *env, jobject thiz, jobject adapter_o,
 													  jint job) {
@@ -63,20 +65,59 @@ Java_dev_danielc_fudge_NativeModule_onTryConnectWiFi(JNIEnv *env, jobject thiz, 
 	return rc;
 }
 
-int pak_bt_device_from_jobject(JNIEnv *env, jobject dev_o, struct PakBtDevice *device);
+int pak_saved_info_from_jobject(JNIEnv *env, jobject saved_o, struct PakSavedConnection *saved) {
+	(*env)->PushLocalFrame(env, 10);
+
+	jclass saved_c = (*env)->FindClass(env, "dev/danielc/common/SavedDeviceInfo");
+
+	jobject name_o = (*env)->GetObjectField(env, saved_o, (*env)->GetFieldID(env, saved_c, "name", "Ljava/lang/String;"));
+	const char *name_s = (*env)->GetStringUTFChars(env, name_o, NULL);
+	saved->name = strdup(name_s);
+	(*env)->ReleaseStringUTFChars(env, name_o, name_s);
+
+	jobject id_o = (*env)->GetObjectField(env, saved_o, (*env)->GetFieldID(env, saved_c, "uniqueIdentifier", "Ljava/lang/String;"));
+	const char *id_s = (*env)->GetStringUTFChars(env, id_o, NULL);
+	saved->unique_id = strdup(id_s);
+	(*env)->ReleaseStringUTFChars(env, id_o, id_s);
+
+	jobject data_o = (*env)->GetObjectField(env, saved_o, (*env)->GetFieldID(env, saved_c, "privateData", "[B"));
+	jsize len = (*env)->GetArrayLength(env, data_o);
+	uint8_t *data = malloc((size_t)len);
+	(*env)->GetByteArrayRegion(env, data_o, 0, len, (jbyte *)data);
+
+	saved->aux_data_length = (unsigned int)len;
+	saved->aux_data = data;
+
+	(*env)->PopLocalFrame(env, NULL);
+	return 0;
+}
+
+void free_saved_info(struct PakSavedConnection *saved) {
+	free((char *)saved->name);
+	free((char *)saved->unique_id);
+	free((char *)saved->aux_data);
+}
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_fudge_NativeModule_onTryConnectBluetooth(JNIEnv *env, jobject thiz, jobject device_o,
+Java_dev_danielc_fudge_NativeModule_onTryConnectBluetooth(JNIEnv *env, jobject thiz, jobject device_o, jobject saved_o,
 													  jint job) {
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
 
 	struct PakBtDevice device;
+	struct PakSavedConnection saved;
+	struct PakSavedConnection *saved_ptr = NULL;
+	if (saved_o != NULL) {
+		pak_saved_info_from_jobject(env, saved_o, &saved);
+		saved_ptr = &saved;
+	}
 
 	pak_bt_device_from_jobject(env, device_o, &device);
 
 	int rc = PAK_ERR_UNIMPLEMENTED;
-	if (mod->on_try_connect_bluetooth) rc = mod->on_try_connect_bluetooth(mod, &device, job);
+	if (mod->on_try_connect_bluetooth) rc = mod->on_try_connect_bluetooth(mod, &device, saved_ptr, job);
+
+	if (saved_ptr != NULL) free_saved_info(saved_ptr);
 
 	release_mod(env, &info);
 	return rc;

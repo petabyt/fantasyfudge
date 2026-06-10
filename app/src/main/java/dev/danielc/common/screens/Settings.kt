@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -27,6 +28,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
 import dev.danielc.common.ui.theme.FudgeTheme
+import dev.danielc.fudge.AndroidRuntime
 
 @Composable
 fun ClickableCard(text: String, icon: Painter, onClick: () -> Unit = {}) {
@@ -76,6 +78,16 @@ fun SettingsScreen(navController: NavController = rememberNavController()) {
                         navController.navigate("console")
                     }
                     HorizontalDivider()
+                    Button(onClick = {
+                        AndroidRuntime.requestExternalImagesPermission()
+                    }) {
+                        Text("Grant access to all local images")
+                    }
+                    Button(onClick = {
+                        AndroidRuntime.resetDatabase()
+                    }) {
+                        Text("Reset all settings")
+                    }
                 }
             }
         }

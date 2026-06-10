@@ -76,6 +76,8 @@ import dev.danielc.common.ModuleGalleryViewModel
 import dev.danielc.common.ModuleInstanceRequest
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Runtime
+import dev.danielc.common.SavedDeviceEntity
+import dev.danielc.common.SavedDeviceInfo
 import dev.danielc.common.ViewModelReferences
 import dev.danielc.common.ui.ModuleList
 import dev.danielc.common.ui.ModuleListScreen
@@ -86,9 +88,10 @@ import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.DurationUnit
 
 val dummyConnectableDeviceList: List<ConnectableDevice> = listOf(
     ConnectableDevice("Daniel's Earbuds", manifest = dummyManifestList[0], target = dummyManifestList[0].targets[0], isConnected = true),
@@ -228,9 +231,50 @@ fun ConnectableDeviceCard(dev: ConnectableDevice, clicked: (String?) -> Unit = {
     }
 }
 
+@Composable
+fun SavedDeviceCard(manifest: ModuleManifest, target: ModuleManifest.Target, dev: SavedDeviceEntity, clicked: () -> Unit = {}) {
+    Box(modifier = Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(12.dp))
+        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+        .combinedClickable(
+            onClick = {
+                clicked()
+            },
+            onLongClick = {
+                clicked()
+            }
+        )
+        .padding(16.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(
+                        painterResource(target.deviceId.getIcon()),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = dev.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                    )
+                }
+                val diff = System.currentTimeMillis().milliseconds.toLong(DurationUnit.MILLISECONDS) - dev.lastSeenTimestamp
+                Text("Last connected ${diff / 1000 / 60 / 60} hours ago")
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<ConnectableDevice>, manifestList: List<ModuleManifest>, clicked: (ModuleManifest, ModuleManifest.Target) -> Unit) {
+fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<ConnectableDevice>, manifestList: List<ModuleManifest>, savedDevicesList: List<SavedDeviceEntity>, clicked: (ModuleInstanceRequest) -> Unit) {
     var isRefreshing by remember { mutableStateOf(false) }
     var mutManifestList by remember { mutableStateOf(manifestList) }
     var mutDevList by remember { mutableStateOf(deviceList) }
@@ -269,6 +313,25 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
                     }
                 }
             }
+            if (savedDevicesList.isNotEmpty()) {
+                Text("Connect again:")
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(savedDevicesList) { dev ->
+                        val manifest = Runtime.getManifestFromName(dev.manifestName)
+                        val target = manifest?.targets?.getOrNull(dev.targetIndex)
+                        if (manifest != null && target != null) {
+                            SavedDeviceCard(manifest, target, dev, clicked = {
+                                clicked(ModuleInstanceRequest(
+                                    manifest.name,
+                                    dev.targetIndex,
+                                    savedDeviceUniqueId = dev.uniqueIdentifier,
+                                    chosenSetupOption = dev.setupOption,
+                                ))
+                            })
+                        }
+                    }
+                }
+            }
             Text("Select a type of device to connect to:")
             val targets = mutableListOf<Pair<ModuleManifest.Target, ModuleManifest>>()
             for (manifest in mutManifestList) {
@@ -287,7 +350,7 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
                 LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(targetItems) { pair ->
                         TargetCard(pair.first, pair.second, clicked = {
-                            clicked(pair.second, pair.first)
+                            clicked(ModuleInstanceRequest(pair.second.name, pair.second.targets.indexOf(pair.first)))
                         })
                     }
                 }
@@ -302,6 +365,7 @@ fun MainScreen(navController: NavHostController = rememberNavController(), local
     val subNavController = rememberNavController()
     val haptic = LocalHapticFeedback.current
     val navBackStackEntry by subNavController.currentBackStackEntryAsState()
+    val savedDevices by Runtime.savedDevices.collectAsStateWithLifecycle(emptyList())
 
     data class NavItem(
         val icon: Int,
@@ -326,14 +390,6 @@ fun MainScreen(navController: NavHostController = rememberNavController(), local
                         Icon(painterResource(R.drawable.outline_construction_24), contentDescription = null, modifier = Modifier.padding(5.dp))
                     },
                     actions = {
-//                        IconButton(onClick = {
-//                            goToLocalGallery()
-//                        }) {
-//                            Icon(
-//                                painter = painterResource(R.drawable.baseline_folder_open_24),
-//                                contentDescription = null
-//                            )
-//                        }
                         IconButton(onClick = {
                             navController.navigate("settings")
                         }) {
@@ -379,10 +435,11 @@ fun MainScreen(navController: NavHostController = rememberNavController(), local
             ) {
                 composable("connect") {
                     ModuleDeviceList(
+                        savedDevicesList = savedDevices,
                         deviceList = Runtime.connectableDevices,
                         manifestList = Runtime.moduleManifests,
-                        clicked = { manifest, target ->
-                            navController.navigate(ModuleInstanceRequest(manifest.name, manifest.targets.indexOf(target)))
+                        clicked = { request ->
+                            navController.navigate(request)
                         }
                     )
                 }
@@ -406,6 +463,14 @@ fun MainScreen(navController: NavHostController = rememberNavController(), local
 @Composable
 @Preview(showBackground = true, device = "id:pixel_9a", uiMode = 32)
 fun PreviewMainScreen() {
+    Runtime.savedDevices = MutableStateFlow(listOf(SavedDeviceEntity(
+        uniqueIdentifier = "ASD",
+        name = "Fujifilm X-T30",
+        manifestName = "libfuji",
+        targetIndex = 0,
+        setupOption = "bluetooth",
+        privateData = null,
+    )))
     Runtime.moduleManifests = dummyManifestList as MutableList<ModuleManifest>
     MainScreen()
 }
@@ -416,7 +481,7 @@ fun MainNav(navController: NavHostController) {
     val duration = 200
 
     LaunchedEffect(Unit) {
-        Runtime._trimMemorySignal.collect { event ->
+        Runtime.trimMemorySignal.collect { event ->
             currentLocalGallery?.trimMemory()
         }
     }
