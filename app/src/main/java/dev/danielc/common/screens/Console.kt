@@ -78,7 +78,7 @@ class ConsoleViewModel(initialLines: List<ConsoleLine> = emptyList()) : ViewMode
 
     fun addLine(line: String) {
         viewModelScope.launch() {
-            withContext(Dispatchers.Default) {
+            withContext(Dispatchers.IO) {
                 _uiState.update { currentState ->
                     val newLine = ConsoleLine(
                         line = line,
@@ -92,7 +92,7 @@ class ConsoleViewModel(initialLines: List<ConsoleLine> = emptyList()) : ViewMode
 
     fun clearText(line: String) {
         viewModelScope.launch() {
-            withContext(Dispatchers.Default) {
+            withContext(Dispatchers.IO) {
                 _uiState.value.lines = emptyList()
             }
         }

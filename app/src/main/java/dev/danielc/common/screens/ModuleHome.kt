@@ -3,10 +3,6 @@ package dev.danielc.common.screens
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideIn
-import androidx.compose.animation.slideOut
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -29,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -48,7 +43,9 @@ import dev.danielc.common.ModuleProperty
 import dev.danielc.common.Runtime
 import dev.danielc.common.Screen
 import dev.danielc.common.ViewModelReferences
+import dev.danielc.common.ui.DefaultNavHost
 import dev.danielc.common.ui.DisconnectDialog
+import dev.danielc.common.ui.composableSlideBackwards
 import dev.danielc.common.ui.theme.FudgeTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -147,7 +144,7 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
     }
 
     fun setProperty(type: ModuleProperty, value: String) {
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(Dispatchers.IO) {
             _dashboardState.update { currentState ->
                 when (type) {
                     ModuleProperty.NAME_OF_DEVICE -> currentState.copy(nameOfDevice = value)
@@ -158,7 +155,7 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
         }
     }
     fun setProperty(type: ModuleProperty, value: Int) {
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(Dispatchers.IO) {
             _dashboardState.update { currentState ->
                 when (type) {
                     ModuleProperty.TEMPERATURE -> currentState.copy(temperature = value)
@@ -173,7 +170,7 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
     }
 
     fun setSupportedScreen(s: Screen, v: Boolean) {
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(Dispatchers.IO) {
             _homeState.update { currentState ->
                 // TODO: refactor
                 if (isScreenInNavBar(s)) {
@@ -379,33 +376,7 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
     val debugLogState by module.debugLogModel.uiState.collectAsStateWithLifecycle()
     val viewerState by module.viewerViewModel.viewerState.collectAsStateWithLifecycle()
 
-    val duration = 200
-    NavHost(
-        enterTransition = {
-            slideIn(
-                initialOffset = { IntOffset(it.width, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-        exitTransition = {
-            slideOut(
-                targetOffset = { IntOffset(-it.width / 4, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-        popEnterTransition = {
-            slideIn(
-                initialOffset = { IntOffset(-it.width / 4, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-        popExitTransition = {
-            slideOut(
-                targetOffset = { IntOffset(it.width, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-        navController = navController, startDestination = "connecting") {
+    DefaultNavHost(navController = navController, startDestination = "connecting") {
         composable("connecting") {
             val connectProgress by module.homeModelView.connectProgress.collectAsStateWithLifecycle()
             val action by module.homeModelView.connectRequiredAction.collectAsStateWithLifecycle()
@@ -418,7 +389,7 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
         composable("home") {
             ModuleHomeScreen(module, navController)
         }
-        composable("disconnected") {
+        composableSlideBackwards("disconnected") {
             val reason = "${module.disconnectReason ?: "(no reason)"} - (${Runtime.errorCodeToString(module.disconnectedErrorCode ?: 0)})"
             DisconnectedScreen(reason, backToMainScreen = backToMainScreen, consoleState = debugLogState)
         }

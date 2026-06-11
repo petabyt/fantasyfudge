@@ -1,11 +1,15 @@
 package dev.danielc.common.ui
 
 import android.content.res.Configuration
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideIn
+import androidx.compose.animation.slideOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,18 +27,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.max
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import dev.danielc.common.screens.PaneState
+import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
@@ -71,7 +78,7 @@ fun DisconnectDialog(nameOfDevice: String = "FooBar", yes: () -> Unit = {}, no: 
     )
 }
 
-@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
+//@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun PermissionDialog(proceed: () -> Unit = {}, reject: () -> Unit = {}) {
     Dialog(onDismissRequest = {
@@ -108,7 +115,7 @@ fun PermissionDialog(proceed: () -> Unit = {}, reject: () -> Unit = {}) {
     }
 }
 
-@Preview
+//@Preview
 @Composable
 private fun PreviewGraph() {
     Column(Modifier.size(200.dp)) {
@@ -166,4 +173,56 @@ fun IntGridGraph(
             )
         }
     }
+}
+
+private const val transitionDuration = 200
+
+fun NavGraphBuilder.composableSlideBackwards(
+    route: String,
+    content: @Composable (AnimatedContentScope.(NavBackStackEntry) -> Unit)
+): Unit {
+    composable("disconnected",
+        enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)) },
+        exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)) },
+        popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)) },
+        popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)) },
+        content = content
+    )
+}
+
+@Composable
+fun DefaultNavHost(
+    navController: NavHostController,
+    startDestination: String,
+    modifier: Modifier = Modifier,
+    route: String? = null,
+    builder: NavGraphBuilder.() -> Unit
+): Unit {
+    NavHost(navController, startDestination = startDestination, modifier = modifier, route = route, builder = builder,
+        enterTransition = {
+            slideIn(
+                initialOffset = { IntOffset(it.width, 0) },
+                animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)
+            )
+        },
+        exitTransition = {
+            slideOut(
+                targetOffset = { IntOffset(-it.width / 4, 0) },
+                animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)
+            )
+        },
+        popEnterTransition = {
+            slideIn(
+                initialOffset = { IntOffset(-it.width / 4, 0) },
+                animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)
+            )
+        },
+        popExitTransition = {
+            slideOut(
+                targetOffset = { IntOffset(it.width, 0) },
+                animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)
+            )
+        },
+
+    )
 }

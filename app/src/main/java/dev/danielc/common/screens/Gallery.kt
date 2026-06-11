@@ -245,7 +245,7 @@ abstract class GalleryViewModel() : ViewModel() {
     }
 
     fun reset() {
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { currentState ->
                 currentState.copy(objects = mutableListOf())
             }
@@ -253,7 +253,7 @@ abstract class GalleryViewModel() : ViewModel() {
     }
 
     fun setProperties(nItems: Int, name: String, sortBy: SortBy) {
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { currentState ->
                 val list = currentState.objects.toMutableList()
                 while (list.size < nItems) list.add(null)
@@ -267,7 +267,7 @@ abstract class GalleryViewModel() : ViewModel() {
     }
 
     fun updateObject(i: Int, block: (GalleryObject) -> GalleryObject) {
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { currentState ->
                 val list = currentState.objects.toMutableList()
                 while (list.size <= i) list.add(null)
@@ -306,7 +306,7 @@ abstract class GalleryViewModel() : ViewModel() {
         _uiState.value.queue.addLast(GalleryObjectReference(index, isPriority))
     }
     fun trimMemory(nObjectsToFree: Int = 10) {
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { currentState ->
                 val list = currentState.objects.toMutableList()
                 val oldest = _uiState.value.objects.sortedByDescending { it?.lastChecked }
@@ -337,7 +337,7 @@ fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
                     onClick()
                 },
                 onLongClick = {
-                    onClick
+                    onClick()
                 }
             )
             .indication(

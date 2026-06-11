@@ -291,7 +291,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
 
     fun wifiConnectRoutine(wifi: ModuleManifest.WiFiDiscovery) {
         val primaryAdapter = WiFi.getPrimaryAdapter()
-        debugLog("Connecting over primary adapter...")
+        debugLog("First trying connection over primary adapter...")
         if (tryConnectWiFi(primaryAdapter) == 0) {
             setIsConnected()
             return
@@ -363,7 +363,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
                 }
             }
             val rc = Bluetooth.pairWithDeviceCompanion(filter, "FudgeDevice1", callback)
-            debugLog("pairWithDeviceCompanion: ${rc}")
+            debugLog("Companion pairing dialog result: ${rc}")
         }
     }
 

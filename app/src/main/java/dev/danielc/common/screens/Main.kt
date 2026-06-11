@@ -4,14 +4,12 @@ package dev.danielc.common.screens
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideIn
-import androidx.compose.animation.slideOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -24,8 +22,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -58,7 +58,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
@@ -77,8 +76,8 @@ import dev.danielc.common.ModuleInstanceRequest
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Runtime
 import dev.danielc.common.SavedDeviceEntity
-import dev.danielc.common.SavedDeviceInfo
 import dev.danielc.common.ViewModelReferences
+import dev.danielc.common.ui.DefaultNavHost
 import dev.danielc.common.ui.ModuleList
 import dev.danielc.common.ui.ModuleListScreen
 import dev.danielc.common.ui.TargetCard
@@ -114,7 +113,7 @@ fun InstanceSetup(options: List<ModuleManifest.SetupOption> = dummyOptions, onCl
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(),
                     title = {
-                        Text("Choose an mode to proceed")
+                        Text("Choose a mode to proceed")
                     },
                     navigationIcon = {
                         IconButton(onClick = {
@@ -387,7 +386,10 @@ fun MainScreen(navController: NavHostController = rememberNavController(), local
                         Text("FantasyFudge")
                     },
                     navigationIcon = {
-                        Icon(painterResource(R.drawable.outline_construction_24), contentDescription = null, modifier = Modifier.padding(5.dp))
+                        Image(painterResource(R.drawable.icon), contentDescription = null, Modifier.size(40.dp).padding(5.dp).clip(
+                            CircleShape
+                        ))
+                        //Icon(painterResource( R.drawable.outline_construction_24), contentDescription = null, modifier = Modifier.padding(5.dp))
                     },
                     actions = {
                         IconButton(onClick = {
@@ -504,33 +506,7 @@ fun MainNav(navController: NavHostController) {
         }, Modifier, currentLocalGallery)
     }
 
-    NavHost(
-        enterTransition = {
-            slideIn(
-                initialOffset = { IntOffset(it.width, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-        exitTransition = {
-            slideOut(
-                targetOffset = { IntOffset(-it.width / 4, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-        popEnterTransition = {
-            slideIn(
-                initialOffset = { IntOffset(-it.width / 4, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-        popExitTransition = {
-            slideOut(
-                targetOffset = { IntOffset(it.width, 0) },
-                animationSpec = tween(duration, easing = FastOutSlowInEasing)
-            )
-        },
-
-        navController = navController, startDestination = "home") {
+    DefaultNavHost(navController = navController, startDestination = "home") {
         composable("home") {
             MainScreen(navController, {
                 localGallery()
@@ -562,7 +538,7 @@ fun MainNav(navController: NavHostController) {
                 InstanceSetup(target.setupOptions, onClick = { opt ->
                     navController.navigate(request.copy(chosenSetupOption = opt.name))
                 }, back = {
-                    navController.popBackStack()
+                    navController.navigateUp()
                 })
             } else {
                 val models = ViewModelReferences(
@@ -572,11 +548,7 @@ fun MainNav(navController: NavHostController) {
                 )
                 val model = viewModel(initializer = { ModuleInstanceModel(manifest, request, models) })
                 ModuleInstanceNav(model.module, backToMainScreen = {
-                    navController.navigate("home") {
-                        popUpTo(navController.graph.startDestinationId) {
-                            inclusive = true
-                        }
-                    }
+                    navController.popBackStack(route = "home", inclusive = false)
                 })
             }
         }
