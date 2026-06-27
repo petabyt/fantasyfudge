@@ -26,11 +26,15 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
     }
 
     fun refresh() {
-        files = AndroidRuntime.getFiles()
-        reset()
-        setProperties(files.size, directory, SortBy.NEWEST_FIRST)
-        for (i in files.indices) {
-            updateMetadata(i, files[i].metadata)
+        try {
+            files = AndroidRuntime.getFiles()
+            reset()
+            setProperties(files.size, directory, SortBy.NEWEST_FIRST)
+            for (i in files.indices) {
+                updateMetadata(i, files[i].metadata)
+            }
+        } catch (e: Exception) {
+            // ..
         }
     }
 
@@ -59,6 +63,10 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
             if (files.getOrNull(i - 1) == null) null else AndroidRuntime.getMediaThumbnail(files[i - 1]),
             if (files.getOrNull(i + 1) == null) null else AndroidRuntime.getMediaThumbnail(files[i + 1])
         )
+    }
+
+    fun share(i: Int) {
+        AndroidRuntime.openImageInDefaultApp(files[i])
     }
 }
 

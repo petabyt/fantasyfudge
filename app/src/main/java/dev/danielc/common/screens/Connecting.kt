@@ -42,6 +42,49 @@ enum class ConnectingRequiredAction {
 @Preview(showBackground = true, device = "id:pixel_9a", uiMode = 32)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+fun ModuleErrorScreen(back: () -> Unit = {}, state: ConsoleState = ConsoleState()) {
+    val clipboardManager = LocalClipboard.current
+    val scope = rememberCoroutineScope()
+
+    return FudgeTheme {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Module Failure") },
+                    navigationIcon = {
+                        IconButton(onClick = { back() }) {
+                            Icon(painterResource(R.drawable.outline_arrow_back_24), contentDescription = null)
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = {
+                            scope.launch {
+                                val clipData = ClipData.newPlainText("label", state.toString())
+                                clipboardManager.setClipEntry(clipData.toClipEntry())
+                            }
+                        }) {
+                            Icon(
+                                painter = painterResource(R.drawable.baseline_content_copy_24),
+                                contentDescription = "Copy"
+                            )
+                        }
+                    }
+                )
+            },
+        ) { innerPadding ->
+            Column(Modifier.fillMaxSize().padding(innerPadding)) {
+                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Module failed to initialize. This is a bug.")
+                    Console(Modifier.fillMaxSize(), state)
+                }
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true, device = "id:pixel_9a", uiMode = 32)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: ConsoleState = ConsoleState(), progress: Int? = 50, action: ConnectingRequiredAction = ConnectingRequiredAction.TURN_ON_BLUETOOTH) {
     val clipboardManager = LocalClipboard.current
     val scope = rememberCoroutineScope()

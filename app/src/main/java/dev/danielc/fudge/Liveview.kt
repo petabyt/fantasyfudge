@@ -59,10 +59,10 @@ class Liveview : SurfaceHolder.Callback {
 }
 
 @Composable
-fun FramebufferSurface(modifier: Modifier = Modifier, haveHandle: (Object) -> Unit = {}) {
+fun FramebufferSurface(modifier: Modifier = Modifier, haveHandle: (Any) -> Unit = {}) {
     AndroidView(modifier = modifier, factory = { ctx ->
         val view = SurfaceView(ctx)
-        haveHandle(view.holder as Object)
+        haveHandle(view.holder as Any)
         view
     }, update = { view ->
 

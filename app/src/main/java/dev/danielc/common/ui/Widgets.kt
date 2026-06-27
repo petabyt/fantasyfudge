@@ -78,43 +78,6 @@ fun DisconnectDialog(nameOfDevice: String = "FooBar", yes: () -> Unit = {}, no: 
     )
 }
 
-//@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Composable
-fun PermissionDialog(proceed: () -> Unit = {}, reject: () -> Unit = {}) {
-    Dialog(onDismissRequest = {
-        reject()
-    }) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .padding(16.dp),
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            Column(Modifier.fillMaxSize().wrapContentSize(Alignment.Center)) {
-                Text(
-                    text = "Android permission needed",
-                    modifier = Modifier,
-                    style = TextStyle(
-                        fontSize = 20.sp
-                    ),
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    text = "Required to connect to bluetooth devices",
-                    modifier = Modifier,
-                    textAlign = TextAlign.Center,
-                )
-                Button(onClick = {
-                    proceed()
-                }) {
-                    Text("Grant")
-                }
-            }
-        }
-    }
-}
-
 //@Preview
 @Composable
 private fun PreviewGraph() {
@@ -147,8 +110,6 @@ fun IntGridGraph(
         val spacingX = canvasWidth / maxX
         val spacingY = canvasHeight / maxY
 
-        // Map Pair<Int, Int> to Screen Offset (Float)
-        // We flip the Y coordinate: canvasHeight - (y * spacing)
         val pixelPoints = points.map { (x, y) ->
             Offset(
                 x = x.toFloat() * spacingX,
@@ -156,7 +117,6 @@ fun IntGridGraph(
             )
         }
 
-        // Draw the Path connecting the points
         if (pixelPoints.isNotEmpty()) {
             val path = Path().apply {
                 val first = pixelPoints.first()
@@ -181,7 +141,7 @@ fun NavGraphBuilder.composableSlideBackwards(
     route: String,
     content: @Composable (AnimatedContentScope.(NavBackStackEntry) -> Unit)
 ): Unit {
-    composable("disconnected",
+    composable(route,
         enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)) },
         exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)) },
         popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)) },

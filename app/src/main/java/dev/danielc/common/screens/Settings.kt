@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -14,21 +15,33 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
+import dev.danielc.common.AppSettingEntity
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Composable
 fun ClickableCard(text: String, icon: Painter, onClick: () -> Unit = {}) {
@@ -45,6 +58,12 @@ fun ClickableCard(text: String, icon: Painter, onClick: () -> Unit = {}) {
 @Composable
 fun SettingsScreen(navController: NavController = rememberNavController()) {
     val uriHandler = LocalUriHandler.current
+    val settings by AndroidRuntime.getDatabaseNullable().let {
+        it?.settingsDao()?.getFlow()?.collectAsStateWithLifecycle(null) ?: remember { mutableStateOf(AppSettingEntity(
+            downloadsLocation = "/home/daniel/Pictures/"
+        )) }
+    }
+    val settingsValue = settings ?: AppSettingEntity()
     return FudgeTheme {
         Scaffold(
             topBar = {
@@ -65,6 +84,26 @@ fun SettingsScreen(navController: NavController = rememberNavController()) {
         ) { innerPadding ->
             Box(Modifier.padding(innerPadding)) {
                 Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    TextField(modifier = Modifier.fillMaxWidth(),
+                        leadingIcon = {
+                            Icon(painterResource(R.drawable.baseline_download_24), contentDescription = null)
+                        },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Decimal
+                        ),
+                        value = settingsValue.downloadsLocation,
+                        onValueChange = {
+                            CoroutineScope(Dispatchers.IO).launch {
+                                AndroidRuntime.getDatabase().settingsDao().save(settingsValue.copy(downloadsLocation = it))
+                            }
+                        },
+                        label = { Text("Downloads Location") }
+                    )
+                    Row(Modifier, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Store downloads in per-device subfolders")
+                        Switch(false, onCheckedChange = {})
+                    }
+                    HorizontalDivider()
                     ClickableCard("About", painterResource(R.drawable.outline_info_24)) {
                         navController.navigate("about")
                     }
@@ -81,7 +120,7 @@ fun SettingsScreen(navController: NavController = rememberNavController()) {
                     Button(onClick = {
                         AndroidRuntime.requestExternalImagesPermission()
                     }) {
-                        Text("Grant access to all local images")
+                        Text("Grant access to all local images (optional)")
                     }
                     Button(onClick = {
                         AndroidRuntime.resetDatabase()

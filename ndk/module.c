@@ -5,14 +5,15 @@
 #include <pak.h>
 #include <runtime.h>
 #include "thread.h"
+#include "main.h"
 
-int pak_bt_device_from_jobject(JNIEnv *env, jobject dev_o, struct PakBtDevice *device);
+int pak_bt_device_from_jobject(JNIEnv *env, struct PakBt *ctx, jobject dev_o, struct PakBtDevice *device);
 
 int pak_wifi_adapter_from_jobject(JNIEnv *env, struct PakWiFiAdapter *adapter, jobject wifi_adapter);
 
 struct TempStruct {
 	jobject byte_array;
-	jbyte *data;
+	struct ModuleJavaStruct *data;
 };
 struct Module *get_mod(JNIEnv *env, jobject thiz, struct TempStruct *info) {
 	set_jni_env_ctx(env, NULL);
@@ -21,19 +22,23 @@ struct Module *get_mod(JNIEnv *env, jobject thiz, struct TempStruct *info) {
 	if (struct_id == NULL) abort();
 
 	info->byte_array = (*env)->GetObjectField(env, thiz, struct_id);
-	info->data = (*env)->GetByteArrayElements(env, info->byte_array, NULL);
-	return (struct Module *)info->data;
+	info->data = (struct ModuleJavaStruct *)(*env)->GetByteArrayElements(env, info->byte_array, NULL);
+	return info->data->ptr;
 }
 void release_mod(JNIEnv *env, struct TempStruct *info) {
-	(*env)->ReleaseByteArrayElements(env, info->byte_array, info->data, 0);
+	(*env)->ReleaseByteArrayElements(env, info->byte_array, (jbyte *)info->data, 0);
 }
 
 JNIEXPORT void JNICALL
 Java_dev_danielc_fudge_NativeModule_free(JNIEnv *env, jobject thiz) {
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
+	if (mod->free) mod->free(mod);
+	pak_bt_unref_context(mod->bt);
+	pak_net_unref_context(mod->net);
 	free(mod->rt);
 	release_mod(env, &info);
+	free(mod);
 }
 
 JNIEXPORT jint JNICALL
@@ -112,7 +117,7 @@ Java_dev_danielc_fudge_NativeModule_onTryConnectBluetooth(JNIEnv *env, jobject t
 		saved_ptr = &saved;
 	}
 
-	pak_bt_device_from_jobject(env, device_o, &device);
+	pak_bt_device_from_jobject(env, mod->bt, device_o, &device);
 
 	int rc = PAK_ERR_UNIMPLEMENTED;
 	if (mod->on_try_connect_bluetooth) rc = mod->on_try_connect_bluetooth(mod, &device, saved_ptr, job);
@@ -240,6 +245,34 @@ Java_dev_danielc_fudge_NativeModule_onRequestFileMetadata(JNIEnv *env, jobject t
 	if (mod->on_request_file_metadata) rc = mod->on_request_file_metadata(mod, job, &wrapper.handle);
 
 	free_wrapper(env, &wrapper);
+	(*env)->PopLocalFrame(env, NULL);
+
+	release_mod(env, &info);
+	return rc;
+}
+
+JNIEXPORT jint JNICALL Java_dev_danielc_fudge_NativeModule_onRunCommand(JNIEnv *env, jobject thiz, jint job, jstring arg0, jstring arg1, jstring arg2, jstring arg3) {
+	struct TempStruct info;
+	struct Module *mod = get_mod(env, thiz, &info);
+
+	(*env)->PushLocalFrame(env, 10);
+
+	const char *list[4];
+	int argc = 0;
+	if (arg0 != NULL) list[argc++] = (*env)->GetStringUTFChars(env, arg0, NULL);
+	if (arg1 != NULL) list[argc++] = (*env)->GetStringUTFChars(env, arg1, NULL);
+	if (arg2 != NULL) list[argc++] = (*env)->GetStringUTFChars(env, arg2, NULL);
+	if (arg3 != NULL) list[argc++] = (*env)->GetStringUTFChars(env, arg3, NULL);
+
+	int rc = 0;
+	if (mod->on_custom_command) rc = mod->on_custom_command(mod, job, argc, list);
+
+	argc = 0;
+	if (arg0 != NULL) (*env)->ReleaseStringUTFChars(env, arg0, list[argc++]);
+	if (arg1 != NULL) (*env)->ReleaseStringUTFChars(env, arg1, list[argc++]);
+	if (arg2 != NULL) (*env)->ReleaseStringUTFChars(env, arg2, list[argc++]);
+	if (arg3 != NULL) (*env)->ReleaseStringUTFChars(env, arg3, list[argc++]);
+
 	(*env)->PopLocalFrame(env, NULL);
 
 	release_mod(env, &info);

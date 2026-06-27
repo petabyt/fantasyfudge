@@ -24,20 +24,19 @@ import kotlin.time.TimeSource
 typealias JobUpdateCallback = (ModuleJob) -> Unit
 
 /**
- * A job id is passed each time a module function is called. A job can be cancelled
+ * A job id is passed each time a module function is called. A job can be canceled
  * at any time by the user, and the percent finished value can be updated by the module.
  */
 @Serializable
 data class ModuleJob(
     val onUpdate: JobUpdateCallback,
-    val moduleInstance: SerializableModuleInstance,
     val id: Int,
     var progressBarValue: Int? = null,
     var isCancelled: Boolean = false,
     var isFinished: Boolean = false,
 )
 
-class ModuleGalleryViewModel(): GalleryViewModel() {
+class ModuleGalleryViewModel: GalleryViewModel() {
     var module: ModuleInstance? = null
     override fun fulfillThumbnail(file: GalleryObjectReference) {
         module?.getFileThumbnail(file = FileHandle(file.index, null))
@@ -54,14 +53,12 @@ data class ViewModelReferences(
     val debugLogModel: ConsoleViewModel,
 )
 
-abstract class ModuleBase(): NativeModule() {
-    abstract val serializableModuleInstance: SerializableModuleInstance
+abstract class ModuleBase: NativeModule() {
     private var jobs = mutableMapOf<Int, ModuleJob>()
     private var jobCounter = 0
     fun createJob(onUpdate: JobUpdateCallback): ModuleJob {
         val id = ++jobCounter
         val job = ModuleJob(
-            moduleInstance = serializableModuleInstance,
             id = id,
             onUpdate = onUpdate
         )
@@ -122,6 +119,15 @@ abstract class ModuleBase(): NativeModule() {
             onTryConnectWiFi(net, job.id)
         }
     }
+    fun runCommand(cmd: String, vararg params: String): Int {
+        return withJob({}) { job ->
+            val list = listOf(cmd) + params
+            onRunCommand(job.id, list.getOrNull(0), list.getOrNull(1), list.getOrNull(2), list.getOrNull(3))
+        }
+    }
+    fun runCommand(cmd: Command): Int {
+        return runCommand(cmd.cmd)
+    }
     fun tryConnectBluetooth(device: Bluetooth.Device, saved: SavedDeviceEntity?, onUpdate: JobUpdateCallback = {}): Int {
         return withJob(onUpdate) { job ->
             onTryConnectBluetooth(device, if (saved == null) null else SavedDeviceInfo(
@@ -166,21 +172,13 @@ data class ModuleInstanceRequest(
  * Instance of a module with a single connection
  */
 class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRequest, val homeModelView: ModuleInstanceModel, viewModels: ViewModelReferences): ModuleBase() {
-    override val serializableModuleInstance = SerializableModuleInstance(Runtime.addModuleInstance(this))
     val galleryViewModel: ModuleGalleryViewModel = viewModels.galleryViewModel
     val viewerViewModel: ViewerModel = viewModels.viewerViewModel
     var viewerDownloadJob: ModuleJob? = null
     val debugLogModel: ConsoleViewModel = viewModels.debugLogModel
     init {
+        Runtime.addModuleInstance(this)
         galleryViewModel.module = this
-        when (manifest.moduleType) {
-            ModuleManifest.ModuleType.CMF_NOTHING -> AndroidRuntime.setupCmfNothingAudioModule(this)
-            ModuleManifest.ModuleType.QUICKJS -> throw Exception("QuickJS")
-            ModuleManifest.ModuleType.WEBASSEMBLY -> throw Exception("Webassembly")
-            ModuleManifest.ModuleType.DUMMY_MODULE -> AndroidRuntime.setupDummyNativeModule(this)
-            ModuleManifest.ModuleType.LIBFUJI -> AndroidRuntime.setupLibFujiModule(this)
-            ModuleManifest.ModuleType.GOVEELIFE -> AndroidRuntime.setupGoveeLifeModule(this)
-        }
     }
 
     val target = manifest.targets[request.targetIndex]
@@ -227,7 +225,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         mainLoopJob?.cancel()
         mainLoopJob?.join()
         Runtime.removeModuleInstance(this)
-        free()
+        if (!homeModelView.initializationError.value) free()
     }
     fun getMetadata(file: FileHandle): FileMetadata? {
         return galleryViewModel.getMetadata(file)
@@ -289,10 +287,10 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         switchScreen(Screen.DASHBOARD, false)
     }
 
-    fun wifiConnectRoutine(wifi: ModuleManifest.WiFiDiscovery) {
+    private fun wifiConnectRoutine(wifi: ModuleManifest.WiFiDiscovery) {
         val primaryAdapter = WiFi.getPrimaryAdapter()
         debugLog("First trying connection over primary adapter...")
-        if (tryConnectWiFi(primaryAdapter) == 0) {
+        if (tryConnectWiFi(primaryAdapter, {job -> connectCallback(job)}) == 0) {
             setIsConnected()
             return
         }
@@ -301,7 +299,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         filter.ssidPattern = wifi.ssidPattern
         val callback = object : WiFi.WiFiDiscoveryCallback() {
             override fun failed(reason: String, code: Int) {
-                debugLog(reason)
+                debugLog("<error>${reason}")
             }
 
             override fun found(net: WiFi.Adapter) {
@@ -313,7 +311,13 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         WiFi.connectToAccessPoint(filter, callback)
     }
 
-    fun bluetoothConnectRoutine(info: ModuleManifest.BluetoothDiscovery, saved: SavedDeviceEntity?) {
+    private fun connectCallback(job: ModuleJob) {
+        homeModelView.connectProgress.update {
+            job.progressBarValue
+        }
+    }
+
+    private fun bluetoothConnectRoutine(info: ModuleManifest.BluetoothDiscovery, saved: SavedDeviceEntity?) {
         if (!Bluetooth.checkPermission()) {
             homeModelView.connectRequiredAction.value = ConnectingRequiredAction.ACCEPT_BLUETOOTH_PERMISSION
             Bluetooth.requestConnectPermission()
@@ -324,7 +328,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
             fun doConnect(dev: Bluetooth.Device) {
                 debugLog("Connecting to '${dev.name}'...")
                 connectedBluetoothMacAddress = dev.address
-                val rc = tryConnectBluetooth(dev, saved)
+                val rc = tryConnectBluetooth(dev, saved, {job -> connectCallback(job)})
                 if (rc == 0) {
                     setIsConnected()
                 } else {
@@ -374,27 +378,54 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
     }
 
     fun initThread() {
+        val module = this
         initJob = CoroutineScope(Dispatchers.IO).launch {
-            homeModelView.connectRequiredAction.value = ConnectingRequiredAction.NONE
-            val savedDeviceInfo = request.getSavedDeviceEntity()
-            val option = request.getSetupOption()
-            val transport = option?.transport ?: ModuleManifest.Transport.BLUETOOTH
-            if (target.wifiDiscovery != null && transport == ModuleManifest.Transport.WIFI_AP) {
-                wifiConnectRoutine(target.wifiDiscovery)
-            } else if (target.bluetoothDiscovery != null && transport == ModuleManifest.Transport.BLUETOOTH) {
-                bluetoothConnectRoutine(target.bluetoothDiscovery, savedDeviceInfo)
-            } else {
-                val rc = findConnection({ job ->
-                    homeModelView.connectProgress.update {
-                        job.progressBarValue
+            val rc = when (manifest.moduleType) {
+                ModuleManifest.ModuleType.CMF_NOTHING -> AndroidRuntime.setupCmfNothingAudioModule(module)
+                ModuleManifest.ModuleType.QUICKJS -> {
+                    val path = module.manifest.scriptPath
+                    if (path == null) {
+                        debugLog("<error>script path not included")
+                        -1
+                    } else {
+                        var fileContents = AndroidRuntime.readFile(path)
+                        if (fileContents == null) {
+                            debugLog("Failed to read ${path}")
+                            -1
+                        } else {
+                            fileContents += 0.toByte()
+                            AndroidRuntime.setupJavascriptModule(module, fileContents)
+                        }
                     }
-                })
-                if (rc == 0) {
-                    setIsConnected()
+                }
+                ModuleManifest.ModuleType.WEBASSEMBLY -> {
+                    debugLog("<error>Wasm not implemented yet")
+                    -1
+                }
+                ModuleManifest.ModuleType.DUMMY_MODULE -> AndroidRuntime.setupDummyNativeModule(module)
+                ModuleManifest.ModuleType.LIBFUJI -> AndroidRuntime.setupLibFujiModule(module)
+                ModuleManifest.ModuleType.GOVEELIFE -> AndroidRuntime.setupGoveeLifeModule(module)
+            }
+            if (rc != 0) {
+                homeModelView.initializationError.value = true
+            } else {
+                homeModelView.connectRequiredAction.value = ConnectingRequiredAction.NONE
+                val savedDeviceInfo = request.getSavedDeviceEntity()
+                val option = request.getSetupOption()
+                val transport = option?.transport ?: ModuleManifest.Transport.BLUETOOTH
+                if (target.wifiDiscovery != null && transport == ModuleManifest.Transport.WIFI_AP) {
+                    wifiConnectRoutine(target.wifiDiscovery)
+                } else if (target.bluetoothDiscovery != null && transport == ModuleManifest.Transport.BLUETOOTH) {
+                    bluetoothConnectRoutine(target.bluetoothDiscovery, savedDeviceInfo)
                 } else {
-                    disconnectReason = "Failed to connect"
-                    disconnectedErrorCode = rc
-                    switchScreen(Screen.DISCONNECTED, false)
+                    val rc = findConnection({ job -> connectCallback(job) })
+                    if (rc == 0) {
+                        setIsConnected()
+                    } else {
+                        disconnectReason = "Failed to connect"
+                        disconnectedErrorCode = rc
+                        switchScreen(Screen.DISCONNECTED, false)
+                    }
                 }
             }
         }
@@ -420,16 +451,18 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
     fun forceDisconnect(reason: String, code: Int = 0) {
         if (isConnected) {
             isConnected = false
-            runBlocking {
+            CoroutineScope(Dispatchers.IO).launch {
                 mainLoopJob?.cancel()
                 mainLoopJob?.join()
+                println("main job killed")
+                withJob({}) { job ->
+                    onDisconnect()
+                }
+                println("disconnect called")
+                disconnectReason = reason
+                disconnectedErrorCode = code
+                homeModelView.goToScreen(Screen.DISCONNECTED)
             }
-            withJob({}) { job ->
-                onDisconnect()
-            }
-            disconnectReason = reason
-            disconnectedErrorCode = code
-            homeModelView.goToScreen(Screen.DISCONNECTED)
         }
     }
 
@@ -507,19 +540,5 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
                 }
             }
         }
-    }
-}
-
-// Serializable ID of connection instance
-@Serializable
-data class SerializableModuleInstance(
-    val connectionId: Int
-) {
-    fun getModuleInstance(): ModuleInstance {
-        val mod = Runtime.moduleInstances[connectionId]
-        if (mod == null) {
-            throw Exception("Couldn't find module instance from key")
-        }
-        return mod
     }
 }

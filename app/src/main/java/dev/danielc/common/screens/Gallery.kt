@@ -9,12 +9,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -24,7 +26,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -226,7 +230,7 @@ abstract class GalleryViewModel() : ViewModel() {
                     }
                     try {
                         delay(10)
-                    } catch (e: CancellationException) {
+                    } catch (_: CancellationException) {
                         break
                     }
                 }
@@ -426,113 +430,132 @@ fun GalleryFile(obj: GalleryObject?, onClick: () -> Unit = {}) {
     }
 }
 
+data class GalleryCallbacks(
+    val onRefresh: () -> Unit = {},
+    val requestLoad: (Int) -> Unit = {},
+    val onItemClick: (Int) -> Unit = {},
+    val setDisplayType: (DisplayType) -> Unit = {},
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (Int) -> Unit = {}, onItemClick: (Int) -> Unit = {}, onRefresh: () -> Unit = {}) {
     val haptic = LocalHapticFeedback.current
     var isRefreshing by remember { mutableStateOf(false) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
-    Box(modifier = modifier.fillMaxSize()) {
-        Column {
-            if (false) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
+    var rows by remember { mutableIntStateOf(4) }
+    @Composable
+    fun menu() {
+        Surface(Modifier.padding(5.dp),
+            shape = RoundedCornerShape(6.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                modifier = Modifier.fillMaxWidth().padding(2.dp),
+            ) {
+                Box(Modifier.padding(4.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))) {
+                    Text("sdcard", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(6.dp))
+                }
+                Spacer(Modifier.weight(1f))
+                Slider(modifier = Modifier.weight(1f), value = rows.toFloat(), valueRange = 2f..5f , steps = 3, onValueChange = {
+                    rows = it.toInt()
+                    haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                })
+                IconButton(
+                    colors = primaryIconButtonColors(),
+                    onClick = {},
+                    modifier = Modifier,
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().padding(2.dp),
-                    ) {
-                        Row(Modifier.weight(1f)) {
-                            Box(Modifier.padding(5.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp))) {
-                                Text("sdcard", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(5.dp))
-                            }
-                        }
+                    Icon(
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        painter = painterResource(R.drawable.baseline_grid_view_24),
+                        contentDescription = "Grid View"
+                    )
+                }
+                IconButton(
+                    colors = primaryIconButtonColors(),
+                    onClick = {},
+                    modifier = Modifier,
+                ) {
+                    Icon(
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        painter = painterResource(R.drawable.baseline_view_list_24),
+                        contentDescription = "List View"
+                    )
+                }
+            }
+        }
+    }
 
-                        IconButton(
-                            colors = primaryIconButtonColors(),
-                            onClick = {},
-                            modifier = Modifier,
-                        ) {
-                            Icon(
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                painter = painterResource(R.drawable.baseline_grid_view_24),
-                                contentDescription = "Grid View"
-                            )
+    Box(modifier = modifier.fillMaxSize()) {
+        val listState = rememberLazyGridState()
+        PullToRefreshBox(
+            state = rememberPullToRefreshState(),
+            isRefreshing = isRefreshing,
+            onRefresh = {
+                CoroutineScope(Dispatchers.IO).launch {
+                    isRefreshing = true
+                    onRefresh()
+                    refreshTrigger++
+                    isRefreshing = false
+                }
+            }
+        ) {
+            val rows = if (state.displayType == DisplayType.THUMBNAILS) rows else 1
+            LazyVerticalGrid(
+                state = listState,
+                columns = GridCells.Fixed(rows)
+            ) {
+                item(span = { GridItemSpan(rows) }) {
+                    menu()
+                }
+                if (state.objects.isNotEmpty()) {
+                    itemsIndexed(state.objects) { index, obj ->
+                        if (state.displayType == DisplayType.THUMBNAILS) {
+                            GalleryThumbnail(obj, onClick = {
+                                onItemClick(index)
+                                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                            })
+                        } else {
+                            GalleryFile(obj, onClick = {
+                                onItemClick(index)
+                                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                            })
                         }
-                        IconButton(
-                            colors = primaryIconButtonColors(),
-                            onClick = {},
-                            modifier = Modifier,
+                    }
+                } else {
+                    item(span = { GridItemSpan(rows) }) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(10.dp),
+                            horizontalArrangement = Arrangement.Center
                         ) {
-                            Icon(
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                painter = painterResource(R.drawable.baseline_view_list_24),
-                                contentDescription = "List View"
-                            )
+                            Text("No files are present.")
                         }
                     }
                 }
             }
 
-            val listState = rememberLazyGridState()
-            PullToRefreshBox(
-                state = rememberPullToRefreshState(),
-                isRefreshing = isRefreshing,
-                onRefresh = {
-                    CoroutineScope(Dispatchers.IO).launch {
-                        isRefreshing = true
-                        onRefresh()
-                        refreshTrigger++
-                        isRefreshing = false
+            // Monitor recently viewed items so it can be sent to the queue
+            LaunchedEffect(listState) {
+                snapshotFlow { listState.layoutInfo.visibleItemsInfo }
+                    .collect { visibleItems ->
+                        for (e in visibleItems) {
+                            requestLoad(e.index)
+                        }
                     }
-                }
+            }
+        }
+        if (false) {
+            Box(
+                Modifier.fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest).padding(8.dp)
+                    .align(Alignment.BottomCenter)
             ) {
-                if (state.objects.isNotEmpty()) {
-                    when (state.displayType) {
-                        DisplayType.THUMBNAILS -> {
-                            LazyVerticalGrid(
-                                state = listState,
-                                columns = GridCells.Fixed(4)
-                            ) {
-                                itemsIndexed(state.objects) { index, obj ->
-                                    GalleryThumbnail(obj, onClick = {
-                                        onItemClick(index)
-                                        haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                                    })
-                                }
-                            }
-                        }
-                        DisplayType.VERTICAL_TABLE -> {
-                            LazyVerticalGrid(
-                                state = listState,
-                                columns = GridCells.Fixed(1)
-                            ) {
-                                itemsIndexed(state.objects) { index, obj ->
-                                    GalleryFile(obj, onClick = {
-                                        onItemClick(index)
-                                        haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                                    })
-                                }
-                            }
-                        }
-                    }
-
-                    // Monitor recently viewed items so it can be sent to the queue
-                    LaunchedEffect(listState) {
-                        snapshotFlow { listState.layoutInfo.visibleItemsInfo }
-                            .collect { visibleItems ->
-                                for (e in visibleItems) {
-                                    requestLoad(e.index)
-                                }
-                            }
-                    }
-                } else {
-                    Row(
-                        Modifier.fillMaxWidth().padding(10.dp),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Text("No files are present.")
-                    }
+                Column {
+                    Text("DSC123.JPG")
+                    Text("123x831")
                 }
             }
         }

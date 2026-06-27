@@ -54,7 +54,7 @@ import kotlin.time.toDuration
 data class ConsoleLine(
     val line: String,
     val timestamp: Duration? = null,
-    val color: Color? = null,
+    val color: Color = Color.White,
 )
 
 data class ConsoleState(
@@ -80,7 +80,15 @@ class ConsoleViewModel(initialLines: List<ConsoleLine> = emptyList()) : ViewMode
         viewModelScope.launch() {
             withContext(Dispatchers.IO) {
                 _uiState.update { currentState ->
+                    var line = line
+                    val color = if (line.startsWith("<error>")) {
+                        line = line.substringAfter("<error>")
+                        Color.Red
+                    } else {
+                        Color.White
+                    }
                     val newLine = ConsoleLine(
+                        color = color,
                         line = line,
                         timestamp = currentState.initialTime.elapsedNow()
                     )
@@ -111,7 +119,7 @@ fun Console(modifier: Modifier = Modifier, state: ConsoleState) {
                         style = TextStyle(
                             fontFamily = FontFamily.Monospace,
                             fontSize = 14.sp,
-                            color = Color.White
+                            color = line.color
                         )
                     )
                     if (line.timestamp != null) {
@@ -183,6 +191,7 @@ fun PreviewConsoleScreen(navController: NavHostController = rememberNavControlle
     val x: MutableList<ConsoleLine> = mutableListOf()
 
     x += (ConsoleLine(
+        color = Color.Red,
         line = "Hello world asidkpaosdkpaoskdpaoskdpaoskdijoaisjdoaisjdoaisdj",
         timestamp = 0.toDuration(DurationUnit.SECONDS)
     ))

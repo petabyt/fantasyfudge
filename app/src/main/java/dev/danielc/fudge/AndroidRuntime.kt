@@ -3,6 +3,7 @@
 package dev.danielc.fudge
 
 import android.Manifest
+import android.content.ClipData
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
@@ -17,6 +18,7 @@ import android.os.Build
 import android.os.Environment
 import android.os.Handler
 import android.provider.MediaStore
+import android.provider.Settings
 import android.util.Log
 import android.util.Size
 import androidx.compose.ui.graphics.ImageBitmap
@@ -24,30 +26,25 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.net.toUri
 import androidx.room.Room
 import dev.danielc.common.AppDatabase
-import dev.danielc.libpak.Exif
 import dev.danielc.common.FileMetadata
 import dev.danielc.common.ModuleInstance
 import dev.danielc.common.Runtime
-import dev.danielc.common.SavedDeviceEntity
 import dev.danielc.common.getMimeType
+import dev.danielc.libpak.Exif
 import dev.danielc.libpak.Pak
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
-import java.lang.ref.WeakReference
 import javax.microedition.khronos.opengles.GL10
 
 object AndroidRuntime {
     var hasInited: Boolean = false
-    var weakCtx: WeakReference<Context>? = null
     private var databaseInstance: AppDatabase? = null
     fun setup(ctx: Context) {
-        weakCtx = WeakReference<Context>(ctx)
         databaseInstance = Room.databaseBuilder(
             ctx,
             AppDatabase::class.java,
@@ -55,10 +52,14 @@ object AndroidRuntime {
         )
         .fallbackToDestructiveMigration(true)
         .build()
-        Runtime.savedDevices = getDatabase().deviceDao().getAllDevices()
+        println(getDeviceFriendlyName())
+        init()
     }
     fun getDatabase(): AppDatabase {
         return databaseInstance!!
+    }
+    fun getDatabaseNullable(): AppDatabase? {
+        return databaseInstance
     }
     fun resetDatabase() {
         CoroutineScope(Dispatchers.IO).launch {
@@ -71,14 +72,25 @@ object AndroidRuntime {
     external fun setupCmfNothingAudioModule(mod: ModuleInstance): Int
     external fun setupLibFujiModule(mod: ModuleInstance): Int
     external fun setupGoveeLifeModule(mod: ModuleInstance): Int
-    external fun setupJavascriptModule(
-        mod: ModuleInstance,
-        jsPath: String
-    ): Int
-    external fun setupWebassemblyModule(
-        mod: ModuleInstance,
-        wasmPath: String
-    ): Int
+    external fun setupJavascriptModule(mod: ModuleInstance, fileContents: ByteArray): Int
+    external fun setupWebassemblyModule(mod: ModuleInstance, fileContents: ByteArray): Int
+
+    @JvmStatic
+    fun logGlobalLine(s: String) {
+        Log.d("logGlobalLine", s)
+        Runtime.logGlobalLine(s)
+    }
+
+    @JvmStatic
+    fun getDeviceFriendlyName(): String {
+        val deviceName = Settings.Global.getString(Pak.getActivity().contentResolver, "device_name")
+
+        if (!deviceName.isNullOrBlank()) {
+            return deviceName.replace(" ", "-") + "-fudge"
+        }
+
+        return "${Build.MANUFACTURER}-${Build.MODEL}" + "-fudge"
+    }
 
     fun decodeImageContents(data: ByteArray, imageHorizontalSize: Int? = null, orientation: Int? = null): ImageBitmap? {
         val options = BitmapFactory.Options()
@@ -89,27 +101,29 @@ object AndroidRuntime {
             options.inScaled = true
         }
 
-        var bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, options)
+        try {
+            var bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, options)
 
-        if (orientation != null) {
-            val matrix = Matrix()
-            matrix.postRotate(orientation.toFloat())
-            bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true)
+            if (orientation != null) {
+                val matrix = Matrix()
+                matrix.postRotate(orientation.toFloat())
+                bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true)
+            }
+
+            return bitmap.asImageBitmap()
+        } catch (e: Exception) {
+            return null
         }
-
-        return bitmap.asImageBitmap()
     }
 
     fun getJsonManifestList(): List<String> {
-        val ctx: Context = weakCtx!!.get()!!
-        val assman = ctx.assets
+        val assman = Pak.getActivity().assets
         try {
             val files = ArrayList<String>()
-            val list = assman.list("")
-            if (list == null) return mutableListOf<String>()
+            val list = assman.list("") ?: return mutableListOf()
             for (s in list) {
                 if (!s.endsWith(".json")) continue
-                files.add(s)
+                files.add("file:///android_asset/${s}")
             }
             return files
         } catch (e: Exception) {
@@ -118,28 +132,40 @@ object AndroidRuntime {
         }
     }
 
-    @Throws(Exception::class)
-    fun readAssetsFile(path: String): ByteArray {
-        val ctx: Context = weakCtx!!.get()!!
-        val assman = ctx.assets
-        val f = assman.open(path)
-        val buffer = ByteArray(f.available())
-        val n = f.read(buffer)
-        f.close()
-        return buffer
+    fun readFile(path: String): ByteArray? {
+        if (path.startsWith("file:///android_asset/")) {
+            val assman = Pak.getActivity().assets
+            val f = assman.open(path.substringAfter("file:///android_asset/"))
+            return f.readBytes()
+        } else {
+            val f = File(path)
+            if (!f.exists()) return null
+            return f.readBytes()
+        }
+    }
+
+    fun shareFile(uri: Uri) {
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "image/jpeg"
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            clipData = ClipData.newUri(Pak.getActivity().contentResolver, "Shared Image", uri)
+        }
+        val chooserIntent = Intent.createChooser(intent, "Share")
+        Pak.getActivity().startActivity(chooserIntent)
+    }
+
+    fun openImageInDefaultApp(file: MediaStoreFile) {
+        shareFile(file.contentUri)
     }
 
     fun openImageInDefaultApp(filename: String) {
-        val intent = Intent()
-        intent.setAction(Intent.ACTION_VIEW)
-        intent.setDataAndType(("file://${filename}").toUri(), "image/*")
-        weakCtx?.get()?.startActivity(intent)
+        shareFile("file://${filename}".toUri())
     }
 
     fun filesFromDirectory(path: String): List<String> {
-        val dir: File = File(path)
-        val files = dir.listFiles()
-        if (files == null) throw Exception("Error listing files in directory")
+        val dir = File(path)
+        val files = dir.listFiles() ?: throw Exception("Error listing files in directory")
         val list = mutableListOf<String>()
         for (e in files) list.add(e.path)
         return list
@@ -183,7 +209,7 @@ object AndroidRuntime {
     data class MediaStoreFile(
         val contentUri: Uri,
         val path: String,
-        val metadata: FileMetadata
+        val metadata: FileMetadata,
     )
 
     fun readFile(file: MediaStoreFile): ByteArray? {
@@ -218,8 +244,7 @@ object AndroidRuntime {
             val bitmap = Pak.getActivity().contentResolver.loadThumbnail(file.contentUri, Size(640, 480), null)
             return bitmap.asImageBitmap()
         } else {
-            val thumb = Exif.getExifThumbnail(file.path)
-            if (thumb == null) return null;
+            val thumb = Exif.getExifThumbnail(file.path) ?: return null
             return decodeImageContents(thumb, null)
         }
     }
@@ -233,6 +258,20 @@ object AndroidRuntime {
                 }
             }
         }
+    }
+
+    fun getInternalDataDirectory(): String {
+        return Pak.getActivity().filesDir.path
+    }
+
+    fun getDefaultDownloadDirectory(): String {
+        val mainStorage = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path
+        val path = mainStorage + File.separator + "fudge"
+        val directory = File(path)
+        if (!directory.exists()) {
+            directory.mkdirs()
+        }
+        return path
     }
 
     fun getFiles(subfolder: String = "fudge"): List<MediaStoreFile> {
@@ -279,11 +318,5 @@ object AndroidRuntime {
             }
         }
         return list
-    }
-
-    @JvmStatic
-    fun logGlobalLine(s: String) {
-        Log.d("logGlobalLine", s)
-        Runtime.logGlobalLine(s)
     }
 }

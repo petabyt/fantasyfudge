@@ -36,7 +36,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.ImageBitmap
@@ -67,11 +66,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import net.engawapg.lib.zoomable.rememberZoomState
 import net.engawapg.lib.zoomable.zoomable
 
-fun painterToImageBitmap(
+private fun painterToImageBitmap(
     painter: Painter,
     density: Density = Density(1f),
     layoutDirection: LayoutDirection = LayoutDirection.Ltr,
@@ -100,9 +98,11 @@ data class ViewerState(
     val bitmap: ImageBitmap? = null,
     val bitmapLeft: ImageBitmap? = null,
     val bitmapRight: ImageBitmap? = null,
+    val showSaveButton: Boolean = true,
+    val showLoadDialog: Boolean = true,
 )
 
-class ViewerModel() : ViewModel() {
+class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolean = true) : ViewModel() {
     var temporaryBuffer: ByteArray? = null
     private val _viewerState = MutableStateFlow<ViewerState?>(null)
     val viewerState = _viewerState.asStateFlow()
@@ -128,7 +128,13 @@ class ViewerModel() : ViewModel() {
             listOf(null, null, null)
         }
 
-        _viewerState.value = ViewerState(file, numberOfItems, bitmap = tempBitmap[1], bitmapLeft = tempBitmap[0], bitmapRight = tempBitmap[2])
+        _viewerState.value = ViewerState(file, numberOfItems,
+            bitmap = tempBitmap[1],
+            bitmapLeft = tempBitmap[0],
+            bitmapRight = tempBitmap[2],
+            showSaveButton = showSaveButton,
+            showLoadDialog = showLoadDialog,
+        )
     }
     fun updateMetadata(metadata: FileMetadata?) {
         _viewerState.update { viewerState ->
@@ -232,7 +238,7 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
                 }
             }
         }
-    } else if (state.isLoading) {
+    } else if (state.isLoading && state.showLoadDialog) {
         val text = "Downloading " + when (state.metadata?.mimeType) {
             MimeType.JPEG, MimeType.PNG -> "image"
             MimeType.MOV -> "movie"
@@ -415,7 +421,7 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ViewerScreen(state: ViewerState?, switchTo: (Int) -> Unit, close: () -> Unit, cancel: () -> Unit = {}) {
+fun ViewerScreen(state: ViewerState?, switchTo: (Int) -> Unit, close: () -> Unit, cancel: () -> Unit = {}, save: () -> Unit = {}, share: () -> Unit = {}) {
     return FudgeTheme {
         BackHandler {
             close()
@@ -438,17 +444,21 @@ fun ViewerScreen(state: ViewerState?, switchTo: (Int) -> Unit, close: () -> Unit
                         }
                     },
                     actions = {
-                        IconButton(onClick = {}) {
-                            Icon(
-                                painter = painterResource(R.drawable.outline_save_24),
-                                contentDescription = "Save"
-                            )
-                        }
-                        IconButton(onClick = {}) {
-                            Icon(
-                                painter = painterResource(R.drawable.baseline_share_24),
-                                contentDescription = "Share"
-                            )
+                        if (state != null) {
+                            if (state.showSaveButton) {
+                                IconButton(onClick = save) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.outline_save_24),
+                                        contentDescription = "Save"
+                                    )
+                                }
+                            }
+                            IconButton(onClick = share) {
+                                Icon(
+                                    painter = painterResource(R.drawable.baseline_share_24),
+                                    contentDescription = "Share"
+                                )
+                            }
                         }
                     },
                 )

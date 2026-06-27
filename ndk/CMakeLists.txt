@@ -2,8 +2,13 @@ cmake_minimum_required(VERSION 3.10)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 project(fudge)
 
-option(APP_WASM_SUPPORT "" OFF)
-option(APP_QUICKJS_SUPPORT "" OFF)
+option(APP_WASM_SUPPORT "" ON)
+option(APP_QUICKJS_SUPPORT "" ON)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O2")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
+endif()
 
 # wasm runtime
 if(APP_WASM_SUPPORT)

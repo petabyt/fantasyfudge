@@ -4,28 +4,16 @@
 #include <stdio.h>
 #include <pak.h>
 #include <runtime.h>
+#include <runtime_ext.h>
 #include "thread.h"
 #include "main.h"
-#include <runtime_ext.h>
 
-struct RuntimePriv {
-	jobject obj;
-	char *setup_option;
-};
-
-
-__attribute__((weak)) int setup_quickjs_module(struct Module **mod, const char *filename) {
-	return -1;
-}
-__attribute__((weak)) int setup_wasm_module(struct Module **mod, const char *filename) {
-	return -1;
-}
 int get_module_dummy(struct Module *mod);
 int get_module_libfuji(struct Module *mod);
 int get_module_cmfnothingaudio(struct Module *mod);
 int get_module_goveelife(struct Module *mod);
 
-int pak_ndk_create_module(JNIEnv *env, jobject o_mod, int (*get_fn)(struct Module *mod)) {
+static struct Module *create_module(JNIEnv *env, jobject o_mod) {
 	struct Module *mod = calloc(1, sizeof(struct Module));
 	mod->rt = malloc(sizeof(struct RuntimePriv));
 
@@ -38,21 +26,21 @@ int pak_ndk_create_module(JNIEnv *env, jobject o_mod, int (*get_fn)(struct Modul
 		mod->rt->setup_option = strdup(setup_option);
 		(*env)->ReleaseStringUTFChars(env, str, setup_option);
 	}
-
-	get_fn(mod);
-
+	return mod;
+}
+static int finalize_module(JNIEnv *env, struct Module *mod) {
 	int rc = 0;
 	if (mod->init != NULL) rc = mod->init(mod);
 
 	mod->bt = pak_bt_get_context();
 	mod->net = pak_net_get_context();
 
-	jbyteArray struct_ = (*env)->NewByteArray(env, sizeof(struct Module));
-	(*env)->SetByteArrayRegion(env, struct_, 0, sizeof(struct Module), (const jbyte *)mod);
+	struct ModuleJavaStruct temp = { .ptr = mod, };
+	jbyteArray struct_o = (*env)->NewByteArray(env, sizeof(struct ModuleJavaStruct));
+	(*env)->SetByteArrayRegion(env, struct_o, 0, sizeof(struct ModuleJavaStruct), (const jbyte *)&temp);
 
 	jfieldID struct_field = (*env)->GetFieldID(env, (*env)->FindClass(env, "dev/danielc/fudge/NativeModule"), "struct", "[B");
-	(*env)->SetObjectField(env, o_mod, struct_field, struct_);
-
+	(*env)->SetObjectField(env, mod->rt->obj, struct_field, struct_o);
 	return rc;
 }
 
@@ -133,6 +121,7 @@ void pak_debug_log(struct Module *mod, const char *fmt, ...) {
 	va_end(args);
 
 	JNIEnv *env = get_jni_env();
+	pak_global_log("%p %p", env, mod->rt);
 	(*env)->PushLocalFrame(env, 10);
 	jstring buffer_s = (*env)->NewStringUTF(env, buffer);
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
@@ -205,6 +194,20 @@ static jobject create_filemetadata(JNIEnv *env, const struct FileMetadata *meta)
 	return (*env)->PopLocalFrame(env, handle_o);
 }
 
+const char *pak_rt_get_client_name(void) {
+	JNIEnv *env = get_jni_env();
+	static const char *cstr = NULL;
+	if (cstr == NULL) {
+		(*env)->PushLocalFrame(env, 10);
+		jclass module_c = (*env)->FindClass(env, "dev/danielc/fudge/AndroidRuntime");
+		jmethodID is_job_cancelled = (*env)->GetStaticMethodID(env, module_c, "getDeviceFriendlyName", "()Ljava/lang/String;");
+		jstring s = (*env)->CallStaticObjectMethod(env, module_c, is_job_cancelled);
+		cstr = (*env)->GetStringUTFChars(env, s, NULL);
+		(*env)->PopLocalFrame(env, NULL);
+	}
+	return cstr;
+}
+
 int pak_rt_set_screen_supported(struct Module *mod, int screen, int v) {
 	JNIEnv *env = get_jni_env();
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
@@ -222,9 +225,11 @@ int pak_rt_is_job_cancelled(struct Module *mod, int job) {
 
 int pak_rt_set_progress_bar(struct Module *mod, int job, int percent) {
 	JNIEnv *env = get_jni_env();
+	(*env)->PushLocalFrame(env, 10);
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID set_progress_bar = (*env)->GetMethodID(env, module_c, "setProgressBar", "(II)V");
 	(*env)->CallVoidMethod(env, mod->rt->obj, set_progress_bar, job, percent);
+	(*env)->PopLocalFrame(env, NULL);
 	return 0;
 }
 
@@ -276,6 +281,10 @@ int pak_rt_set_session_property(struct Module *mod, const char *key, const char 
 	jmethodID set_screen_supported = (*env)->GetMethodID(env, module_c, "setProperty", "(Ljava/lang/String;Ljava/lang/String;)V");
 	jstring key_s = (*env)->NewStringUTF(env, key);
 	jstring value_s = (*env)->NewStringUTF(env, value);
+	if (value_s == NULL && (*env)->ExceptionCheck(env)) {
+        (*env)->ExceptionClear(env);
+		return -1;
+    }
 	(*env)->CallVoidMethod(env, mod->rt->obj, set_screen_supported, key_s, value_s);
 	(*env)->PopLocalFrame(env, NULL);
 	return 0;
@@ -406,53 +415,56 @@ void pak_rt_release_metadata(struct Module *mod, struct FileMetadata *md) {
 JNIEXPORT int JNICALL
 Java_dev_danielc_fudge_AndroidRuntime_setupLibFujiModule(JNIEnv *env, jclass clazz, jobject mod_o) {
 	set_jni_env_ctx(env, clazz);
-	return pak_ndk_create_module(env, mod_o, get_module_libfuji);
+	struct Module *mod = create_module(env, mod_o);
+	get_module_libfuji(mod);
+	return finalize_module(env, mod);
 }
 
 JNIEXPORT int JNICALL
 Java_dev_danielc_fudge_AndroidRuntime_setupDummyNativeModule(JNIEnv *env, jclass clazz, jobject mod_o) {
 	set_jni_env_ctx(env, clazz);
-	return pak_ndk_create_module(env, mod_o, get_module_dummy);
+	struct Module *mod = create_module(env, mod_o);
+	get_module_dummy(mod);
+	return finalize_module(env, mod);
 }
 
 JNIEXPORT int JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupWebassemblyModule(JNIEnv *env, jclass clazz, jobject mod_o, jstring path) {
-	abort();
+Java_dev_danielc_fudge_AndroidRuntime_setupWebassemblyModule(JNIEnv *env, jclass clazz, jobject mod_o, jbyteArray fileContents) {
+	set_jni_env_ctx(env, clazz);
+	struct Module *mod = create_module(env, mod_o);
+	jbyte *buf = (*env)->GetByteArrayElements(env, fileContents, NULL);
+	jsize size = (*env)->GetArrayLength(env, fileContents);
+	int rc = setup_wasm_module(mod, (char *)buf, (unsigned int)size);
+	(*env)->ReleaseByteArrayElements(env, fileContents, buf, 0);
+	if (rc) return rc;
+	return finalize_module(env, mod);
 	return -1;
 }
 
 JNIEXPORT int JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupJavascriptModule(JNIEnv *env, jclass clazz, jobject mod_o, jstring jsPath) {
+Java_dev_danielc_fudge_AndroidRuntime_setupJavascriptModule(JNIEnv *env, jclass clazz, jobject mod_o, jbyteArray fileContents) {
 	set_jni_env_ctx(env, clazz);
-
-	const char *js_path = (*env)->GetStringUTFChars(env, jsPath, 0);
-
-	struct Module *mod;
-	int rc = setup_quickjs_module(&mod, js_path);
+	struct Module *mod = create_module(env, mod_o);
+	jbyte *buf = (*env)->GetByteArrayElements(env, fileContents, NULL);
+	jsize size = (*env)->GetArrayLength(env, fileContents);
+	int rc = setup_quickjs_module(mod, (char *)buf, (unsigned int)size);
+	(*env)->ReleaseByteArrayElements(env, fileContents, buf, 0);
 	if (rc) return rc;
-	mod->rt = malloc(sizeof(struct RuntimePriv));
-	mod->rt->obj = mod_o;
-
-	jbyteArray struct_ = (*env)->NewByteArray(env, sizeof(struct Module));
-	(*env)->SetByteArrayRegion(env, struct_, 0, sizeof(struct Module), (const jbyte *)mod);
-
-	jfieldID struct_field = (*env)->GetFieldID(env, (*env)->FindClass(env, "dev/danielc/fudge/NativeModule"), "struct", "[B");
-	(*env)->SetObjectField(env, mod_o, struct_field, struct_);
-
-	if (mod->init != NULL) rc = mod->init(mod);
-	if (rc) return rc;
-
-	return 0;
+	return finalize_module(env, mod);
 }
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupCmfNothingAudioModule(JNIEnv *env, jclass clazz, jobject mod) {
+Java_dev_danielc_fudge_AndroidRuntime_setupCmfNothingAudioModule(JNIEnv *env, jclass clazz, jobject mod_o) {
 	set_jni_env_ctx(env, clazz);
-	return pak_ndk_create_module(env, mod, get_module_cmfnothingaudio);
+	struct Module *mod = create_module(env, mod_o);
+	get_module_cmfnothingaudio(mod);
+	return finalize_module(env, mod);
 }
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupGoveeLifeModule(JNIEnv *env, jobject thiz, jobject mod) {
-	set_jni_env_ctx(env, thiz);
-	return pak_ndk_create_module(env, mod, get_module_goveelife);
+Java_dev_danielc_fudge_AndroidRuntime_setupGoveeLifeModule(JNIEnv *env, jobject clazz, jobject mod_o) {
+	set_jni_env_ctx(env, clazz);
+	struct Module *mod = create_module(env, mod_o);
+	get_module_goveelife(mod);
+	return finalize_module(env, mod);
 }

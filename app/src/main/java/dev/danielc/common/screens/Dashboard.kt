@@ -10,19 +10,26 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -35,10 +42,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
@@ -46,8 +57,11 @@ import dev.danielc.common.DashboardPane
 import dev.danielc.common.Device
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.ui.IntGridGraph
+import dev.danielc.common.ui.dummyManifestList
 import dev.danielc.common.ui.theme.FudgeRippleConfig
 import dev.danielc.common.ui.theme.FudgeTheme
+import dev.danielc.common.ui.theme.errorIconButtonColors
+import dev.danielc.common.ui.theme.primaryIconButtonColors
 
 data class DashboardState(
     val manifest: ModuleManifest?,
@@ -63,8 +77,9 @@ data class DashboardState(
 )
 
 data class DashboardCallbacks(
-    val updatePaneValue: (DashboardPane) -> Unit = { pane -> },
+    val updatePaneValue: (DashboardPane) -> Unit = { },
     val disconnect: () -> Unit = { },
+    val runCommand: (String) -> Unit = { },
 )
 
 data class PaneState(
@@ -95,7 +110,7 @@ fun cameraState(): DashboardState {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-//@Preview(showSystemUi = true, showBackground = true, device = "id:pixel_9_pro", uiMode = 32)
+@Preview(showSystemUi = true, showBackground = true, device = "id:pixel_9_pro", uiMode = 32)
 @Composable
 fun PreviewDashboardCamera() {
     var state by remember { mutableStateOf(cameraState()) }
@@ -135,7 +150,7 @@ fun budsState(): DashboardState {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true, device = "id:tv_1080p", uiMode = 32)
+//@Preview(showBackground = true, device = "id:tv_1080p", uiMode = 32)
 @Composable
 fun PreviewDashboardBuds() {
     var state by remember { mutableStateOf(budsState()) }
@@ -202,7 +217,42 @@ fun BatteryListPane(batteries: List<PaneBatteryStatus>): PaneState {
 }
 
 @Composable
+fun SettingsDialog(dashboardCallbacks: DashboardCallbacks, close: () -> Unit = {}) {
+    Dialog(onDismissRequest = {
+        close()
+    }) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.5f),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Column(Modifier.fillMaxSize().padding(10.dp)) {
+                var terminalCommand by remember { mutableStateOf("help") }
+                TextField(
+                    leadingIcon = {
+                        Icon(painterResource(R.drawable.baseline_terminal_24), contentDescription = null)
+                    },
+                    value = terminalCommand,
+                    onValueChange = { terminalCommand = it },
+                    label = { Text("Terminal command") }
+                )
+                Button(onClick = {dashboardCallbacks.runCommand(terminalCommand)}) {
+                    Text("Execute")
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = rememberNavController(), state: DashboardState, callbacks: DashboardCallbacks) {
+    var showSettings by remember { mutableStateOf(false) }
+    if (showSettings) {
+        SettingsDialog(callbacks, close = {
+            showSettings = false
+        })
+    }
     Column(
         modifier = modifier.padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -254,8 +304,9 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
         }
 
         val panes = mutableListOf(
-            PaneState(PaneState.Color.SECONDARY, "Settings", R.drawable.baseline_settings_24),
-            PaneState(PaneState.Color.SECONDARY, "Save", R.drawable.outline_save_24),
+            PaneState(PaneState.Color.SECONDARY, "Settings", R.drawable.baseline_settings_24, onClick = {
+                showSettings = true
+            }),
             PaneState(PaneState.Color.ERROR, "Disconnect", R.drawable.outline_close_24, onClick = {
                 callbacks.disconnect()
             }),

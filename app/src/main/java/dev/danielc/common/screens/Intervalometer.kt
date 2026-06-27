@@ -3,6 +3,7 @@ package dev.danielc.common.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -27,15 +28,63 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
+import dev.danielc.common.Command
+import dev.danielc.common.ModuleInstance
 import dev.danielc.common.ui.theme.FudgeTheme
+import dev.danielc.common.ui.theme.errorIconButtonColors
 import dev.danielc.common.ui.theme.primaryIconButtonColors
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+
+class IntervalometerModel(val module: ModuleInstance): ViewModel() {
+    var job: Job? = null
+    val status = MutableStateFlow<String>("")
+    val doingCapture = MutableStateFlow(false)
+    fun stop() {
+        job?.cancel()
+        job = null
+    }
+    override fun onCleared() {
+        super.onCleared()
+        stop()
+    }
+    fun start(num: Int, interval: Int) {
+        if (doingCapture.value) return
+        job = CoroutineScope(Dispatchers.IO).launch {
+            doingCapture.value = true
+            for (i in 0..num) {
+                if (!this.isActive) break
+                module.runCommand(Command.PAK_CMD_SHUTTER_DOWN)
+                module.runCommand(Command.PAK_CMD_SHUTTER_UP)
+                if (!this.isActive) break
+                delay((1000 * interval).toLong())
+            }
+            doingCapture.value = false
+        }
+    }
+    fun capture() {
+        if (doingCapture.value) return
+        job = CoroutineScope(Dispatchers.IO).launch {
+            doingCapture.value = true
+            module.runCommand(Command.PAK_CMD_SHUTTER_DOWN)
+            module.runCommand(Command.PAK_CMD_SHUTTER_UP)
+            doingCapture.value = false
+        }
+    }
+}
 
 @Composable
-fun Intervalometer() {
-    Column(Modifier.padding(10.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+fun Intervalometer(modifier: Modifier = Modifier, start: (Int, Int) -> Unit = {a, b ->}, stop: () -> Unit = {}, shutter: () -> Unit = {}) {
+    Column(modifier.padding(10.dp).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         var shotsToTake by remember { mutableStateOf("10") }
         var secondsInBetweenShots by remember { mutableStateOf("10") }
         TextField(
@@ -66,26 +115,32 @@ fun Intervalometer() {
                 modifier = Modifier.size(100.dp),
                 colors = primaryIconButtonColors(),
                 onClick = {
-
+                    start(shotsToTake.toInt(), secondsInBetweenShots.toInt())
                 }
             ) {
                 Icon(painterResource(R.drawable.outline_shutter_speed_24), contentDescription = null, modifier = Modifier.size(50.dp))
             }
             IconButton(
                 modifier = Modifier.size(100.dp),
-                colors = primaryIconButtonColors(),
+                colors = errorIconButtonColors(),
                 onClick = {
-
+                    stop()
                 }
             ) {
-                Icon(painterResource(R.drawable.outline_camera_24), contentDescription = null, modifier = Modifier.size(50.dp))
+                Icon(painterResource(R.drawable.baseline_stop_24), contentDescription = null, modifier = Modifier.size(50.dp))
             }
         }
 
-        Button(onClick = {
-
-        }) {
-            Text("Stop")
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            IconButton(
+                modifier = Modifier.size(200.dp),
+                colors = primaryIconButtonColors(),
+                onClick = {
+                    shutter()
+                }
+            ) {
+                Icon(painterResource(R.drawable.outline_camera_24), contentDescription = null, modifier = Modifier.size(100.dp))
+            }
         }
     }
 }

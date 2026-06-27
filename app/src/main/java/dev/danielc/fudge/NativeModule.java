@@ -1,7 +1,7 @@
 package dev.danielc.fudge;
 
 import androidx.annotation.NonNull;
-
+import java.util.List;
 import dev.danielc.common.FileHandle;
 import dev.danielc.common.SavedDeviceInfo;
 import dev.danielc.libpak.Bluetooth;
@@ -18,5 +18,6 @@ public class NativeModule {
     public native int onRequestFileContents(int job, @NonNull FileHandle file);
     public native int onRequestFileThumbnail(int job, @NonNull FileHandle file);
     public native int onRequestFileMetadata(int job, @NonNull FileHandle file);
+    public native int onRunCommand(int job, String arg0, String arg1, String arg2, String arg3);
     public native void free();
 }

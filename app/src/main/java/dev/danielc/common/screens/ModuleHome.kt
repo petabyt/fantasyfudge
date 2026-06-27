@@ -28,6 +28,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.NavHost
@@ -83,15 +84,6 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
         }
     }
 
-    val dashboardCallbacks: DashboardCallbacks = DashboardCallbacks(
-        updatePaneValue = { pane ->
-            updateSettingPane(pane)
-        },
-        disconnect = {
-            showDisconnectDialog(true)
-        }
-    )
-
     private val _dashboardState = MutableStateFlow(DashboardState(manifest))
     val dashboardState = _dashboardState.asStateFlow()
     private val _homeState = MutableStateFlow(HomeState())
@@ -99,12 +91,27 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
     private val _uiEvents = MutableSharedFlow<UiEvent>(replay = 1)
     val uiEvents = _uiEvents.asSharedFlow()
     val connectProgress = MutableStateFlow<Int?>(null)
-    val connectRequiredAction = MutableStateFlow<ConnectingRequiredAction>(ConnectingRequiredAction.NONE)
+    val connectRequiredAction = MutableStateFlow(ConnectingRequiredAction.NONE)
+    val initializationError = MutableStateFlow(false)
 
     var module: ModuleInstance = ModuleInstance(manifest, request, this, viewModels)
     init {
         module.initThread()
     }
+
+    val dashboardCallbacks: DashboardCallbacks = DashboardCallbacks(
+        updatePaneValue = { pane ->
+            updateSettingPane(pane)
+        },
+        disconnect = {
+            showDisconnectDialog(true)
+        },
+        runCommand = { cmd ->
+            CoroutineScope(Dispatchers.IO).launch {
+                module.runCommand(cmd)
+            }
+        }
+    )
 
     fun updateNFiles(files: Int?) {
         _dashboardState.update { state ->
@@ -124,7 +131,7 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
 
     fun isScreenInNavBar(s: Screen): Boolean {
         return when (s) {
-            Screen.DASHBOARD, Screen.FILE_GALLERY, Screen.LIVEVIEW -> true
+            Screen.DASHBOARD, Screen.FILE_GALLERY, Screen.LIVEVIEW, Screen.INTERVALOMETER -> true
             else -> false
         }
     }
@@ -327,6 +334,17 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                     BackHandler { goBack() }
                     Liveview(Modifier.padding(innerPadding), navController, LiveviewState())
                 }
+                composable(Screen.INTERVALOMETER.strId) {
+                    BackHandler { goBack() }
+                    val model: IntervalometerModel = viewModel(initializer = {IntervalometerModel(module)})
+                    Intervalometer(Modifier.padding(innerPadding), start = { n, s ->
+                        model.start(n, s)
+                    }, stop = {
+                        model.stop()
+                    }, shutter = {
+                        model.capture()
+                    })
+                }
             }
             if (homeState.showDisconnectDialog) {
                 DisconnectDialog(dashboardState.nameOfDevice ?: "Device", yes = {
@@ -380,11 +398,16 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
         composable("connecting") {
             val connectProgress by module.homeModelView.connectProgress.collectAsStateWithLifecycle()
             val action by module.homeModelView.connectRequiredAction.collectAsStateWithLifecycle()
-            ConnectingScreen({
-                backToMainScreen()
-            }, {
-                module.tryConnectAgain()
-            }, debugLogState, connectProgress, action)
+            val isInitError by module.homeModelView.initializationError.collectAsStateWithLifecycle()
+            if (isInitError) {
+                ModuleErrorScreen(backToMainScreen, debugLogState)
+            } else {
+                ConnectingScreen({
+                    backToMainScreen()
+                }, {
+                    module.tryConnectAgain()
+                }, debugLogState, connectProgress, action)
+            }
         }
         composable("home") {
             ModuleHomeScreen(module, navController)

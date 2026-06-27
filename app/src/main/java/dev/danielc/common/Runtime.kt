@@ -1,14 +1,18 @@
 package dev.danielc.common
 
-import androidx.compose.runtime.MutableState
-import androidx.room.PrimaryKey
 import dev.danielc.R
+import dev.danielc.common.ModuleManifest.ModuleType
 import dev.danielc.common.screens.ConsoleLine
 import dev.danielc.common.screens.ConsoleViewModel
 import dev.danielc.common.screens.MimeType
-import dev.danielc.common.screens.UiEvent
-import dev.danielc.common.ui.dummyManifestList
+import dev.danielc.fudge.AndroidRuntime
+import dev.danielc.fudge.AndroidRuntime.getDatabase
 import dev.danielc.libpak.Bluetooth
+import dev.danielc.libpak.Pak
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -18,13 +22,6 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import dev.danielc.fudge.AndroidRuntime
-import dev.danielc.libpak.Pak
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 
 @Suppress("ArrayInDataClass")
 data class SavedDeviceInfo(
@@ -52,6 +49,13 @@ sealed interface DashboardPane {
         override val args: Properties,
         val points: IntArray,
     ): DashboardPane
+}
+
+enum class Command(val cmd: String) {
+    PAK_CMD_SHUTTER_DOWN("shutter-down"),
+    PAK_CMD_SHUTTER_UP("shutter-up"),
+    PAK_CMD_FOCUS_DOWN("focus-down"),
+    PAK_CMD_FOCUS_UP("focus-up"),
 }
 
 @Serializable
@@ -223,10 +227,17 @@ object Runtime {
             val list = mutableListOf<ConnectableDevice>()
             for (d in devices) {
                 // TODO filter devices through modules
-                list += ConnectableDevice(d.name, dummyManifestList[0].targets[0], dummyManifestList[0], d.isConnected)
+                //list += ConnectableDevice(d.name, dummyManifestList[0].targets[0], dummyManifestList[0], d.isConnected)
             }
+            connectableDevices = list
         }
-        //connectableDevices = list
+
+        savedDevices = getDatabase().deviceDao().getAllDevices()
+        val savedDevices = getDatabase().deviceDao().getAllDevicesList()
+        //for (d in savedDevices) {
+        //    if (d.bluetoothMacAddress != null)
+        //        Bluetooth.senseNearbyDevice(d.bluetoothMacAddress)
+        //}
     }
 
     fun getManifestFromName(name: String): ModuleManifest? {
@@ -255,8 +266,8 @@ object Runtime {
             moduleType = ModuleManifest.ModuleType.DUMMY_MODULE,
             targets = listOf(
                 ModuleManifest.Target(
-                    company = "Dummy Company",
-                    summary = "Test module that calls some internal C code",
+                    company = "Dummy Device",
+                    summary = "Fake session that can be used to test this app",
                     deviceId = Device.GAME_CONTROLLER
                 )
             ),
@@ -329,7 +340,11 @@ object Runtime {
 
         for (filename in pathList) {
             try {
-                val text = AndroidRuntime.readAssetsFile(filename)
+                val text = AndroidRuntime.readFile(filename)
+                if (text == null) {
+                    logGlobalLine("Failed to read ${filename}")
+                    continue
+                }
                 val obj: JsonElement = Json.parseToJsonElement(String(text))
                 val root = obj.jsonObject
 
@@ -339,6 +354,8 @@ object Runtime {
                 if (jsonTarget != null) {
                     for (target in jsonTarget) {
                         targets += ModuleManifest.Target(
+                            company = target.jsonObject["company"]?.jsonPrimitive?.content!!,
+                            summary = target.jsonObject["summary"]?.jsonPrimitive?.content,
                             products = Json.decodeFromJsonElement<List<String>>(target.jsonObject["products"]!!),
                             deviceId = Device.fromId(target.jsonObject["deviceType"]?.jsonPrimitive?.content)!!
                         )
@@ -349,6 +366,12 @@ object Runtime {
                     description = root["description"]?.jsonPrimitive?.content,
                     author = root["author"]?.jsonPrimitive?.content,
                     website = root["website"]?.jsonPrimitive?.content,
+                    scriptPath = filename.replaceAfterLast("/", root["modulePath"]?.jsonPrimitive?.content!!),
+                    moduleType = when (root["moduleType"]?.jsonPrimitive?.content!!) {
+                        "js" -> ModuleType.QUICKJS
+                        "wasm" -> ModuleType.WEBASSEMBLY
+                        else -> ModuleType.DUMMY_MODULE
+                    },
                     version = root["version"]?.jsonPrimitive?.int!!,
                     isDraft = root["isDraft"]?.jsonPrimitive?.booleanOrNull == true,
                     targets = targets,
@@ -356,7 +379,7 @@ object Runtime {
 
                 list += manifest
             } catch (e: Exception) {
-                logGlobalLine("Error parsing manifest: $filename")
+                logGlobalLine("Error parsing manifest $filename")
                 logGlobalLine(e.toString())
             }
         }

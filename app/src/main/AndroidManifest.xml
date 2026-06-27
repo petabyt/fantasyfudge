@@ -11,6 +11,18 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Fudge">
+
+<!--        <service-->
+<!--            android:name="dev.danielc.libpak.Bluetooth$MyCompanionDeviceService"-->
+<!--            android:exported="true"-->
+<!--            android:foregroundServiceType="connectedDevice"-->
+<!--            android:permission="android.permission.BIND_COMPANION_DEVICE_SERVICE"-->
+<!--            tools:targetApi="31">-->
+<!--            <intent-filter>-->
+<!--                <action android:name="android.companion.CompanionDeviceService" />-->
+<!--            </intent-filter>-->
+<!--        </service>-->
+
         <activity
             android:name=".fudge.MainActivity"
             android:exported="true"

@@ -11,6 +11,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import dev.danielc.fudge.AndroidRuntime
 import kotlinx.coroutines.flow.Flow
 
 @Suppress("ArrayInDataClass")
@@ -41,7 +42,24 @@ interface DeviceDao {
     suspend fun deleteDevice(device: SavedDeviceEntity)
 }
 
-@Database(entities = [SavedDeviceEntity::class], version = 2, exportSchema = false)
+@Entity(tableName = "app_settings")
+data class AppSettingEntity(
+    @PrimaryKey val id: Int = 1,
+    val downloadsLocation: String = AndroidRuntime.getDefaultDownloadDirectory(),
+)
+
+@Dao
+interface SettingsDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun save(config: AppSettingEntity)
+    @Query("SELECT * FROM app_settings WHERE id = 1")
+    suspend fun get(): AppSettingEntity?
+    @Query("SELECT * FROM app_settings WHERE id = 1")
+    fun getFlow(): Flow<AppSettingEntity?>
+}
+
+@Database(entities = [SavedDeviceEntity::class, AppSettingEntity::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun deviceDao(): DeviceDao
+    abstract fun settingsDao(): SettingsDao
 }

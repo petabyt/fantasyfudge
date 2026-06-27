@@ -53,15 +53,16 @@ class MainActivity : ComponentActivity(), ComponentCallbacks2 {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        AndroidRuntime.setup(this)
         Pak.setupAndroidContext(this)
         if (!AndroidRuntime.hasInited) {
-            System.loadLibrary("fudge")
-            AndroidRuntime.init()
             AndroidRuntime.hasInited = true
-            Runtime.refreshManifests()
-            Runtime.refreshConnectableDevices()
+            System.loadLibrary("fudge")
+            AndroidRuntime.setup(this)
             WiFi.startNetworkListeners(this)
+            CoroutineScope(Dispatchers.IO).launch {
+                Runtime.refreshManifests()
+                Runtime.refreshConnectableDevices()
+            }
         }
         enableEdgeToEdge()
         setContent {

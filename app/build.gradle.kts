@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "dev.danielc"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "dev.danielc"
@@ -20,23 +20,21 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Nobody uses 32bit x86 anymore, disabling 32bit arm for now
-        ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
-        }
+        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
     flavorDimensions += "buildType"
     productFlavors {
-        create("playstore") {
-            dimension = "buildType"
-            applicationId = "dev.danielc.fantasyfudge.playstore"
-            resValue("string", "app_name", "FantasyFudge")
-        }
         create("stable") {
             dimension = "buildType"
             applicationId = "dev.danielc.fantasyfudge"
             resValue("string", "app_name", "FantasyFudge")
         }
+//        create("playstore") {
+//            dimension = "buildType"
+//            applicationId = "dev.danielc.fantasyfudge.playstore"
+//            resValue("string", "app_name", "FantasyFudge")
+//        }
     }
 
     buildTypes {
@@ -70,6 +68,7 @@ dependencies {
     rootProject.extra["noNativeModule"] = true
     implementation(project(":libpak"))
 
+    // libs
     implementation(libs.zoomable)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -85,6 +84,7 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     ksp(libs.androidx.room.compiler)
 
+    // Test stuff
     testImplementation(libs.junit)
     debugImplementation(libs.androidx.compose.ui.tooling)
     androidTestImplementation(libs.androidx.junit)

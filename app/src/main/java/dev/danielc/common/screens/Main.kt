@@ -4,6 +4,7 @@ package dev.danielc.common.screens
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -19,12 +20,14 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -53,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -92,12 +96,12 @@ import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.DurationUnit
 
-val dummyConnectableDeviceList: List<ConnectableDevice> = listOf(
+private val dummyConnectableDeviceList: List<ConnectableDevice> = listOf(
     ConnectableDevice("Daniel's Earbuds", manifest = dummyManifestList[0], target = dummyManifestList[0].targets[0], isConnected = true),
     ConnectableDevice("Samsung TV", isConnected = false)
 )
 
-val dummyOptions = listOf(
+private val dummyOptions = listOf(
     ModuleManifest.SetupOption("wifi", "WiFi"),
     ModuleManifest.SetupOption("bluetooth", "Bluetooth"),
     ModuleManifest.SetupOption("local", "Local Network (Foo Bar Foo Bar)"),
@@ -252,7 +256,7 @@ fun SavedDeviceCard(manifest: ModuleManifest, target: ModuleManifest.Target, dev
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         painterResource(target.deviceId.getIcon()),
                         contentDescription = null,
@@ -260,6 +264,13 @@ fun SavedDeviceCard(manifest: ModuleManifest, target: ModuleManifest.Target, dev
                     )
                     Text(
                         text = dev.name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Box(Modifier.size(7.dp).clip(CircleShape).background(Color.Green))
+                    Text(
+                        text = "Nearby",
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                     )
@@ -277,12 +288,11 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
     var isRefreshing by remember { mutableStateOf(false) }
     var mutManifestList by remember { mutableStateOf(manifestList) }
     var mutDevList by remember { mutableStateOf(deviceList) }
-    val scope = rememberCoroutineScope()
     PullToRefreshBox(
         state = rememberPullToRefreshState(),
         isRefreshing = isRefreshing,
         onRefresh = {
-            scope.launch {
+            CoroutineScope(Dispatchers.IO).launch {
                 isRefreshing = true
                 Runtime.refreshManifests()
                 mutManifestList = Runtime.moduleManifests
@@ -293,65 +303,49 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
         },
         modifier = modifier
     ) {
-        Column(Modifier.fillMaxSize().padding(10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (mutDevList.isNotEmpty()) {
-                Text("Found the following devices nearby:")
-                AnimatedContent(
-                    targetState = mutDevList,
-                    transitionSpec = {
-                        fadeIn(animationSpec = tween(3000)
-                        )togetherWith fadeOut(animationSpec = tween(3000))
-                    },
-                    label = "ContentRefresh"
-                ) { targetItems ->
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        items(targetItems) { dev ->
-                            ConnectableDeviceCard(dev)
-                        }
+
+        Column(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (mutDevList.isNotEmpty()) {
+                    item {
+                        Text("Bonded devices:")
                     }
                 }
-            }
-            if (savedDevicesList.isNotEmpty()) {
-                Text("Connect again:")
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(savedDevicesList) { dev ->
-                        val manifest = Runtime.getManifestFromName(dev.manifestName)
-                        val target = manifest?.targets?.getOrNull(dev.targetIndex)
-                        if (manifest != null && target != null) {
-                            SavedDeviceCard(manifest, target, dev, clicked = {
-                                clicked(ModuleInstanceRequest(
-                                    manifest.name,
-                                    dev.targetIndex,
-                                    savedDeviceUniqueId = dev.uniqueIdentifier,
-                                    chosenSetupOption = dev.setupOption,
-                                ))
-                            })
-                        }
+                items(mutDevList) { dev ->
+                    ConnectableDeviceCard(dev)
+                }
+                if (savedDevicesList.isNotEmpty()) {
+                    item {
+                        Text("Connect again:")
                     }
                 }
-            }
-            Text("Select a type of device to connect to:")
-            val targets = mutableListOf<Pair<ModuleManifest.Target, ModuleManifest>>()
-            for (manifest in mutManifestList) {
-                for (target in manifest.targets) {
-                    targets += Pair(target, manifest)
-                }
-            }
-            AnimatedContent(
-                targetState = targets,
-                transitionSpec = {
-                    fadeIn(animationSpec = tween(1000)
-                    ) togetherWith fadeOut(animationSpec = tween(1000))
-                },
-                label = "ContentRefresh"
-            ) { targetItems ->
-                LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(targetItems) { pair ->
-                        TargetCard(pair.first, pair.second, clicked = {
-                            clicked(ModuleInstanceRequest(pair.second.name, pair.second.targets.indexOf(pair.first)))
+                items(savedDevicesList) { dev ->
+                    val manifest = Runtime.getManifestFromName(dev.manifestName)
+                    val target = manifest?.targets?.getOrNull(dev.targetIndex)
+                    if (manifest != null && target != null) {
+                        SavedDeviceCard(manifest, target, dev, clicked = {
+                            clicked(ModuleInstanceRequest(
+                                manifest.name,
+                                dev.targetIndex,
+                                savedDeviceUniqueId = dev.uniqueIdentifier,
+                                chosenSetupOption = dev.setupOption,
+                            ))
                         })
                     }
+                }
+                item {
+                    Text("Select a type of device to connect to:")
+                }
+                val targets = mutableListOf<Pair<ModuleManifest.Target, ModuleManifest>>()
+                for (manifest in mutManifestList) {
+                    for (target in manifest.targets) {
+                        targets += Pair(target, manifest)
+                    }
+                }
+                items(targets) { pair ->
+                    TargetCard(pair.first, pair.second, clicked = {
+                        clicked(ModuleInstanceRequest(pair.second.name, pair.second.targets.indexOf(pair.first)))
+                    })
                 }
             }
         }
@@ -380,28 +374,34 @@ fun MainScreen(navController: NavHostController = rememberNavController(), local
     return FudgeTheme {
         Scaffold(
             topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(),
-                    title = {
-                        Text("FantasyFudge")
-                    },
-                    navigationIcon = {
-                        Image(painterResource(R.drawable.icon), contentDescription = null, Modifier.size(40.dp).padding(5.dp).clip(
-                            CircleShape
-                        ))
-                        //Icon(painterResource( R.drawable.outline_construction_24), contentDescription = null, modifier = Modifier.padding(5.dp))
-                    },
-                    actions = {
-                        IconButton(onClick = {
-                            navController.navigate("settings")
-                        }) {
-                            Icon(
-                                painter = painterResource(R.drawable.baseline_settings_24),
-                                contentDescription = null
+                if (navBackStackEntry?.destination?.route != "local-gallery") {
+                    TopAppBar(
+                        colors = TopAppBarDefaults.topAppBarColors(),
+                        title = {
+                            Text("FantasyFudge")
+                        },
+                        navigationIcon = {
+                            Image(
+                                painterResource(R.drawable.icon),
+                                contentDescription = null,
+                                Modifier.size(40.dp).padding(5.dp).clip(
+                                    CircleShape
+                                )
                             )
+                            //Icon(painterResource( R.drawable.outline_construction_24), contentDescription = null, modifier = Modifier.padding(5.dp))
+                        },
+                        actions = {
+                            IconButton(onClick = {
+                                navController.navigate("settings")
+                            }) {
+                                Icon(
+                                    painter = painterResource(R.drawable.baseline_settings_24),
+                                    contentDescription = null
+                                )
+                            }
                         }
-                    }
-                )
+                    )
+                }
             },
             bottomBar = {
                 NavigationBar() {
@@ -496,7 +496,7 @@ fun MainNav(navController: NavHostController) {
 
     @Composable
     fun localGallery() {
-        val viewer: ViewerModel = viewModel()
+        val viewer: ViewerModel = viewModel(initializer = { ViewerModel(false, false) })
         currentLocalGallery = viewModel(initializer = { LocalGalleryViewModel(AndroidRuntime.getDownloadDirectory(), viewer) })
         LocalGallery(onItemClick = { i ->
             navController.navigate("local-viewer")
@@ -553,15 +553,19 @@ fun MainNav(navController: NavHostController) {
             }
         }
         composable("local-viewer") {
-            currentLocalGallery?.let {
-                val state by it.viewer.viewerState.collectAsStateWithLifecycle()
+            currentLocalGallery?.let { gallery ->
+                val state by gallery.viewer.viewerState.collectAsStateWithLifecycle()
                 ViewerScreen(state, { i ->
                     CoroutineScope(Dispatchers.IO).launch {
-                        it.loadImage(i)
+                        gallery.loadImage(i)
                     }
-                }, {
-                    it.viewer.clear()
+                }, close = {
+                    gallery.viewer.clear()
                     navController.popBackStack()
+                }, share = {
+                    gallery.viewer.viewerState.value?.handle?.index?.let {
+                        gallery.share(it)
+                    }
                 })
             }
         }
