@@ -82,7 +82,7 @@ enum class Device(val id: String) {
 }
 
 /**
- * Constructed manually or loaded from json in modules folder.
+ * Constructed manually or loaded from JSON in modules folder.
  *
  * This may have 'discovery info', which can be used to dynamically match
  * available devices (advertisements, paired devices) to modules without having
@@ -114,18 +114,12 @@ data class ModuleManifest(
     enum class ModuleType {
         QUICKJS,
         WEBASSEMBLY,
-        DUMMY_MODULE,
-        CMF_NOTHING,
-        GOVEELIFE,
-        LIBFUJI;
+        SHARED_LIBRARY;
         fun getDesc(): String {
             return when (this) {
                 QUICKJS -> "Javascript"
                 WEBASSEMBLY -> "Webassembly"
-                DUMMY_MODULE -> "DummyModule (statically compiled)"
-                CMF_NOTHING -> "libcmf-nothing (statically compiled)"
-                LIBFUJI -> "libfuji (statically compiled)"
-                GOVEELIFE -> "..."
+                SHARED_LIBRARY -> "Shared library (internal)"
             }
         }
     }

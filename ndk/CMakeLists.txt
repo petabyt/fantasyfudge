@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
 project(fudge)
+add_link_options("-Wl,-z,max-page-size=16384")
 
 option(APP_WASM_SUPPORT "" ON)
 option(APP_QUICKJS_SUPPORT "" ON)
@@ -49,15 +50,6 @@ else()
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../libpak ${CMAKE_CURRENT_BINARY_DIR}/libpak)
 endif()
 
-# libfuji static module
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/libfuji ${CMAKE_CURRENT_BINARY_DIR}/libfuji)
-# dummy static module
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/dummy ${CMAKE_CURRENT_BINARY_DIR}/dummy)
-# dummy cmf module
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/nothing-buds ${CMAKE_CURRENT_BINARY_DIR}/nothing)
-# dummy goveelife module
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/goveelife ${CMAKE_CURRENT_BINARY_DIR}/goveelife)
-
 add_library(${CMAKE_PROJECT_NAME} SHARED
     main.c
     thread.c
@@ -66,6 +58,26 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
 target_compile_options(${CMAKE_PROJECT_NAME}
     PRIVATE -Wall -Wshadow -Wcast-qual -Wpedantic -Werror=incompatible-pointer-types -Werror=incompatible-pointer-types -Werror=deprecated-declarations -Wstrict-aliasing=3 -Werror=narrowing
 )
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE libfuji dummy pak libjpeg-turbo cmfnothingaudio goveelife $<$<BOOL:${APP_WASM_SUPPORT}>:vmlib> $<$<BOOL:${APP_QUICKJS_SUPPORT}>:qjs>)
-target_link_options(${CMAKE_PROJECT_NAME} PRIVATE "-Wl,-z,max-page-size=16384")
-target_link_options(pak PRIVATE "-Wl,-z,max-page-size=16384")
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE pak libjpeg-turbo)
+if(APP_WASM_SUPPORT)
+    target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE vmlib)
+endif()
+if(APP_QUICKJS_SUPPORT)
+    target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE qjs)
+endif()
+
+# pakrt alias for shared library modules
+add_library(pakrt INTERFACE)
+target_link_libraries(pakrt INTERFACE pak ${CMAKE_PROJECT_NAME})
+
+# compile modules so they can be opened with dlopen
+
+# libfuji static module
+option(LIBFUJI_SHARED "Build using shared libraries" ON)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/libfuji ${CMAKE_CURRENT_BINARY_DIR}/libfuji)
+# dummy static module
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/dummy ${CMAKE_CURRENT_BINARY_DIR}/dummy)
+# dummy cmf module
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/nothing-buds ${CMAKE_CURRENT_BINARY_DIR}/nothing)
+# dummy goveelife module
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/goveelife ${CMAKE_CURRENT_BINARY_DIR}/goveelife)

@@ -26,10 +26,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Surface
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -43,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -59,6 +59,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -71,7 +72,6 @@ import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
 import dev.danielc.common.ui.theme.FudgeRippleConfig
 import dev.danielc.common.ui.theme.FudgeTheme
-import dev.danielc.common.ui.theme.primaryIconButtonColors
 import dev.danielc.fudge.AndroidRuntime
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -84,7 +84,7 @@ import kotlinx.coroutines.launch
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.TimeSource
 
-fun bitmapFromColor(
+private fun bitmapFromColor(
     color: Color,
     width: Int = 512,
     height: Int = 400
@@ -163,7 +163,6 @@ abstract class GalleryViewModel() : ViewModel() {
     var isThumbnailPriority: Boolean = true
 
     override fun onCleared() {
-        super.onCleared()
         stop()
     }
 
@@ -442,49 +441,37 @@ data class GalleryCallbacks(
 fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (Int) -> Unit = {}, onItemClick: (Int) -> Unit = {}, onRefresh: () -> Unit = {}) {
     val haptic = LocalHapticFeedback.current
     var isRefreshing by remember { mutableStateOf(false) }
+    var displayType by rememberSaveable { mutableStateOf(DisplayType.THUMBNAILS) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
-    var rows by remember { mutableIntStateOf(4) }
+    var rows by rememberSaveable { mutableIntStateOf(4) }
     @Composable
     fun menu() {
-        Surface(Modifier.padding(5.dp),
-            shape = RoundedCornerShape(6.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHighest
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            modifier = Modifier.fillMaxWidth().padding(2.dp),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp),
-                modifier = Modifier.fillMaxWidth().padding(2.dp),
-            ) {
-                Box(Modifier.padding(4.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))) {
-                    Text("sdcard", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(6.dp))
-                }
-                Spacer(Modifier.weight(1f))
-                Slider(modifier = Modifier.weight(1f), value = rows.toFloat(), valueRange = 2f..5f , steps = 3, onValueChange = {
-                    rows = it.toInt()
-                    haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                })
-                IconButton(
-                    colors = primaryIconButtonColors(),
-                    onClick = {},
-                    modifier = Modifier,
-                ) {
-                    Icon(
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        painter = painterResource(R.drawable.baseline_grid_view_24),
-                        contentDescription = "Grid View"
-                    )
-                }
-                IconButton(
-                    colors = primaryIconButtonColors(),
-                    onClick = {},
-                    modifier = Modifier,
-                ) {
-                    Icon(
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        painter = painterResource(R.drawable.baseline_view_list_24),
-                        contentDescription = "List View"
-                    )
-                }
+//            Box(Modifier.padding(4.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))) {
+//                Text("sdcard", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(6.dp))
+//            }
+            Spacer(Modifier.weight(1f))
+            val interactionSource = remember { MutableInteractionSource() }
+            Slider(modifier = Modifier.weight(1f), value = rows.toFloat(), valueRange = 2f..5f , steps = 3, onValueChange = {
+                rows = it.toInt()
+                haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+            }, thumb = {
+                SliderDefaults.Thumb(interactionSource, thumbSize = DpSize(25.dp, 25.dp))
+            })
+            IconButton(onClick = {
+                displayType = if (displayType == DisplayType.THUMBNAILS) DisplayType.VERTICAL_TABLE else DisplayType.THUMBNAILS
+                haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+            }, modifier = Modifier) {
+                Icon(
+                    modifier = Modifier.size(27.dp),
+                    tint = MaterialTheme.colorScheme.onBackground,
+                    painter = if (displayType == DisplayType.THUMBNAILS) painterResource(R.drawable.baseline_view_list_24) else painterResource(R.drawable.baseline_grid_view_24),
+                    contentDescription = null
+                )
             }
         }
     }
@@ -503,7 +490,7 @@ fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (In
                 }
             }
         ) {
-            val rows = if (state.displayType == DisplayType.THUMBNAILS) rows else 1
+            val rows = if (displayType == DisplayType.THUMBNAILS) rows else 1
             LazyVerticalGrid(
                 state = listState,
                 columns = GridCells.Fixed(rows)
@@ -513,7 +500,7 @@ fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (In
                 }
                 if (state.objects.isNotEmpty()) {
                     itemsIndexed(state.objects) { index, obj ->
-                        if (state.displayType == DisplayType.THUMBNAILS) {
+                        if (displayType == DisplayType.THUMBNAILS) {
                             GalleryThumbnail(obj, onClick = {
                                 onItemClick(index)
                                 haptic.performHapticFeedback(HapticFeedbackType.ContextClick)

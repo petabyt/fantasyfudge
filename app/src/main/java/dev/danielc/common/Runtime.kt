@@ -58,10 +58,18 @@ enum class Command(val cmd: String) {
     PAK_CMD_FOCUS_UP("focus-up"),
 }
 
+data class Location(
+    val latitude: Double,
+    val longitude: Double,
+    val altitude: Double,
+    val satellites: Int,
+)
+
 @Serializable
 enum class Screen(val strId: String, val id: Int) {
     NONE("none", 0),
     CONNECT("connect", 1),
+    CONNECT_SECONDARY("connecting-secondary", 1),
     SETUP("setup", 10),
 
     CONSOLE("console", 100),
@@ -263,7 +271,8 @@ object Runtime {
         val list = mutableListOf<ModuleManifest>()
         list += ModuleManifest(
             name = "dummymod",
-            moduleType = ModuleManifest.ModuleType.DUMMY_MODULE,
+            moduleType = ModuleManifest.ModuleType.SHARED_LIBRARY,
+            scriptPath = "libdummy.so",
             targets = listOf(
                 ModuleManifest.Target(
                     company = "Dummy Device",
@@ -278,7 +287,8 @@ object Runtime {
             description = "libfuji port",
             website = "https://github.com/petabyt/libfuji",
             author = "Daniel Cook",
-            moduleType = ModuleManifest.ModuleType.LIBFUJI,
+            moduleType = ModuleManifest.ModuleType.SHARED_LIBRARY,
+            scriptPath = "libfuji.so",
             targets = listOf(
                 ModuleManifest.Target(
                     company = "Fujifilm",
@@ -306,7 +316,8 @@ object Runtime {
 
         list += ModuleManifest(
             name = "cmf-nothing-audio",
-            moduleType = ModuleManifest.ModuleType.CMF_NOTHING,
+            moduleType = ModuleManifest.ModuleType.SHARED_LIBRARY,
+            scriptPath = "libcmfnothingaudio.so",
             targets = listOf(
                 ModuleManifest.Target(
                     company = "Nothing",
@@ -319,7 +330,8 @@ object Runtime {
 
         list += ModuleManifest(
             name = "goveelife",
-            moduleType = ModuleManifest.ModuleType.GOVEELIFE,
+            moduleType = ModuleManifest.ModuleType.SHARED_LIBRARY,
+            scriptPath = "libgoveelife.so",
             targets = listOf(
                 ModuleManifest.Target(
                     company = "GoveeLife",
@@ -370,7 +382,7 @@ object Runtime {
                     moduleType = when (root["moduleType"]?.jsonPrimitive?.content!!) {
                         "js" -> ModuleType.QUICKJS
                         "wasm" -> ModuleType.WEBASSEMBLY
-                        else -> ModuleType.DUMMY_MODULE
+                        else -> ModuleType.SHARED_LIBRARY
                     },
                     version = root["version"]?.jsonPrimitive?.int!!,
                     isDraft = root["isDraft"]?.jsonPrimitive?.booleanOrNull == true,

@@ -55,13 +55,13 @@ fun DisconnectedScreen(reason: String = "Reason: Failed to connect - (Disconnect
         ) { innerPadding ->
             Box(Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
                 Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text(reason, style = MaterialTheme.typography.labelMedium)
+//                    Text(reason, style = MaterialTheme.typography.labelMedium)
                     Button(modifier = Modifier.fillMaxWidth(), onClick = {
                         backToMainScreen()
                     }) {
                         Text("Exit")
                     }
-                    Console(Modifier.fillMaxSize(), consoleState)
+                    Console(Modifier.weight(1f), consoleState)
                 }
             }
         }

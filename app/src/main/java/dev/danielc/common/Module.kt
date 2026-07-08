@@ -13,11 +13,12 @@ import dev.danielc.libpak.Pak
 import dev.danielc.libpak.WiFi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
+import kotlin.collections.plus
 import kotlin.time.DurationUnit
 import kotlin.time.TimeSource
 
@@ -27,7 +28,6 @@ typealias JobUpdateCallback = (ModuleJob) -> Unit
  * A job id is passed each time a module function is called. A job can be canceled
  * at any time by the user, and the percent finished value can be updated by the module.
  */
-@Serializable
 data class ModuleJob(
     val onUpdate: JobUpdateCallback,
     val id: Int,
@@ -56,6 +56,13 @@ data class ViewModelReferences(
 abstract class ModuleBase: NativeModule() {
     private var jobs = mutableMapOf<Int, ModuleJob>()
     private var jobCounter = 0
+
+    fun cancelAllJobs() {
+        for (job in jobs) {
+            job.value.isCancelled = true
+        }
+    }
+
     fun createJob(onUpdate: JobUpdateCallback): ModuleJob {
         val id = ++jobCounter
         val job = ModuleJob(
@@ -135,6 +142,11 @@ abstract class ModuleBase: NativeModule() {
                 saved.name,
                 saved.privateData,
             ), job.id)
+        }
+    }
+    fun setProp(pane: DashboardPane): Int {
+        return withJob({}) { job ->
+            onPropChanged(job.id, pane)
         }
     }
 }
@@ -217,13 +229,16 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
     fun getSetupOptionName(): String? {
         return request.chosenSetupOption
     }
-    suspend fun deregister() {
-        println("Deregistering module")
+    suspend fun stopAllThreads() {
+        println("Stopping module threads")
+        cancelAllJobs()
         galleryViewModel.stop()
-        initJob?.cancel()
-        initJob?.join()
-        mainLoopJob?.cancel()
-        mainLoopJob?.join()
+        initJob?.cancelAndJoin()
+        mainLoopJob?.cancelAndJoin()
+    }
+    suspend fun deregister() {
+        stopAllThreads()
+        println("Deregistering module")
         Runtime.removeModuleInstance(this)
         if (!homeModelView.initializationError.value) free()
     }
@@ -278,17 +293,36 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         // TODO: Manage multiple storage devices
         galleryViewModel.setProperties(nItems, name, SortBy.fromId(sortBy)!!)
         // TODO: Count total files if needed
-        homeModelView.updateNFiles(nItems)
+        homeModelView.updateNumFiles(nItems)
     }
 
-    fun setIsConnected() {
+    private fun setIsConnected() {
         isConnected = true
         startMainLoop()
         switchScreen(Screen.DASHBOARD, false)
     }
 
+    fun addWiFiConnection(filter: WiFi.ApFilter) {
+        CoroutineScope(Dispatchers.IO).launch {
+            homeModelView.goToScreen(Screen.CONNECT_SECONDARY, false)
+            val callback = object : WiFi.WiFiDiscoveryCallback() {
+                override fun failed(reason: String, code: Int) {
+                    debugLog("<error>${reason}")
+                }
+
+                override fun found(net: WiFi.Adapter) {
+                    if (tryConnectWiFi(net) == 0) {
+                        homeModelView.back(false)
+                    }
+                }
+            }
+            WiFi.connectToAccessPoint(filter, callback)
+        }
+    }
+
     private fun wifiConnectRoutine(wifi: ModuleManifest.WiFiDiscovery) {
         val primaryAdapter = WiFi.getPrimaryAdapter()
+        // Try connection over primary adapter in case user connected to access point manually
         debugLog("First trying connection over primary adapter...")
         if (tryConnectWiFi(primaryAdapter, {job -> connectCallback(job)}) == 0) {
             setIsConnected()
@@ -297,6 +331,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
 
         val filter = WiFi.ApFilter()
         filter.ssidPattern = wifi.ssidPattern
+        // TODO: Additional fields from WiFiDiscovery
         val callback = object : WiFi.WiFiDiscoveryCallback() {
             override fun failed(reason: String, code: Int) {
                 debugLog("<error>${reason}")
@@ -332,9 +367,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
                 if (rc == 0) {
                     setIsConnected()
                 } else {
-                    disconnectReason = "Failed to connect"
-                    disconnectedErrorCode = rc
-                    switchScreen(Screen.DISCONNECTED, false)
+                    disconnect("Failed to connect", rc)
                 }
             }
 
@@ -377,57 +410,58 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         }
     }
 
-    fun initThread() {
-        val module = this
-        initJob = CoroutineScope(Dispatchers.IO).launch {
-            val rc = when (manifest.moduleType) {
-                ModuleManifest.ModuleType.CMF_NOTHING -> AndroidRuntime.setupCmfNothingAudioModule(module)
-                ModuleManifest.ModuleType.QUICKJS -> {
-                    val path = module.manifest.scriptPath
-                    if (path == null) {
-                        debugLog("<error>script path not included")
+    private fun initConnection() {
+        val rc = when (manifest.moduleType) {
+            ModuleManifest.ModuleType.SHARED_LIBRARY -> {
+                AndroidRuntime.setupSharedLibraryModule(this, manifest.scriptPath!!)
+            }
+            ModuleManifest.ModuleType.QUICKJS -> {
+                val path = manifest.scriptPath
+                if (path == null) {
+                    debugLog("<error>script path not included")
+                    -1
+                } else {
+                    var fileContents = AndroidRuntime.readFile(path)
+                    if (fileContents == null) {
+                        debugLog("Failed to read ${path}")
                         -1
                     } else {
-                        var fileContents = AndroidRuntime.readFile(path)
-                        if (fileContents == null) {
-                            debugLog("Failed to read ${path}")
-                            -1
-                        } else {
-                            fileContents += 0.toByte()
-                            AndroidRuntime.setupJavascriptModule(module, fileContents)
-                        }
+                        fileContents += 0.toByte()
+                        AndroidRuntime.setupJavascriptModule(this, fileContents)
                     }
                 }
-                ModuleManifest.ModuleType.WEBASSEMBLY -> {
-                    debugLog("<error>Wasm not implemented yet")
-                    -1
-                }
-                ModuleManifest.ModuleType.DUMMY_MODULE -> AndroidRuntime.setupDummyNativeModule(module)
-                ModuleManifest.ModuleType.LIBFUJI -> AndroidRuntime.setupLibFujiModule(module)
-                ModuleManifest.ModuleType.GOVEELIFE -> AndroidRuntime.setupGoveeLifeModule(module)
             }
-            if (rc != 0) {
-                homeModelView.initializationError.value = true
+            ModuleManifest.ModuleType.WEBASSEMBLY -> {
+                debugLog("<error>Wasm not implemented yet")
+                -1
+            }
+        }
+        if (rc != 0) {
+            homeModelView.initializationError.value = true
+        } else {
+            homeModelView.connectRequiredAction.value = ConnectingRequiredAction.NONE
+            val savedDeviceInfo = request.getSavedDeviceEntity()
+            val option = request.getSetupOption()
+            val transport = option?.transport ?: ModuleManifest.Transport.BLUETOOTH
+            if (target.wifiDiscovery != null && transport == ModuleManifest.Transport.WIFI_AP) {
+                wifiConnectRoutine(target.wifiDiscovery)
+            } else if (target.bluetoothDiscovery != null && transport == ModuleManifest.Transport.BLUETOOTH) {
+                bluetoothConnectRoutine(target.bluetoothDiscovery, savedDeviceInfo)
             } else {
-                homeModelView.connectRequiredAction.value = ConnectingRequiredAction.NONE
-                val savedDeviceInfo = request.getSavedDeviceEntity()
-                val option = request.getSetupOption()
-                val transport = option?.transport ?: ModuleManifest.Transport.BLUETOOTH
-                if (target.wifiDiscovery != null && transport == ModuleManifest.Transport.WIFI_AP) {
-                    wifiConnectRoutine(target.wifiDiscovery)
-                } else if (target.bluetoothDiscovery != null && transport == ModuleManifest.Transport.BLUETOOTH) {
-                    bluetoothConnectRoutine(target.bluetoothDiscovery, savedDeviceInfo)
+                val rc = findConnection({ job -> connectCallback(job) })
+                if (rc == 0) {
+                    setIsConnected()
                 } else {
-                    val rc = findConnection({ job -> connectCallback(job) })
-                    if (rc == 0) {
-                        setIsConnected()
-                    } else {
-                        disconnectReason = "Failed to connect"
-                        disconnectedErrorCode = rc
-                        switchScreen(Screen.DISCONNECTED, false)
-                    }
+                    disconnect("Failed to connect", rc)
                 }
             }
+        }
+    }
+
+    fun initThread() {
+        initJob = CoroutineScope(Dispatchers.IO).launch {
+            initConnection()
+            initJob = null
         }
     }
 
@@ -448,20 +482,22 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         }
     }
 
+    private fun disconnect(reason: String, code: Int) {
+        disconnectReason = reason
+        debugLog("<error>Disconnected: ${reason}")
+        disconnectedErrorCode = code
+        homeModelView.goToScreen(Screen.DISCONNECTED)
+    }
+
     fun forceDisconnect(reason: String, code: Int = 0) {
         if (isConnected) {
             isConnected = false
             CoroutineScope(Dispatchers.IO).launch {
-                mainLoopJob?.cancel()
-                mainLoopJob?.join()
-                println("main job killed")
+                stopAllThreads()
                 withJob({}) { job ->
                     onDisconnect()
                 }
-                println("disconnect called")
-                disconnectReason = reason
-                disconnectedErrorCode = code
-                homeModelView.goToScreen(Screen.DISCONNECTED)
+                disconnect(reason, code)
             }
         }
     }

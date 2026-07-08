@@ -6,6 +6,7 @@
 struct RuntimePriv {
 	jobject obj;
 	char *setup_option;
+	void *lib;
 };
 
 struct ModuleJavaStruct {

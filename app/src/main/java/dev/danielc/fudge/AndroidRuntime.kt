@@ -68,10 +68,7 @@ object AndroidRuntime {
     }
 
     external fun init()
-    external fun setupDummyNativeModule(mod: ModuleInstance): Int
-    external fun setupCmfNothingAudioModule(mod: ModuleInstance): Int
-    external fun setupLibFujiModule(mod: ModuleInstance): Int
-    external fun setupGoveeLifeModule(mod: ModuleInstance): Int
+    external fun setupSharedLibraryModule(mod: ModuleInstance, path: String): Int
     external fun setupJavascriptModule(mod: ModuleInstance, fileContents: ByteArray): Int
     external fun setupWebassemblyModule(mod: ModuleInstance, fileContents: ByteArray): Int
 
@@ -214,8 +211,7 @@ object AndroidRuntime {
 
     fun readFile(file: MediaStoreFile): ByteArray? {
         val resolver = Pak.getActivity().contentResolver
-        val fd = resolver.openFileDescriptor(file.contentUri, "r")
-        if (fd == null) return null
+        val fd = resolver.openFileDescriptor(file.contentUri, "r") ?: return null
         val stream = FileInputStream(fd.fileDescriptor)
         val data = stream.readBytes()
         stream.close()
@@ -231,10 +227,8 @@ object AndroidRuntime {
             put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path + File.separator + "fudge")
         }
 
-        val uri = resolver.insert(MediaStore.Files.getContentUri("external"), values)
-        if (uri == null) return
-        val stream = resolver.openOutputStream(uri)
-        if (stream == null) return
+        val uri = resolver.insert(MediaStore.Files.getContentUri("external"), values) ?: return
+        val stream = resolver.openOutputStream(uri) ?: return
         stream.write(data)
         stream.close()
     }

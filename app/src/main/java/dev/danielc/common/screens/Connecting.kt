@@ -103,6 +103,7 @@ fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: Co
                     Text(buttonText)
                 }
             }
+            // TODO: Disable button during connecting
             Button({
                 tryAgain()
             }) {

@@ -1,21 +1,12 @@
 /// Main app start screen
 package dev.danielc.common.screens
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.indication
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,36 +18,32 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberOverscrollEffect
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -86,7 +73,6 @@ import dev.danielc.common.ui.ModuleList
 import dev.danielc.common.ui.ModuleListScreen
 import dev.danielc.common.ui.TargetCard
 import dev.danielc.common.ui.dummyManifestList
-import dev.danielc.common.ui.theme.FudgeRippleConfig
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
 import kotlinx.coroutines.CoroutineScope
@@ -108,14 +94,13 @@ private val dummyOptions = listOf(
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
-//@Preview(showBackground = true, device = "id:pixel_9", uiMode = 32)
+@Preview(showBackground = true, device = "id:pixel_9", uiMode = 32)
 @Composable
 fun InstanceSetup(options: List<ModuleManifest.SetupOption> = dummyOptions, onClick: (ModuleManifest.SetupOption) -> Unit = {}, back: () -> Unit = {}) {
     return FudgeTheme {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(),
                     title = {
                         Text("Choose a mode to proceed")
                     },
@@ -132,41 +117,34 @@ fun InstanceSetup(options: List<ModuleManifest.SetupOption> = dummyOptions, onCl
                 )
             },
         ) { innerPadding ->
-            Column(Modifier.padding(innerPadding).padding(10.dp).fillMaxSize(),
+            LazyColumn(Modifier.padding(innerPadding).padding(10.dp).fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp, alignment = Alignment.Top)) {
-                for (e in options) {
+                items(options) { e ->
                     // TODO: Interesting colors
                     val colors = when (e.name) {
                         "bluetooth" -> Pair(MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.onTertiary)
                         else -> Pair(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.onPrimary)
                     }
-                    CompositionLocalProvider(LocalRippleConfiguration provides FudgeRippleConfig()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(0.9f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(colors.first)
-                                .clickable(onClick = {
-                                    onClick(e)
-                                })
-                                .indication(
-                                    indication = ripple(),
-                                    interactionSource = remember { MutableInteractionSource() }
-                                )
-                        ) {
-                            Row(Modifier.padding(20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Icon(
-                                    when (e.name) {
-                                        "wifi" -> painterResource(R.drawable.outline_wifi_24)
-                                        "bluetooth" -> painterResource(R.drawable.outline_bluetooth_24)
-                                        else -> painterResource(R.drawable.outline_general_device_24)
-                                    },
-                                    contentDescription = null,
-                                    tint = colors.second
-                                )
-                                Text(e.title, color = colors.second)
-                            }
+                    Surface(
+                        onClick = {
+                            onClick(e)
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = colors.first,
+                        modifier = Modifier.fillMaxWidth(0.9f)
+                    ) {
+                        Row(Modifier.padding(20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Icon(
+                                when (e.name) {
+                                    "wifi" -> painterResource(R.drawable.outline_wifi_24)
+                                    "bluetooth" -> painterResource(R.drawable.outline_bluetooth_24)
+                                    else -> painterResource(R.drawable.outline_general_device_24)
+                                },
+                                contentDescription = null,
+                                tint = colors.second
+                            )
+                            Text(e.title, color = colors.second)
                         }
                     }
                 }

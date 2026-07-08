@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.res.Configuration
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.consumeWindowInsets
@@ -109,30 +110,32 @@ class ConsoleViewModel(initialLines: List<ConsoleLine> = emptyList()) : ViewMode
 
 @Composable
 fun Console(modifier: Modifier = Modifier, state: ConsoleState) {
-    SelectionContainer {
-        LazyColumn(modifier.background(Color.Black)) {
+    Box(modifier) {
+        LazyColumn(Modifier.fillMaxSize().background(Color.Black)) {
             items(state.lines) { line ->
-                Row(Modifier.fillMaxWidth()) {
-                    Text(
-                        modifier = Modifier.weight(1f),
-                        text = line.line,
-                        style = TextStyle(
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 14.sp,
-                            color = line.color
-                        )
-                    )
-                    if (line.timestamp != null) {
-                        DisableSelection {
-                            Text(
-                                text = "${line.timestamp.inWholeSeconds}s",
-                                style = TextStyle(
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 10.sp,
-                                    color = Color.Gray
-                                ),
-                                modifier = Modifier.alignByBaseline()
+                SelectionContainer {
+                    Row(Modifier.fillMaxWidth()) {
+                        Text(
+                            modifier = Modifier.weight(1f),
+                            text = line.line,
+                            style = TextStyle(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 14.sp,
+                                color = line.color
                             )
+                        )
+                        if (line.timestamp != null) {
+                            DisableSelection {
+                                Text(
+                                    text = "${line.timestamp.inWholeSeconds}s",
+                                    style = TextStyle(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 10.sp,
+                                        color = Color.Gray
+                                    ),
+                                    modifier = Modifier.alignByBaseline()
+                                )
+                            }
                         }
                     }
                 }

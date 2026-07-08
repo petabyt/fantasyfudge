@@ -5,13 +5,12 @@
 #include <pak.h>
 #include <runtime.h>
 #include <runtime_ext.h>
+#include <dlfcn.h>
+#include <stdint.h>
 #include "thread.h"
 #include "main.h"
 
-int get_module_dummy(struct Module *mod);
-int get_module_libfuji(struct Module *mod);
-int get_module_cmfnothingaudio(struct Module *mod);
-int get_module_goveelife(struct Module *mod);
+jobject pak_wifi_ap_filter_to_jobject(JNIEnv *env, struct PakWiFiApFilter *filter);
 
 static struct Module *create_module(JNIEnv *env, jobject o_mod) {
 	struct Module *mod = calloc(1, sizeof(struct Module));
@@ -50,43 +49,6 @@ Java_dev_danielc_fudge_AndroidRuntime_init(JNIEnv *env, jclass clazz) {
 	pak_global_log("AndroidRuntime init");
 }
 
-static uint8_t *file_add(void *arg, uint8_t *buffer, unsigned int new_len, unsigned int old_len) {
-	uint8_t *new = realloc(buffer, new_len);
-	fread(new + old_len, 1, new_len - old_len, (FILE *)arg);
-	return new;
-}
-
-JNIEXPORT jbyteArray JNICALL
-Java_dev_danielc_libpak_Exif_getExifThumbnail(JNIEnv *env, jclass clazz, jstring filepath) {
-	const char *cfilepath = (*env)->GetStringUTFChars(env, filepath, 0);
-	FILE *f = fopen(cfilepath, "rb");
-	if (f == NULL) {
-		abort();
-	}
-
-	uint8_t *buffer = malloc(5000);
-	fread(buffer, 1, 5000, f);
-
-	struct ExifParser c = {0};
-	int rc = exif_start_raw(&c, buffer, 5000, file_add, f);
-	if (rc < 0) {
-		abort();
-	}
-
-	if (c.thumb_of == 0 || c.thumb_size == 0) {
-		return NULL;
-	}
-
-	jbyteArray result = (*env)->NewByteArray(env, (jsize)c.thumb_size);
-	(*env)->SetByteArrayRegion(env, result, 0, (jsize)c.thumb_size, (jbyte *)(c.buf + c.thumb_of));
-
-	free(c.buf);
-	fclose(f);
-	(*env)->ReleaseStringUTFChars(env, filepath, cfilepath);
-
-	return result;
-}
-
 void pak_global_log(const char *fmt, ...) {
 	char buffer[512] = {0};
 	va_list args;
@@ -121,7 +83,6 @@ void pak_debug_log(struct Module *mod, const char *fmt, ...) {
 	va_end(args);
 
 	JNIEnv *env = get_jni_env();
-	pak_global_log("%p %p", env, mod->rt);
 	(*env)->PushLocalFrame(env, 10);
 	jstring buffer_s = (*env)->NewStringUTF(env, buffer);
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
@@ -313,6 +274,9 @@ int pak_rt_set_dashboard_pane(struct Module *mod, const struct PakUserSetting *s
 	if (s->type == PAK_BOOLEAN) {
 		jclass booleansetting_c = (*env)->FindClass(env, "dev/danielc/common/DashboardPane$BooleanSetting");
 		pane_o = (*env)->NewObject(env, booleansetting_c, (*env)->GetMethodID(env, booleansetting_c, "<init>", "(Ldev/danielc/common/DashboardPane$Properties;Z)V"), properties_o, (jboolean)s->u.boolv.v);
+	} else if (s->type == PAK_BUTTON) {
+		jclass booleansetting_c = (*env)->FindClass(env, "dev/danielc/common/DashboardPane$Button");
+		pane_o = (*env)->NewObject(env, booleansetting_c, (*env)->GetMethodID(env, booleansetting_c, "<init>", "(Ldev/danielc/common/DashboardPane$Properties;)V"), properties_o);
 	} else if (s->type == PAK_GRAPH) {
 		jclass booleansetting_c = (*env)->FindClass(env, "dev/danielc/common/DashboardPane$Graph");
 		jintArray arr = (*env)->NewIntArray(env, (jsize)s->u.graphv.n_points);
@@ -412,20 +376,18 @@ void pak_rt_release_metadata(struct Module *mod, struct FileMetadata *md) {
 	free(md);
 }
 
-JNIEXPORT int JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupLibFujiModule(JNIEnv *env, jclass clazz, jobject mod_o) {
-	set_jni_env_ctx(env, clazz);
-	struct Module *mod = create_module(env, mod_o);
-	get_module_libfuji(mod);
-	return finalize_module(env, mod);
-}
+int pak_rt_add_wifi_connection(struct Module *mod, struct PakWiFiApFilter *filter) {
+	JNIEnv *env = get_jni_env();
+	(*env)->PushLocalFrame(env, 10);
 
-JNIEXPORT int JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupDummyNativeModule(JNIEnv *env, jclass clazz, jobject mod_o) {
-	set_jni_env_ctx(env, clazz);
-	struct Module *mod = create_module(env, mod_o);
-	get_module_dummy(mod);
-	return finalize_module(env, mod);
+	jobject filter_o = pak_wifi_ap_filter_to_jobject(env, filter);
+
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
+	jmethodID method = (*env)->GetMethodID(env, module_c, "addWiFiConnection", "(Ldev/danielc/libpak/WiFi$ApFilter;)V");
+	(*env)->CallVoidMethod(env, mod->rt->obj, method, filter_o);
+
+	(*env)->PopLocalFrame(env, NULL);
+	return 0;
 }
 
 JNIEXPORT int JNICALL
@@ -454,17 +416,28 @@ Java_dev_danielc_fudge_AndroidRuntime_setupJavascriptModule(JNIEnv *env, jclass 
 }
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupCmfNothingAudioModule(JNIEnv *env, jclass clazz, jobject mod_o) {
+Java_dev_danielc_fudge_AndroidRuntime_setupSharedLibraryModule(JNIEnv *env, jclass clazz, jobject mod_o, jstring path) {
 	set_jni_env_ctx(env, clazz);
 	struct Module *mod = create_module(env, mod_o);
-	get_module_cmfnothingaudio(mod);
-	return finalize_module(env, mod);
-}
+	const char *path_s = (*env)->GetStringUTFChars(env, path, NULL);
 
-JNIEXPORT jint JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupGoveeLifeModule(JNIEnv *env, jobject clazz, jobject mod_o) {
-	set_jni_env_ctx(env, clazz);
-	struct Module *mod = create_module(env, mod_o);
-	get_module_goveelife(mod);
+	void *lib = dlopen(path_s, RTLD_NOW);
+	if (lib == NULL) {
+		pak_debug_log(mod, "Failed to open %s", path_s);
+		return -1; // leak
+	}
+	void *ptr = dlsym(lib, "get_module");
+	if (ptr == NULL) {
+		pak_debug_log(mod, "Failed to get symbol get_module in %s", path_s);
+		return -1; // leak
+	}
+
+	int (*get_module)(struct Module *) = (int (*)(struct Module *))(uintptr_t)ptr;
+
+	int rc = get_module(mod);
+
+	mod->rt->lib = lib;
+
+	(*env)->ReleaseStringUTFChars(env, path, path_s);
 	return finalize_module(env, mod);
 }

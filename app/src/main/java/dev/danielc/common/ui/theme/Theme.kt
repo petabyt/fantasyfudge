@@ -14,6 +14,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,12 +46,21 @@ fun errorIconButtonColors(): IconButtonColors {
     )
 }
 @Composable
-fun primaryIconButtonColors(): IconButtonColors {
+fun primaryIconButtonColors(opacity: Float = 1f, opacityDisabled: Float = 0.8f): IconButtonColors {
     return IconButtonColors(
-        containerColor = MaterialTheme.colorScheme.primary,
-        contentColor = MaterialTheme.colorScheme.onPrimary,
-        disabledContainerColor = MaterialTheme.colorScheme.primary,
-        disabledContentColor = MaterialTheme.colorScheme.onPrimary,
+        containerColor = MaterialTheme.colorScheme.primary.copy(opacity),
+        contentColor = MaterialTheme.colorScheme.onPrimary.copy(opacity),
+        disabledContainerColor = MaterialTheme.colorScheme.primary.copy(opacityDisabled),
+        disabledContentColor = MaterialTheme.colorScheme.onPrimary.copy(opacityDisabled),
+    )
+}
+@Composable
+fun secondaryIconButtonColors(opacity: Float = 1f, opacityDisabled: Float = 0.8f): IconButtonColors {
+    return IconButtonColors(
+        containerColor = MaterialTheme.colorScheme.secondary.copy(opacity),
+        contentColor = MaterialTheme.colorScheme.onSecondary.copy(opacity),
+        disabledContainerColor = MaterialTheme.colorScheme.secondary.copy(opacityDisabled),
+        disabledContentColor = MaterialTheme.colorScheme.onSecondary.copy(opacityDisabled),
     )
 }
 

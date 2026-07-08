@@ -84,7 +84,7 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
         }
     }
 
-    private val _dashboardState = MutableStateFlow(DashboardState(manifest))
+    private val _dashboardState = MutableStateFlow(DashboardState(manifest, connectionType = request.getSetupOption()?.transport))
     val dashboardState = _dashboardState.asStateFlow()
     private val _homeState = MutableStateFlow(HomeState())
     val homeState = _homeState.asStateFlow()
@@ -113,7 +113,7 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
         }
     )
 
-    fun updateNFiles(files: Int?) {
+    fun updateNumFiles(files: Int?) {
         _dashboardState.update { state ->
             state.copy(
                 filesOnStorage = files
@@ -224,6 +224,9 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
                 } else {
                     currentState
                 }
+            }
+            CoroutineScope(Dispatchers.IO).launch {
+                module.setProp(pane)
             }
         }
     }
@@ -337,13 +340,7 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                 composable(Screen.INTERVALOMETER.strId) {
                     BackHandler { goBack() }
                     val model: IntervalometerModel = viewModel(initializer = {IntervalometerModel(module)})
-                    Intervalometer(Modifier.padding(innerPadding), start = { n, s ->
-                        model.start(n, s)
-                    }, stop = {
-                        model.stop()
-                    }, shutter = {
-                        model.capture()
-                    })
+                    Intervalometer(Modifier.padding(innerPadding), model)
                 }
             }
             if (homeState.showDisconnectDialog) {
@@ -395,15 +392,34 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
     val viewerState by module.viewerViewModel.viewerState.collectAsStateWithLifecycle()
 
     DefaultNavHost(navController = navController, startDestination = "connecting") {
+        composable("connecting-secondary") {
+            val connectProgress by module.homeModelView.connectProgress.collectAsStateWithLifecycle()
+            val action by module.homeModelView.connectRequiredAction.collectAsStateWithLifecycle()
+            ConnectingScreen({
+                module.homeModelView.back(false)
+            }, {
+
+            }, debugLogState, connectProgress, action)
+        }
         composable("connecting") {
             val connectProgress by module.homeModelView.connectProgress.collectAsStateWithLifecycle()
             val action by module.homeModelView.connectRequiredAction.collectAsStateWithLifecycle()
             val isInitError by module.homeModelView.initializationError.collectAsStateWithLifecycle()
+            var hasCancelled by remember { mutableStateOf(false) }
             if (isInitError) {
                 ModuleErrorScreen(backToMainScreen, debugLogState)
             } else {
                 ConnectingScreen({
-                    backToMainScreen()
+                    if (!hasCancelled) {
+                        hasCancelled = true
+                        CoroutineScope(Dispatchers.IO).launch {
+                            module.debugLog("Cancelling...")
+                            module.stopAllThreads()
+                            CoroutineScope(Dispatchers.Main).launch {
+                                backToMainScreen()
+                            }
+                        }
+                    }
                 }, {
                     module.tryConnectAgain()
                 }, debugLogState, connectProgress, action)

@@ -18,12 +18,10 @@ import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -42,10 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,11 +52,8 @@ import dev.danielc.common.DashboardPane
 import dev.danielc.common.Device
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.ui.IntGridGraph
-import dev.danielc.common.ui.dummyManifestList
 import dev.danielc.common.ui.theme.FudgeRippleConfig
 import dev.danielc.common.ui.theme.FudgeTheme
-import dev.danielc.common.ui.theme.errorIconButtonColors
-import dev.danielc.common.ui.theme.primaryIconButtonColors
 
 data class DashboardState(
     val manifest: ModuleManifest?,
@@ -74,6 +66,7 @@ data class DashboardState(
     val temperature: Int? = null,
     val humidity: Int? = null,
     val firmwareVersion: String? = null,
+    val connectionType: ModuleManifest.Transport? = null,
 )
 
 data class DashboardCallbacks(
@@ -282,8 +275,13 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                                 contentDescription = null,
                             )
                         }
+                        val icon = when (state.connectionType) {
+                            ModuleManifest.Transport.BLUETOOTH -> R.drawable.outline_bluetooth_24
+                            ModuleManifest.Transport.USB -> R.drawable.baseline_usb_24
+                            else -> R.drawable.outline_wifi_24
+                        }
                         Icon(
-                            painter = painterResource(R.drawable.outline_wifi_24),
+                            painter = painterResource(icon),
                             contentDescription = null,
                         )
                     }
@@ -351,6 +349,11 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                         )
                     })
                 }
+                is DashboardPane.Button -> {
+                    PaneState(PaneState.Color.PRIMARY, text = pane.args.title, onClick = {
+                        callbacks.updatePaneValue(pane)
+                    })
+                }
                 is DashboardPane.Graph -> {
                     PaneState(PaneState.Color.NEUTRAL, content = {
                         val coords = mutableListOf<Pair<Int, Int>>()
@@ -360,9 +363,6 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                             IntGridGraph(coords, Modifier)
                         }
                     })
-                }
-                is DashboardPane.Button -> {
-                    PaneState()
                 }
                 is DashboardPane.DropdownSetting -> {
                     PaneState()
@@ -412,16 +412,15 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                         onClick = pane.onClick,
                         content = {
                             if (pane.content == null) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
                                     if (pane.icon != null) {
                                         Icon(
                                             painter = painterResource(pane.icon),
                                             contentDescription = null,
                                             tint = fg,
-                                            modifier = Modifier.padding(20.dp)
                                         )
                                     }
-                                    Text(pane.text.orEmpty(), color = fg, modifier = Modifier.padding(10.dp))
+                                    Text(pane.text.orEmpty(), color = fg)
                                 }
                             } else {
                                 Column(Modifier.padding(20.dp)) {

@@ -7,9 +7,9 @@
 #include "thread.h"
 #include "main.h"
 
-int pak_bt_device_from_jobject(JNIEnv *env, struct PakBt *ctx, jobject dev_o, struct PakBtDevice *device);
+struct PakBtDevice *pak_bt_device_from_jobject(JNIEnv *env, struct PakBt *ctx, jobject dev_o);
 
-int pak_wifi_adapter_from_jobject(JNIEnv *env, struct PakWiFiAdapter *adapter, jobject wifi_adapter);
+struct PakWiFiAdapter *pak_wifi_adapter_from_jobject(JNIEnv *env, jobject wifi_adapter);
 
 struct TempStruct {
 	jobject byte_array;
@@ -59,12 +59,10 @@ Java_dev_danielc_fudge_NativeModule_onTryConnectWiFi(JNIEnv *env, jobject thiz, 
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
 
-	struct PakWiFiAdapter adapter;
-
-	pak_wifi_adapter_from_jobject(env, &adapter, adapter_o);
+	struct PakWiFiAdapter *adapter = pak_wifi_adapter_from_jobject(env, &adapter);
 
 	int rc = PAK_ERR_UNIMPLEMENTED;
-	if (mod->on_try_connect_wifi) rc = mod->on_try_connect_wifi(mod, &adapter, job);
+	if (mod->on_try_connect_wifi) rc = mod->on_try_connect_wifi(mod, adapter, job);
 
 	release_mod(env, &info);
 	return rc;
@@ -109,7 +107,6 @@ Java_dev_danielc_fudge_NativeModule_onTryConnectBluetooth(JNIEnv *env, jobject t
 	struct TempStruct info;
 	struct Module *mod = get_mod(env, thiz, &info);
 
-	struct PakBtDevice device;
 	struct PakSavedConnection saved;
 	struct PakSavedConnection *saved_ptr = NULL;
 	if (saved_o != NULL) {
@@ -117,10 +114,10 @@ Java_dev_danielc_fudge_NativeModule_onTryConnectBluetooth(JNIEnv *env, jobject t
 		saved_ptr = &saved;
 	}
 
-	pak_bt_device_from_jobject(env, mod->bt, device_o, &device);
+	struct PakBtDevice *device = pak_bt_device_from_jobject(env, mod->bt, device_o);
 
 	int rc = PAK_ERR_UNIMPLEMENTED;
-	if (mod->on_try_connect_bluetooth) rc = mod->on_try_connect_bluetooth(mod, &device, saved_ptr, job);
+	if (mod->on_try_connect_bluetooth) rc = mod->on_try_connect_bluetooth(mod, device, saved_ptr, job);
 
 	if (saved_ptr != NULL) free_saved_info(saved_ptr);
 
@@ -272,6 +269,40 @@ JNIEXPORT jint JNICALL Java_dev_danielc_fudge_NativeModule_onRunCommand(JNIEnv *
 	if (arg1 != NULL) (*env)->ReleaseStringUTFChars(env, arg1, list[argc++]);
 	if (arg2 != NULL) (*env)->ReleaseStringUTFChars(env, arg2, list[argc++]);
 	if (arg3 != NULL) (*env)->ReleaseStringUTFChars(env, arg3, list[argc++]);
+
+	(*env)->PopLocalFrame(env, NULL);
+
+	release_mod(env, &info);
+	return rc;
+}
+
+JNIEXPORT jint JNICALL Java_dev_danielc_fudge_NativeModule_onPropChanged(JNIEnv *env, jobject thiz, jint job, jobject pane) {
+	struct TempStruct info;
+	struct Module *mod = get_mod(env, thiz, &info);
+
+	struct PakUserSetting setting;
+	setting.title = "";
+
+	(*env)->PushLocalFrame(env, 10);
+
+	jobject args = (*env)->CallObjectMethod(env, pane, (*env)->GetMethodID(env, (*env)->FindClass(env, "dev/danielc/common/DashboardPane"), "getArgs", "()Ldev/danielc/common/DashboardPane$Properties;"));
+
+	jclass properties_c = (*env)->FindClass(env, "dev/danielc/common/DashboardPane$Properties");
+	jfieldID name_f = (*env)->GetFieldID(env, properties_c, "name", "Ljava/lang/String;");
+	jstring name_s = (*env)->GetObjectField(env, args, name_f);
+	const char *name = (*env)->GetStringUTFChars(env, name_s, NULL);
+	setting.name = name;
+
+	if ((*env)->IsInstanceOf(env, pane, (*env)->FindClass(env, "dev/danielc/common/DashboardPane$Button"))) {
+		setting.type = PAK_BUTTON;
+	} else if ((*env)->IsInstanceOf(env, pane, (*env)->FindClass(env, "dev/danielc/common/DashboardPane$BooleanSetting"))) {
+		setting.type = PAK_BOOLEAN;
+	}
+
+	int rc = PAK_ERR_UNIMPLEMENTED;
+	if (mod->on_setting_changed) rc = mod->on_setting_changed(mod, job, &setting);
+
+	(*env)->ReleaseStringUTFChars(env, name_s, name);
 
 	(*env)->PopLocalFrame(env, NULL);
 

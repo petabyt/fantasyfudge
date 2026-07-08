@@ -1,7 +1,5 @@
 package dev.danielc.common.screens
 
-import android.view.ViewGroup
-import android.webkit.WebView
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -15,25 +13,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
 import dev.danielc.common.ui.theme.FudgeTheme
-
-@Composable
-fun WebView() {
-    AndroidView(factory = {
-        WebView(it).apply {
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-        }
-    }, update = {
-        it.loadUrl("https://example.com/")
-    })
-}
+import dev.danielc.fudge.WebView
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
@@ -61,7 +45,7 @@ fun HelpScreen(navController: NavHostController = rememberNavController()) {
             },
         ) { innerPadding ->
             Box(Modifier.padding(innerPadding)) {
-                WebView()
+                WebView("https://example.com/")
             }
         }
     }

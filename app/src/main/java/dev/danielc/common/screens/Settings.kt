@@ -5,9 +5,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -58,6 +61,7 @@ fun ClickableCard(text: String, icon: Painter, onClick: () -> Unit = {}) {
 @Composable
 fun SettingsScreen(navController: NavController = rememberNavController()) {
     val uriHandler = LocalUriHandler.current
+    // A bit of weird logic here to make it work with @Preview
     val settings by AndroidRuntime.getDatabaseNullable().let {
         it?.settingsDao()?.getFlow()?.collectAsStateWithLifecycle(null) ?: remember { mutableStateOf(AppSettingEntity(
             downloadsLocation = "/home/daniel/Pictures/"
@@ -68,7 +72,6 @@ fun SettingsScreen(navController: NavController = rememberNavController()) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(),
                     title = {
                         Text("Settings")
                     },
@@ -83,7 +86,7 @@ fun SettingsScreen(navController: NavController = rememberNavController()) {
             },
         ) { innerPadding ->
             Box(Modifier.padding(innerPadding)) {
-                Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(Modifier.fillMaxSize().padding(10.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     TextField(modifier = Modifier.fillMaxWidth(),
                         leadingIcon = {
                             Icon(painterResource(R.drawable.baseline_download_24), contentDescription = null)
