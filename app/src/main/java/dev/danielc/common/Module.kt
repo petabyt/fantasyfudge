@@ -352,7 +352,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         }
     }
 
-    private fun bluetoothConnectRoutine(info: ModuleManifest.BluetoothDiscovery, saved: SavedDeviceEntity?) {
+    private fun bluetoothConnectRoutine(info: List<ModuleManifest.BluetoothDiscovery>, saved: SavedDeviceEntity?) {
         if (!Bluetooth.checkPermission()) {
             homeModelView.connectRequiredAction.value = ConnectingRequiredAction.ACCEPT_BLUETOOTH_PERMISSION
             Bluetooth.requestConnectPermission()
@@ -377,40 +377,49 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
             }
 
             val devices = Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())
-            if (devices != null && info.namePattern != null) {
-                for (dev in devices) {
-                    val r = Regex(info.namePattern)
-                    if (r.matches(dev.name)) {
-                        doConnect(dev)
-                        return
+            if (devices != null) {
+                for (discovery in info) {
+                    for (dev in devices) {
+                        if (discovery.namePattern != null && Regex(discovery.namePattern).matches(dev.name)) {
+                            debugLog("Connecting to a bonded device")
+                            doConnect(dev)
+                            return
+                        }
                     }
                 }
             }
 
-            val filter = Bluetooth.BtFilter()
-            filter.serviceUuids = info.serviceUuids.toTypedArray()
-            filter.isClassic = false
-            filter.manufacData = info.mfgData
+            val filters: List<Bluetooth.BtFilter> = info.map {
+                val filter = Bluetooth.BtFilter()
+                filter.serviceUuids = it.serviceUuids.toTypedArray()
+                filter.isClassic = false
+                filter.manufacData = it.mfgData
+                filter.manufacDataMask = it.mfgDataMask
+                filter
+            }
+
             val callback = object : Bluetooth.ScanCallback() {
                 override fun onFound(device: Bluetooth.Device) {
                     doConnect(device)
                 }
                 override fun onFailure(reason: String) {
-                    debugLog(reason)
+                    debugLog("System popup dismissed (${reason})")
                 }
             }
-            val rc = Bluetooth.pairWithDeviceCompanion(filter, "FudgeDevice1", callback)
-            debugLog("Companion pairing dialog result: ${rc}")
+            val rc = Bluetooth.pairWithDeviceCompanion(filters, "FudgeDevice1", null,callback)
+            if (rc != 0) {
+                debugLog("Bluetooth.pairWithDeviceCompanion: ${rc}")
+            }
         }
     }
 
     fun tryConnectAgain() {
-        if (initJob?.isCompleted == true) {
+        if (initJob?.isCompleted ?: true) {
             initThread()
         }
     }
 
-    private fun initConnection() {
+    private fun initModule(): Boolean {
         val rc = when (manifest.moduleType) {
             ModuleManifest.ModuleType.SHARED_LIBRARY -> {
                 AndroidRuntime.setupSharedLibraryModule(this, manifest.scriptPath!!)
@@ -436,31 +445,48 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
                 -1
             }
         }
-        if (rc != 0) {
-            homeModelView.initializationError.value = true
-        } else {
-            homeModelView.connectRequiredAction.value = ConnectingRequiredAction.NONE
-            val savedDeviceInfo = request.getSavedDeviceEntity()
-            val option = request.getSetupOption()
-            val transport = option?.transport ?: ModuleManifest.Transport.BLUETOOTH
-            if (target.wifiDiscovery != null && transport == ModuleManifest.Transport.WIFI_AP) {
-                wifiConnectRoutine(target.wifiDiscovery)
-            } else if (target.bluetoothDiscovery != null && transport == ModuleManifest.Transport.BLUETOOTH) {
-                bluetoothConnectRoutine(target.bluetoothDiscovery, savedDeviceInfo)
+        if (rc != 0) homeModelView.initializationError.value = true
+        return rc != 0
+    }
+
+    private fun initConnection() {
+        homeModelView.connectRequiredAction.value = ConnectingRequiredAction.NONE
+        val savedDeviceInfo = request.getSavedDeviceEntity()
+        val option = request.getSetupOption()
+        val transport = when {
+            option != null -> option.transport
+            target.wifiDiscovery != null -> ModuleManifest.Transport.WIFI_AP
+            target.bluetoothDiscovery.isNotEmpty() -> ModuleManifest.Transport.BLUETOOTH
+            else -> null
+        }
+        if (target.wifiDiscovery != null && transport == ModuleManifest.Transport.WIFI_AP) {
+            wifiConnectRoutine(target.wifiDiscovery)
+        } else if (target.bluetoothDiscovery.isNotEmpty() && transport == ModuleManifest.Transport.BLUETOOTH) {
+            bluetoothConnectRoutine(target.bluetoothDiscovery, savedDeviceInfo)
+        } else if (transport == ModuleManifest.Transport.INTERNET) {
+            val primaryAdapter = WiFi.getPrimaryAdapter()
+            val rc = tryConnectWiFi(primaryAdapter, {job -> connectCallback(job)})
+            if (rc == 0) {
+                setIsConnected()
+                return
             } else {
-                val rc = findConnection({ job -> connectCallback(job) })
-                if (rc == 0) {
-                    setIsConnected()
-                } else {
-                    disconnect("Failed to connect", rc)
-                }
+                disconnect("Failed to connect", rc)
+            }
+        } else {
+            val rc = findConnection({ job -> connectCallback(job) })
+            if (rc == 0) {
+                setIsConnected()
+            } else {
+                disconnect("Failed to connect", rc)
             }
         }
     }
 
     fun initThread() {
         initJob = CoroutineScope(Dispatchers.IO).launch {
-            initConnection()
+            if (!initModule()) {
+                initConnection()
+            }
             initJob = null
         }
     }

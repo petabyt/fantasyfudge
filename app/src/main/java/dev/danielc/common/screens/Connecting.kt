@@ -3,6 +3,7 @@ package dev.danielc.common.screens
 import android.content.ClipData
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -27,7 +28,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import dev.danielc.R
+import dev.danielc.common.ModuleManifest
+import dev.danielc.common.ui.dummyManifestList
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.errorButtonColors
 import kotlinx.coroutines.launch
@@ -50,7 +54,7 @@ fun ModuleErrorScreen(back: () -> Unit = {}, state: ConsoleState = ConsoleState(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Module Failure") },
+                    title = { Text("PakModule Failure") },
                     navigationIcon = {
                         IconButton(onClick = { back() }) {
                             Icon(painterResource(R.drawable.outline_arrow_back_24), contentDescription = null)
@@ -85,7 +89,7 @@ fun ModuleErrorScreen(back: () -> Unit = {}, state: ConsoleState = ConsoleState(
 @Preview(showBackground = true, device = "id:pixel_9a", uiMode = 32)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: ConsoleState = ConsoleState(), progress: Int? = 50, action: ConnectingRequiredAction = ConnectingRequiredAction.TURN_ON_BLUETOOTH) {
+fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: ConsoleState = ConsoleState(), progress: Int? = 50, action: ConnectingRequiredAction = ConnectingRequiredAction.NONE, target: ModuleManifest.Target = dummyManifestList[0].targets[0]) {
     val clipboardManager = LocalClipboard.current
     val scope = rememberCoroutineScope()
 
@@ -151,11 +155,20 @@ fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: Co
                     ActionMessage(painterResource(R.drawable.outline_bluetooth_24), "Allow permission to connect to Bluetooth devices")
                 } else {
                     Column(Modifier.padding(10.dp)) {
+
+                        Row(Modifier.fillMaxWidth().padding(10.dp)) {
+                            Icon(painterResource(target.deviceId.getIcon()), contentDescription = null, modifier = Modifier.size(60.dp), tint = MaterialTheme.colorScheme.primary)
+                            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("Connecting to a ${target.company} ${target.deviceId.getReadableName()}...")
+                                if (progress != null) Text("${progress}%")
+                            }
+                        }
+
                         Button(onClick = tryAgain, Modifier.fillMaxWidth()) {
                             Text("Try again")
                         }
                         Button(onClick = back, Modifier.fillMaxWidth(), colors = errorButtonColors()) {
-                            Text("Give up")
+                            Text("Cancel")
                         }
                         if (progress != null) {
                             LinearProgressIndicator(

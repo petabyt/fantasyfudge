@@ -399,7 +399,7 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
                 module.homeModelView.back(false)
             }, {
 
-            }, debugLogState, connectProgress, action)
+            }, debugLogState, connectProgress, action, module.target)
         }
         composable("connecting") {
             val connectProgress by module.homeModelView.connectProgress.collectAsStateWithLifecycle()
@@ -422,7 +422,7 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
                     }
                 }, {
                     module.tryConnectAgain()
-                }, debugLogState, connectProgress, action)
+                }, debugLogState, connectProgress, action, module.target)
             }
         }
         composable("home") {

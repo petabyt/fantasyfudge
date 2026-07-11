@@ -79,6 +79,15 @@ enum class Device(val id: String) {
             GENERIC_AUTOMOTIVE -> R.drawable.outline_directions_car_24
         }
     }
+
+    fun getReadableName(): String {
+        return when (this) {
+            PROFESSIONAL_CAMERA -> "camera"
+            DASHCAM -> "dashcam"
+            EARBUDS -> "earbuds"
+            else -> "device"
+        }
+    }
 }
 
 /**
@@ -135,7 +144,7 @@ data class ModuleManifest(
         val products: List<String> = emptyList(),
         val setupOptions: List<SetupOption> = emptyList(),
         val wifiDiscovery: WiFiDiscovery? = null,
-        val bluetoothDiscovery: BluetoothDiscovery? = null,
+        val bluetoothDiscovery: List<BluetoothDiscovery> = emptyList(),
     )
     data class WiFiDiscovery(
         val ssidPattern: String,
