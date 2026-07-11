@@ -15,7 +15,7 @@ struct TempStruct {
 	jobject byte_array;
 	struct ModuleJavaStruct *data;
 };
-struct Module *get_mod(JNIEnv *env, jobject thiz, struct TempStruct *info) {
+struct PakModule *get_mod(JNIEnv *env, jobject thiz, struct TempStruct *info) {
 	set_jni_env_ctx(env, NULL);
 	jclass thiz_c = (*env)->GetObjectClass(env, thiz);
 	jfieldID struct_id = (*env)->GetFieldID(env, thiz_c, "struct", "[B");
@@ -32,7 +32,7 @@ void release_mod(JNIEnv *env, struct TempStruct *info) {
 JNIEXPORT void JNICALL
 Java_dev_danielc_fudge_NativeModule_free(JNIEnv *env, jobject thiz) {
 	struct TempStruct info;
-	struct Module *mod = get_mod(env, thiz, &info);
+	struct PakModule *mod = get_mod(env, thiz, &info);
 	if (mod->free) mod->free(mod);
 	pak_bt_unref_context(mod->bt);
 	pak_net_unref_context(mod->net);
@@ -44,7 +44,7 @@ Java_dev_danielc_fudge_NativeModule_free(JNIEnv *env, jobject thiz) {
 JNIEXPORT jint JNICALL
 Java_dev_danielc_fudge_NativeModule_onFindConnection(JNIEnv *env, jobject thiz, jint job) {
 	struct TempStruct info;
-	struct Module *mod = get_mod(env, thiz, &info);
+	struct PakModule *mod = get_mod(env, thiz, &info);
 
 	int rc = PAK_ERR_UNIMPLEMENTED;
 	if (mod->on_find_connection) rc = mod->on_find_connection(mod, job);
@@ -57,12 +57,12 @@ JNIEXPORT jint JNICALL
 Java_dev_danielc_fudge_NativeModule_onTryConnectWiFi(JNIEnv *env, jobject thiz, jobject adapter_o,
 													  jint job) {
 	struct TempStruct info;
-	struct Module *mod = get_mod(env, thiz, &info);
+	struct PakModule *mod = get_mod(env, thiz, &info);
 
-	struct PakWiFiAdapter *adapter = pak_wifi_adapter_from_jobject(env, &adapter);
+	struct PakWiFiAdapter *adapter = pak_wifi_adapter_from_jobject(env, adapter_o);
 
 	int rc = PAK_ERR_UNIMPLEMENTED;
-	if (mod->on_try_connect_wifi) rc = mod->on_try_connect_wifi(mod, adapter, job);
+	if (mod->on_try_connect_wifi) rc = mod->on_try_connect_wifi(mod, adapter, NULL, job);
 
 	release_mod(env, &info);
 	return rc;
@@ -105,7 +105,7 @@ JNIEXPORT jint JNICALL
 Java_dev_danielc_fudge_NativeModule_onTryConnectBluetooth(JNIEnv *env, jobject thiz, jobject device_o, jobject saved_o,
 													  jint job) {
 	struct TempStruct info;
-	struct Module *mod = get_mod(env, thiz, &info);
+	struct PakModule *mod = get_mod(env, thiz, &info);
 
 	struct PakSavedConnection saved;
 	struct PakSavedConnection *saved_ptr = NULL;
@@ -128,7 +128,7 @@ Java_dev_danielc_fudge_NativeModule_onTryConnectBluetooth(JNIEnv *env, jobject t
 JNIEXPORT jint JNICALL
 Java_dev_danielc_fudge_NativeModule_onIdleTick(JNIEnv *env, jobject thiz, jint us_since_last_tick) {
 	struct TempStruct info;
-	struct Module *mod = get_mod(env, thiz, &info);
+	struct PakModule *mod = get_mod(env, thiz, &info);
 
 	int rc = PAK_ERR_UNIMPLEMENTED;
 	if (mod->on_idle_tick) rc = mod->on_idle_tick(mod, (unsigned int)us_since_last_tick);
@@ -140,7 +140,7 @@ Java_dev_danielc_fudge_NativeModule_onIdleTick(JNIEnv *env, jobject thiz, jint u
 JNIEXPORT jint JNICALL
 Java_dev_danielc_fudge_NativeModule_onDisconnect(JNIEnv *env, jobject thiz) {
 	struct TempStruct info;
-	struct Module *mod = get_mod(env, thiz, &info);
+	struct PakModule *mod = get_mod(env, thiz, &info);
 
 	int rc = PAK_ERR_UNIMPLEMENTED;
 	if (mod->on_switch_screen) rc = mod->on_disconnect(mod);
@@ -153,7 +153,7 @@ JNIEXPORT jint JNICALL
 Java_dev_danielc_fudge_NativeModule_onSwitchScreen(JNIEnv *env, jobject thiz, jint old_screen,
 													jint new_screen, jint job) {
 	struct TempStruct info;
-	struct Module *mod = get_mod(env, thiz, &info);
+	struct PakModule *mod = get_mod(env, thiz, &info);
 
 	int rc = PAK_ERR_UNIMPLEMENTED;
 	if (mod->on_switch_screen) rc = mod->on_switch_screen(mod, old_screen, new_screen, job);
@@ -164,7 +164,7 @@ Java_dev_danielc_fudge_NativeModule_onSwitchScreen(JNIEnv *env, jobject thiz, ji
 
 struct FileHandleWrapper {
 	jobject storagename_o;
-	struct FileHandle handle;
+	struct PakFileHandle handle;
 };
 
 static struct FileHandleWrapper get_filehandle(JNIEnv *env, jobject file) {
@@ -192,7 +192,7 @@ JNIEXPORT jint JNICALL
 Java_dev_danielc_fudge_NativeModule_onRequestFileThumbnail(JNIEnv *env, jobject thiz, jint job,
 															jobject file) {
 	struct TempStruct info;
-	struct Module *mod = get_mod(env, thiz, &info);
+	struct PakModule *mod = get_mod(env, thiz, &info);
 
 	(*env)->PushLocalFrame(env, 10);
 
@@ -212,7 +212,7 @@ JNIEXPORT jint JNICALL
 Java_dev_danielc_fudge_NativeModule_onRequestFileContents(JNIEnv *env, jobject thiz, jint job,
 														   jobject file) {
 	struct TempStruct info;
-	struct Module *mod = get_mod(env, thiz, &info);
+	struct PakModule *mod = get_mod(env, thiz, &info);
 
 	(*env)->PushLocalFrame(env, 10);
 
@@ -232,7 +232,7 @@ JNIEXPORT jint JNICALL
 Java_dev_danielc_fudge_NativeModule_onRequestFileMetadata(JNIEnv *env, jobject thiz, jint job,
 														   jobject file) {
 	struct TempStruct info;
-	struct Module *mod = get_mod(env, thiz, &info);
+	struct PakModule *mod = get_mod(env, thiz, &info);
 
 	(*env)->PushLocalFrame(env, 10);
 
@@ -250,7 +250,7 @@ Java_dev_danielc_fudge_NativeModule_onRequestFileMetadata(JNIEnv *env, jobject t
 
 JNIEXPORT jint JNICALL Java_dev_danielc_fudge_NativeModule_onRunCommand(JNIEnv *env, jobject thiz, jint job, jstring arg0, jstring arg1, jstring arg2, jstring arg3) {
 	struct TempStruct info;
-	struct Module *mod = get_mod(env, thiz, &info);
+	struct PakModule *mod = get_mod(env, thiz, &info);
 
 	(*env)->PushLocalFrame(env, 10);
 
@@ -278,9 +278,9 @@ JNIEXPORT jint JNICALL Java_dev_danielc_fudge_NativeModule_onRunCommand(JNIEnv *
 
 JNIEXPORT jint JNICALL Java_dev_danielc_fudge_NativeModule_onPropChanged(JNIEnv *env, jobject thiz, jint job, jobject pane) {
 	struct TempStruct info;
-	struct Module *mod = get_mod(env, thiz, &info);
+	struct PakModule *mod = get_mod(env, thiz, &info);
 
-	struct PakUserSetting setting;
+	struct PakWidget setting;
 	setting.title = "";
 
 	(*env)->PushLocalFrame(env, 10);

@@ -10,5 +10,5 @@ struct RuntimePriv {
 };
 
 struct ModuleJavaStruct {
-	struct Module *ptr;
+	struct PakModule *ptr;
 };
