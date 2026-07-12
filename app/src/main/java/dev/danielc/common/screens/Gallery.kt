@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
@@ -79,8 +80,11 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.TimeSource
 
@@ -143,24 +147,23 @@ data class GalleryObjectReference(
     val isPriority: Boolean,
 )
 
-data class GalleryState(
+data class FilesystemState(
     val storageName: String? = null,
     val userSortBy: SortBy = SortBy.NEWEST_FIRST,
     val displayType: DisplayType = DisplayType.THUMBNAILS,
     val objectListSortedOrder: SortBy = SortBy.NEWEST_FIRST,
-    // TODO: Tree of objects, maintain current directory
-    // TODO: free objects if needed
-    // object if null if it hasn't been loaded/checked yet
+    // object is null if it hasn't been loaded/checked yet
     val objects: List<GalleryObject?> = emptyList(),
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
 )
 
-abstract class GalleryViewModel() : ViewModel() {
-    private val _uiState = MutableStateFlow(GalleryState())
+abstract class GalleryViewModel : ViewModel() {
+    private val _uiState = MutableStateFlow(FilesystemState())
     val uiState = _uiState.asStateFlow()
-    var thread: Job? = null
-    var threadIsPaused: Boolean = true
-    var isThumbnailPriority: Boolean = true
+    private var thread: Job? = null
+    private var threadIsPaused: Boolean = true
+    private var isThumbnailPriority: Boolean = true
+    private val queueMutex = Mutex()
 
     override fun onCleared() {
         stop()
@@ -173,10 +176,22 @@ abstract class GalleryViewModel() : ViewModel() {
         return _uiState.value.objects.getOrNull(file.index + offset)?.thumbnail
     }
 
+    open fun onRefresh() {
+        // ...
+    }
+    open fun onShare(ref: GalleryObjectReference) {
+        // ...
+    }
+    open fun itemClicked(ref: GalleryObjectReference) {
+        // ...
+    }
+    open fun init() {
+        // ...
+    }
     abstract fun fulfillThumbnail(file: GalleryObjectReference)
     abstract fun fulfillMetadata(file: GalleryObjectReference)
 
-    fun checkObject(obj: GalleryObject?, ref: GalleryObjectReference, doThumbnail: Boolean = true): Boolean {
+    private fun checkObject(obj: GalleryObject?, ref: GalleryObjectReference, doThumbnail: Boolean = true): Boolean {
         if (obj == null) {
             if (isThumbnailPriority && doThumbnail) {
                 fulfillThumbnail(ref)
@@ -196,24 +211,27 @@ abstract class GalleryViewModel() : ViewModel() {
         return true
     }
 
-    fun tick(): Boolean {
+    // Returns true when work was done
+    private suspend fun tick(): Boolean {
         val queue = _uiState.value.queue
         val objects = _uiState.value.objects
         if (queue.isEmpty()) {
-            // If queue is empty, iterate all objects and check for any work to do
+            // If queue is empty iterate all non-null objects and fulfill them
             for (i in objects.indices) {
-                if (checkObject(objects[i], GalleryObjectReference(i, true), doThumbnail = false)) {
+                if (objects[i] != null &&  checkObject(objects[i], GalleryObjectReference(i, true), doThumbnail = true)) {
                     return true
                 }
             }
             return false
         }
-        val ref = queue.removeLast()
-        try {
-            val obj = _uiState.value.objects[ref.index]
+        val ref = queueMutex.withLock {
+            queue.removeLast()
+        }
+        if (ref.index >= objects.size || ref.index < 0) return false
+        val obj = objects[ref.index]
+        if (obj != null) {
             return checkObject(obj, ref)
-        } catch (e: Exception) {
-            println(e.message)
+        } else {
             return false
         }
     }
@@ -228,7 +246,7 @@ abstract class GalleryViewModel() : ViewModel() {
                         if (tick()) continue
                     }
                     try {
-                        delay(10)
+                        delay(100)
                     } catch (_: CancellationException) {
                         break
                     }
@@ -269,7 +287,7 @@ abstract class GalleryViewModel() : ViewModel() {
         }
     }
 
-    fun updateObject(i: Int, block: (GalleryObject) -> GalleryObject) {
+    private fun updateObject(i: Int, block: (GalleryObject) -> GalleryObject) {
         viewModelScope.launch(Dispatchers.IO) {
             _uiState.update { currentState ->
                 val list = currentState.objects.toMutableList()
@@ -305,8 +323,16 @@ abstract class GalleryViewModel() : ViewModel() {
             }
         }
     }
-    fun enqueueObject(index: Int, isPriority: Boolean = false) {
-        _uiState.value.queue.addLast(GalleryObjectReference(index, isPriority))
+    fun enqueueObjects(indexes: List<Int>, isPriority: Boolean = false) {
+        viewModelScope.launch(Dispatchers.IO) {
+            queueMutex.withLock {
+                println("enqueueing ${indexes.size}")
+                for (i in indexes) {
+                    _uiState.value.queue.removeIf { it.index == i }
+                    _uiState.value.queue.addLast(GalleryObjectReference(i, isPriority))
+                }
+            }
+        }
     }
     fun trimMemory(nObjectsToFree: Int = 10) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -382,6 +408,21 @@ fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
     }
 }
 
+fun longToFileSize(bytes: Long): String {
+    if (bytes <= 0) return "0b"
+
+    val units = arrayOf("b", "kb", "mb", "gb", "tb", "pb", "eb")
+    var size = bytes.toDouble()
+    var unitIndex = 0
+
+    while (size >= 1024 && unitIndex < units.size - 1) {
+        size /= 1024
+        unitIndex++
+    }
+
+    return "${size.toInt()} ${units[unitIndex]}"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GalleryFile(obj: GalleryObject?, onClick: () -> Unit = {}) {
@@ -422,13 +463,14 @@ fun GalleryFile(obj: GalleryObject?, onClick: () -> Unit = {}) {
                     Text(obj.metadata.filename!!, modifier = Modifier.weight(1f))
                 }
                 if (obj.metadata?.filesize != null) {
-                    Text(obj.metadata.filesize.toString())
+                    Text(longToFileSize(obj.metadata.filesize.toLong()))
                 }
             }
         }
     }
 }
 
+// TODO:
 data class GalleryCallbacks(
     val onRefresh: () -> Unit = {},
     val requestLoad: (Int) -> Unit = {},
@@ -436,9 +478,23 @@ data class GalleryCallbacks(
     val setDisplayType: (DisplayType) -> Unit = {},
 )
 
+@Composable
+fun GalleryWithModel(onItemClick: (Int) -> Unit, modifier: Modifier, model: GalleryViewModel?) {
+    if (model != null) {
+        val state by model.uiState.collectAsStateWithLifecycle()
+        Gallery(modifier, state, requestLoad = { items ->
+            model.enqueueObjects(items, true)
+        }, onItemClick = { i ->
+            onItemClick(i)
+        }, onRefresh = {
+            model.onRefresh()
+        })
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (Int) -> Unit = {}, onItemClick: (Int) -> Unit = {}, onRefresh: () -> Unit = {}) {
+fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: (List<Int>) -> Unit = {}, onItemClick: (Int) -> Unit = {}, onRefresh: () -> Unit = {}) {
     val haptic = LocalHapticFeedback.current
     var isRefreshing by remember { mutableStateOf(false) }
     var displayType by rememberSaveable { mutableStateOf(DisplayType.THUMBNAILS) }
@@ -524,13 +580,12 @@ fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (In
                 }
             }
 
-            // Monitor recently viewed items so it can be sent to the queue
+            // Monitor recently viewed items so they can be sent to the queue
             LaunchedEffect(listState) {
-                snapshotFlow { listState.layoutInfo.visibleItemsInfo }
+                snapshotFlow { listState.layoutInfo.visibleItemsInfo.map { it.index } }
+                    .distinctUntilChanged()
                     .collect { visibleItems ->
-                        for (e in visibleItems) {
-                            requestLoad(e.index)
-                        }
+                        requestLoad(visibleItems)
                     }
             }
         }
@@ -553,7 +608,7 @@ fun Gallery(modifier: Modifier = Modifier, state: GalleryState, requestLoad: (In
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
 @Composable
 fun PreviewGalleryScreen(navController: NavHostController = rememberNavController()) {
-    val state = GalleryState(objects = mutableListOf(
+    val state = FilesystemState(objects = mutableListOf(
         GalleryObject(FileMetadata("DCIM/", mimeType = MimeType.FOLDER)),
         GalleryObject(FileMetadata("DSC1111.JPG", mimeType = MimeType.JPEG), thumbnail = bitmapFromColor(Color.Red)),
         GalleryObject(FileMetadata("DSC1234.MOV", mimeType = MimeType.MOV), thumbnail = bitmapFromColor(Color.Green)),

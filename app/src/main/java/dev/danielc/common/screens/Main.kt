@@ -479,7 +479,7 @@ fun MainNav(navController: NavHostController) {
         LocalGallery(onItemClick = { i ->
             navController.navigate("local-viewer")
             CoroutineScope(Dispatchers.IO).launch {
-                currentLocalGallery?.loadImage(i)
+                currentLocalGallery?.itemClicked(GalleryObjectReference(i, false))
             }
         }, Modifier, currentLocalGallery)
     }
@@ -535,7 +535,7 @@ fun MainNav(navController: NavHostController) {
                 val state by gallery.viewer.viewerState.collectAsStateWithLifecycle()
                 ViewerScreen(state, { i ->
                     CoroutineScope(Dispatchers.IO).launch {
-                        gallery.loadImage(i)
+                        gallery.itemClicked(GalleryObjectReference(i, false))
                     }
                 }, close = {
                     gallery.viewer.clear()

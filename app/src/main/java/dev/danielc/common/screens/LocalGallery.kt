@@ -33,6 +33,7 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
             for (i in files.indices) {
                 updateMetadata(i, files[i].metadata)
             }
+            enqueueObjects((0..100).toList())
         } catch (e: Exception) {
             // ..
         }
@@ -46,9 +47,9 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
         updateMetadata(file.index, files[file.index].metadata)
     }
 
-    fun loadImage(i: Int) {
-        val file = files[i]
-        viewer.update(FileHandle(i), files.size)
+    override fun itemClicked(ref: GalleryObjectReference) {
+        val file = files[ref.index]
+        viewer.update(FileHandle(ref.index), files.size)
         viewer.updateMetadata(file.metadata)
         viewer.updateStats(10,"Reading image")
         val data = AndroidRuntime.readFile(file)
@@ -60,8 +61,8 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
         }
 
         viewer.updateSideBitmaps(
-            if (files.getOrNull(i - 1) == null) null else AndroidRuntime.getMediaThumbnail(files[i - 1]),
-            if (files.getOrNull(i + 1) == null) null else AndroidRuntime.getMediaThumbnail(files[i + 1])
+            if (files.getOrNull(ref.index - 1) == null) null else AndroidRuntime.getMediaThumbnail(files[ref.index - 1]),
+            if (files.getOrNull(ref.index + 1) == null) null else AndroidRuntime.getMediaThumbnail(files[ref.index + 1])
         )
     }
 
@@ -75,8 +76,8 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
 fun LocalGallery(onItemClick: (Int) -> Unit, modifier: Modifier, model: LocalGalleryViewModel?) {
     if (model != null) {
         val state by model.uiState.collectAsStateWithLifecycle()
-        Gallery(modifier, state, requestLoad = { i ->
-            model.enqueueObject(i, true)
+        Gallery(modifier, state, requestLoad = { items ->
+            model.enqueueObjects(items, true)
         }, onItemClick = { i ->
             onItemClick(i)
         }, onRefresh = {

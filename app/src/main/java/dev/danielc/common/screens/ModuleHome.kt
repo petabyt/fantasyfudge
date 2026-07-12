@@ -327,8 +327,8 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                 }
                 composable(Screen.FILE_GALLERY.strId) {
                     BackHandler { goBack() }
-                    Gallery(Modifier.padding(innerPadding), galleryState, requestLoad = { i ->
-                        module.galleryViewModel.enqueueObject(i, true)
+                    Gallery(Modifier.padding(innerPadding), galleryState, requestLoad = { items ->
+                        module.galleryViewModel.enqueueObjects(items, true)
                     }, onItemClick = { i ->
                         module.goToViewer(FileHandle(i))
                     })
