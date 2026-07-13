@@ -179,10 +179,9 @@ enum class ModuleProperty(val id: String) {
  */
 data class ConnectableDevice(
     val name: String,
-    // null if not supported or no target found
-    val target: ModuleManifest.Target? = null,
-    val manifest: ModuleManifest? = null,
-    val isConnected: Boolean,
+    val target: ModuleManifest.Target,
+    val manifest: ModuleManifest,
+    val macAddress: String? = null,
 )
 
 object Runtime {
@@ -198,7 +197,7 @@ object Runtime {
     private var moduleCounter = 0
 
     fun findSavedDeviceEntity(id: String): SavedDeviceEntity? {
-        val list = AndroidRuntime.getDatabase().deviceDao().getAllDevicesList()
+        val list = getDatabase().deviceDao().getAllDevicesList()
         return list.find { it.uniqueIdentifier == id }
     }
 
@@ -229,22 +228,48 @@ object Runtime {
     }
 
     fun refreshConnectableDevices() {
+        // Match installed manifests with bonded bluetooth devices
         val devices = Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())
-        if (devices != null) {
-            val list = mutableListOf<ConnectableDevice>()
-            for (d in devices) {
-                // TODO filter devices through modules
-                //list += ConnectableDevice(d.name, dummyManifestList[0].targets[0], dummyManifestList[0], d.isConnected)
+        val list = mutableListOf<ConnectableDevice>()
+        fun checkServiceUuids(b: ModuleManifest.BluetoothDiscovery, d: Bluetooth.Device): Boolean {
+            // Will return true even if both sets are empty
+            val serviceUuids = d.serviceUuids
+            //if (serviceUuids.isEmpty() || b.serviceUuids.isEmpty()) return false
+            for (f in b.serviceUuids) {
+                if (!serviceUuids.contains(f)) return false
             }
-            connectableDevices = list
+            return true
         }
+        fun matchAgainstManifest(m: ModuleManifest, d: Bluetooth.Device): Boolean {
+            for (t in m.targets) {
+                for (b in t.bluetoothDiscovery) {
+                    if (!checkServiceUuids(b, d)) continue
+                    if (b.namePattern != null) {
+                        if (!Regex(b.namePattern).matches(d.name)) continue
+                    } else {
+                        continue
+                    }
 
+                    list += ConnectableDevice(d.name, t, m, d.address)
+                    return true
+                }
+            }
+            return false
+        }
+        for (d in devices) {
+            for (m in moduleManifests) {
+                if (matchAgainstManifest(m, d)) break
+            }
+        }
+        connectableDevices = list
+
+        // Sense nearby devices in database
         savedDevices = getDatabase().deviceDao().getAllDevices()
         val savedDevices = getDatabase().deviceDao().getAllDevicesList()
-        //for (d in savedDevices) {
-        //    if (d.bluetoothMacAddress != null)
-        //        Bluetooth.senseNearbyDevice(d.bluetoothMacAddress)
-        //}
+//        for (d in savedDevices) {
+//            if (d.bluetoothMacAddress != null)
+//                Bluetooth.senseNearbyDevice(d.bluetoothMacAddress)
+//        }
     }
 
     fun getManifestFromName(name: String): ModuleManifest? {
@@ -274,7 +299,7 @@ object Runtime {
             scriptPath = "libdummy.so",
             targets = listOf(
                 ModuleManifest.Target(
-                    company = "Dummy Device",
+                    company = "Dummy",
                     summary = "Fake session that can be used to test this app",
                     deviceId = Device.GAME_CONTROLLER
                 )
@@ -325,6 +350,7 @@ object Runtime {
                     deviceId = Device.EARBUDS,
                     products = listOf("Buds Pro 2", "Buds 2"),
                     bluetoothDiscovery = listOf(ModuleManifest.BluetoothDiscovery(
+                        isClassic = true,
                         namePattern = "CMF.*",
                         mfgData = byteArrayOf(0x31, 0x44, 0x42, 0xee.toByte(), 0xbe.toByte(), 0x2c),
                         mfgDataMask = byteArrayOf(0xff.toByte(), 0xff.toByte()),

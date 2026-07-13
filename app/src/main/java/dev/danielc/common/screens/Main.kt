@@ -83,8 +83,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.DurationUnit
 
 private val dummyConnectableDeviceList: List<ConnectableDevice> = listOf(
-    ConnectableDevice("Daniel's Earbuds", manifest = dummyManifestList[0], target = dummyManifestList[0].targets[0], isConnected = true),
-    ConnectableDevice("Samsung TV", isConnected = false)
+    ConnectableDevice("CMF Buds Pro 2", manifest = dummyManifestList[0], target = dummyManifestList[0].targets[0]),
 )
 
 private val dummyOptions = listOf(
@@ -160,7 +159,6 @@ fun ConnectableDeviceCard(dev: ConnectableDevice, clicked: (String?) -> Unit = {
         .clip(RoundedCornerShape(12.dp))
         .background(MaterialTheme.colorScheme.surfaceContainerHigh)
         .combinedClickable(
-            enabled = dev.target != null,
             onClick = {
                 clicked(null)
             },
@@ -169,7 +167,7 @@ fun ConnectableDeviceCard(dev: ConnectableDevice, clicked: (String?) -> Unit = {
             }
         )
         .padding(16.dp)
-        .alpha(if (dev.target == null) 0.5f else 1f),
+        .alpha(1f),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically
@@ -178,35 +176,17 @@ fun ConnectableDeviceCard(dev: ConnectableDevice, clicked: (String?) -> Unit = {
                 modifier = Modifier.weight(1f)
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    if (dev.target != null) {
-                        Icon(
-                            painterResource(dev.target.deviceId.getIcon()),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    Icon(
+                        painterResource(dev.target.deviceId.getIcon()),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                     Text(
-                        text = "'${dev.name}'",
+                        text = dev.name,
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                     )
                 }
-               if (dev.isConnected) {
-                   Text(
-                       text ="Connected",
-                       style = MaterialTheme.typography.bodyMedium,
-                       color = Color.Green,
-                       maxLines = 2,
-                   )
-               }
-               if (dev.target == null) {
-                   Text(
-                       text ="Not supported",
-                       style = MaterialTheme.typography.bodyMedium,
-                       color = MaterialTheme.colorScheme.error,
-                       maxLines = 2,
-                   )
-               }
             }
         }
     }
@@ -290,7 +270,13 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
                     }
                 }
                 items(mutDevList) { dev ->
-                    ConnectableDeviceCard(dev)
+                    ConnectableDeviceCard(dev, clicked = {
+                        clicked(ModuleInstanceRequest(
+                            dev.manifest.name,
+                            dev.manifest.targets.indexOf(dev.target),
+                            deviceMacAddress = dev.macAddress,
+                        ))
+                    })
                 }
                 if (savedDevicesList.isNotEmpty()) {
                     item {

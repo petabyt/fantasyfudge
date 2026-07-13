@@ -1,6 +1,7 @@
 package dev.danielc.common
 
 import dev.danielc.R
+import dev.danielc.libpak.Bluetooth
 
 enum class Device(val id: String) {
     // Photo class
@@ -82,10 +83,10 @@ enum class Device(val id: String) {
 
     fun getReadableName(): String {
         return when (this) {
-            PROFESSIONAL_CAMERA -> "camera"
-            DASHCAM -> "dashcam"
-            EARBUDS -> "earbuds"
-            else -> "device"
+            PROFESSIONAL_CAMERA -> "Camera"
+            DASHCAM -> "Dashcam"
+            EARBUDS -> "Pair of Earbuds"
+            else -> "Device"
         }
     }
 }
@@ -156,7 +157,16 @@ data class ModuleManifest(
         val mfgData: ByteArray? = null,
         val mfgDataMask: ByteArray? = null,
         val serviceUuids: List<String> = emptyList(),
-    )
+    ) {
+        fun toBluetoothDeviceFilter(): Bluetooth.BtFilter {
+            val filter = Bluetooth.BtFilter()
+            filter.serviceUuids = this.serviceUuids.toTypedArray()
+            filter.isClassic = false
+            filter.manufacData = this.mfgData
+            filter.manufacDataMask = this.mfgDataMask
+            return filter
+        }
+    }
     data class UsbDiscovery(
         val pid: Int? = null,
         val vid: Int? = null,

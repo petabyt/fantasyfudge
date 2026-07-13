@@ -160,6 +160,7 @@ data class ModuleInstanceRequest(
     val targetIndex: Int,
     val chosenSetupOption: String? = null,
     val savedDeviceUniqueId: String? = null,
+    val deviceMacAddress: String? = null,
 ) {
     fun getManifest(): ModuleManifest {
         return Runtime.getManifestFromName(manifestName)!!
@@ -371,31 +372,20 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
                 }
             }
 
+            if (request.deviceMacAddress != null) {
+                val dev = Bluetooth.fromAddress(request.deviceMacAddress)
+                debugLog("Connecting to a bonded device")
+                doConnect(dev)
+                return
+            }
+
             if (saved != null && saved.bluetoothMacAddress != null) {
                 doConnect(Bluetooth.fromAddress(saved.bluetoothMacAddress))
                 return
             }
 
-            val devices = Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())
-            if (devices != null) {
-                for (discovery in info) {
-                    for (dev in devices) {
-                        if (discovery.namePattern != null && Regex(discovery.namePattern).matches(dev.name)) {
-                            debugLog("Connecting to a bonded device")
-                            doConnect(dev)
-                            return
-                        }
-                    }
-                }
-            }
-
             val filters: List<Bluetooth.BtFilter> = info.map {
-                val filter = Bluetooth.BtFilter()
-                filter.serviceUuids = it.serviceUuids.toTypedArray()
-                filter.isClassic = false
-                filter.manufacData = it.mfgData
-                filter.manufacDataMask = it.mfgDataMask
-                filter
+                it.toBluetoothDeviceFilter()
             }
 
             val callback = object : Bluetooth.ScanCallback() {

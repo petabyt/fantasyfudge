@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -92,7 +93,6 @@ fun ModuleErrorScreen(back: () -> Unit = {}, state: ConsoleState = ConsoleState(
 fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: ConsoleState = ConsoleState(), progress: Int? = 50, action: ConnectingRequiredAction = ConnectingRequiredAction.NONE, target: ModuleManifest.Target = dummyManifestList[0].targets[0]) {
     val clipboardManager = LocalClipboard.current
     val scope = rememberCoroutineScope()
-
     @Composable
     fun ActionMessage(icon: Painter, text: String, buttonText: String? = null) {
         Column(Modifier.fillMaxSize().padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -155,7 +155,6 @@ fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: Co
                     ActionMessage(painterResource(R.drawable.outline_bluetooth_24), "Allow permission to connect to Bluetooth devices")
                 } else {
                     Column(Modifier.padding(10.dp)) {
-
                         Row(Modifier.fillMaxWidth().padding(10.dp)) {
                             Icon(painterResource(target.deviceId.getIcon()), contentDescription = null, modifier = Modifier.size(60.dp), tint = MaterialTheme.colorScheme.primary)
                             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -163,7 +162,6 @@ fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: Co
                                 if (progress != null) Text("${progress}%")
                             }
                         }
-
                         Button(onClick = tryAgain, Modifier.fillMaxWidth()) {
                             Text("Try again")
                         }
