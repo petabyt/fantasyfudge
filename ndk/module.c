@@ -7,10 +7,6 @@
 #include "thread.h"
 #include "main.h"
 
-struct PakBtDevice *pak_bt_device_from_jobject(JNIEnv *env, struct PakBt *ctx, jobject dev_o);
-
-struct PakWiFiAdapter *pak_wifi_adapter_from_jobject(JNIEnv *env, jobject wifi_adapter);
-
 struct TempStruct {
 	jobject byte_array;
 	struct ModuleJavaStruct *data;
@@ -308,4 +304,21 @@ JNIEXPORT jint JNICALL Java_dev_danielc_fudge_NativeModule_onPropChanged(JNIEnv 
 
 	release_mod(env, &info);
 	return rc;
+}
+
+JNIEXPORT void JNICALL
+Java_dev_danielc_fudge_NativeModule_setSetupOptionName(JNIEnv *env, jobject thiz, jstring name) {
+	struct TempStruct info;
+	struct PakModule *mod = get_mod(env, thiz, &info);
+
+	if (name == NULL) {
+		mod->rt->setup_option = NULL;
+	} else {
+		if (mod->rt->setup_option != NULL) free(mod->rt->setup_option);
+		const char *setup_option = (*env)->GetStringUTFChars(env, name, 0);
+		mod->rt->setup_option = strdup(setup_option);
+		(*env)->ReleaseStringUTFChars(env, name, setup_option);
+	}
+
+	release_mod(env, &info);
 }
