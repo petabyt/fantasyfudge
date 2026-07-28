@@ -6,12 +6,10 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,7 +24,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -52,7 +49,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -66,10 +62,9 @@ class IntervalometerModel(val module: ModuleInstance): ViewModel() {
         status.value = "Stopping"
     }
     override fun onCleared() {
-        super.onCleared()
         stop()
     }
-    fun start(num: Int, interval: Int) {
+    fun start(num: Int, interval: Double) {
         if (doingCapture.value) return
         job = CoroutineScope(Dispatchers.IO).launch {
             doingCapture.value = true
@@ -81,7 +76,7 @@ class IntervalometerModel(val module: ModuleInstance): ViewModel() {
                 if (!isActive) break
                 try {
                     delay((1000 * interval).toLong())
-                } catch (e: CancellationException) {
+                } catch (ignored: CancellationException) {
                     break
                 }
             }
@@ -111,7 +106,7 @@ fun Intervalometer(modifier: Modifier = Modifier, model: IntervalometerModel) {
 }
 
 @Composable
-fun Intervalometer(modifier: Modifier = Modifier, start: (Int, Int) -> Unit = {a, b ->}, stop: () -> Unit = {}, shutter: (Boolean) -> Unit = {}, doingCapture: Boolean = false, status: String = "") {
+fun Intervalometer(modifier: Modifier = Modifier, start: (Int, Double) -> Unit = {a, b ->}, stop: () -> Unit = {}, shutter: (Boolean) -> Unit = {}, doingCapture: Boolean = false, status: String = "") {
     val haptic = LocalHapticFeedback.current
     Column(modifier.padding(10.dp).fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         var shotsToTake by remember { mutableStateOf("10") }
@@ -162,7 +157,9 @@ fun Intervalometer(modifier: Modifier = Modifier, start: (Int, Int) -> Unit = {a
                         colors = secondaryIconButtonColors(),
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                            start(shotsToTake.toInt(), secondsInBetweenShots.toInt())
+                            try {
+                                start(shotsToTake.toInt(), secondsInBetweenShots.toDouble())
+                            } catch (ignored: Exception) { }
                         }
                     ) {
                         Icon(painterResource(R.drawable.outline_shutter_speed_24), contentDescription = null, modifier = Modifier.size(50.dp))

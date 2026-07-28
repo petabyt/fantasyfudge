@@ -144,7 +144,6 @@ data class GalleryObject(
 
 data class GalleryObjectReference(
     val index: Int,
-    val isPriority: Boolean,
 )
 
 data class FilesystemState(
@@ -191,19 +190,24 @@ abstract class GalleryViewModel : ViewModel() {
     abstract fun fulfillThumbnail(file: GalleryObjectReference)
     abstract fun fulfillMetadata(file: GalleryObjectReference)
 
-    private fun checkObject(obj: GalleryObject?, ref: GalleryObjectReference, doThumbnail: Boolean = true): Boolean {
+    private fun objectIsFulfilled(obj: GalleryObject?): Boolean {
+        if (obj == null) return false
+        return ((obj.metadata != null || obj.invalidMetadata) && (obj.thumbnail != null || obj.invalidThumbnail));
+    }
+
+    private fun checkObject(obj: GalleryObject?, ref: GalleryObjectReference): Boolean {
         if (obj == null) {
-            if (isThumbnailPriority && doThumbnail) {
+            if (isThumbnailPriority) {
                 fulfillThumbnail(ref)
             } else {
                 fulfillMetadata(ref)
             }
         } else {
             obj.lastChecked = TimeSource.Monotonic.markNow()
-            if (obj.metadata == null && !obj.invalidMetadata) {
-                fulfillMetadata(ref)
-            } else if (obj.thumbnail == null && !obj.invalidThumbnail && doThumbnail) {
+            if (obj.thumbnail == null && !obj.invalidThumbnail) {
                 fulfillThumbnail(ref)
+            } else if (obj.metadata == null && !obj.invalidMetadata) {
+                fulfillMetadata(ref)
             } else {
                 return false
             }
@@ -216,11 +220,10 @@ abstract class GalleryViewModel : ViewModel() {
         val queue = _uiState.value.queue
         val objects = _uiState.value.objects
         if (queue.isEmpty()) {
-            // If queue is empty iterate all non-null objects and fulfill them
-            for (i in objects.indices) {
-                if (objects[i] != null &&  checkObject(objects[i], GalleryObjectReference(i, true), doThumbnail = true)) {
-                    return true
-                }
+            // Iterate all recently checked objects fulfill them more (recently seen by user, should be priority)
+            val newest = objects.sortedBy { it?.lastChecked }
+            for (i in newest.indices) {
+                if (checkObject(objects[i], GalleryObjectReference(i))) return true
             }
             return false
         }
@@ -229,11 +232,7 @@ abstract class GalleryViewModel : ViewModel() {
         }
         if (ref.index >= objects.size || ref.index < 0) return false
         val obj = objects[ref.index]
-        if (obj != null) {
-            return checkObject(obj, ref)
-        } else {
-            return false
-        }
+        return checkObject(obj, ref)
     }
 
     fun start() {
@@ -323,13 +322,13 @@ abstract class GalleryViewModel : ViewModel() {
             }
         }
     }
-    fun enqueueObjects(indexes: List<Int>, isPriority: Boolean = false) {
+    fun enqueueObjects(indexes: List<Int>) {
         viewModelScope.launch(Dispatchers.IO) {
             queueMutex.withLock {
                 println("enqueueing ${indexes.size}")
                 for (i in indexes) {
                     _uiState.value.queue.removeIf { it.index == i }
-                    _uiState.value.queue.addLast(GalleryObjectReference(i, isPriority))
+                    _uiState.value.queue.addLast(GalleryObjectReference(i))
                 }
             }
         }
@@ -408,7 +407,7 @@ fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
     }
 }
 
-fun longToFileSize(bytes: Long): String {
+private fun longToFileSize(bytes: Long): String {
     if (bytes <= 0) return "0b"
 
     val units = arrayOf("b", "kb", "mb", "gb", "tb", "pb", "eb")
@@ -483,7 +482,7 @@ fun GalleryWithModel(onItemClick: (Int) -> Unit, modifier: Modifier, model: Gall
     if (model != null) {
         val state by model.uiState.collectAsStateWithLifecycle()
         Gallery(modifier, state, requestLoad = { items ->
-            model.enqueueObjects(items, true)
+            model.enqueueObjects(items)
         }, onItemClick = { i ->
             onItemClick(i)
         }, onRefresh = {

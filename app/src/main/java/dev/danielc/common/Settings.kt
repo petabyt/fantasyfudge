@@ -1,10 +1,8 @@
 package dev.danielc.common
 
-import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Delete
-import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -24,6 +22,7 @@ data class SavedDeviceEntity(
     val targetIndex: Int,
     val setupOption: String? = null,
     val bluetoothMacAddress: String? = null,
+    val associationId: Int? = null,
     val privateData: ByteArray? = null,
 )
 
@@ -58,7 +57,7 @@ interface SettingsDao {
     fun getFlow(): Flow<AppSettingEntity?>
 }
 
-@Database(entities = [SavedDeviceEntity::class, AppSettingEntity::class], version = 3, exportSchema = false)
+@Database(entities = [SavedDeviceEntity::class, AppSettingEntity::class], version = 4, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun deviceDao(): DeviceDao
     abstract fun settingsDao(): SettingsDao

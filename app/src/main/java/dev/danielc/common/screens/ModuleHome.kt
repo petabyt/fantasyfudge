@@ -44,6 +44,7 @@ import dev.danielc.common.ModuleProperty
 import dev.danielc.common.Runtime
 import dev.danielc.common.Screen
 import dev.danielc.common.ViewModelReferences
+import dev.danielc.common.screens.DashboardCallbacks
 import dev.danielc.common.ui.DefaultNavHost
 import dev.danielc.common.ui.DisconnectDialog
 import dev.danielc.common.ui.composableSlideBackwards
@@ -59,8 +60,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 data class HomeState(
-    val supportedNavBarScreenList: List<Screen> = emptyList(),
-    val supportedMainScreenList: List<Screen> = emptyList(),
+    val supportedNavBarScreenList: List<Screen> = listOf(Screen.DASHBOARD),
+    val supportedMainScreenList: List<Screen> = listOf(Screen.DASHBOARD),
     val showDisconnectDialog: Boolean = false,
 )
 
@@ -78,7 +79,6 @@ data class UiEvent(
 
 class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceRequest, viewModels: ViewModelReferences) : ViewModel() {
     override fun onCleared() {
-        super.onCleared()
         runBlocking {
             module.deregister()
         }
@@ -98,20 +98,6 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
     init {
         module.initThread()
     }
-
-    val dashboardCallbacks: DashboardCallbacks = DashboardCallbacks(
-        updatePaneValue = { pane ->
-            updateSettingPane(pane)
-        },
-        disconnect = {
-            showDisconnectDialog(true)
-        },
-        runCommand = { cmd ->
-            CoroutineScope(Dispatchers.IO).launch {
-                module.runCommand(cmd)
-            }
-        }
-    )
 
     fun updateNumFiles(files: Int?) {
         _dashboardState.update { state ->
@@ -323,12 +309,26 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                 navController = navController, startDestination = Screen.DASHBOARD.strId) {
                 composable(Screen.DASHBOARD.strId) {
                     BackHandler { goBack() }
-                    Dashboard(Modifier.padding(innerPadding), navController, state = dashboardState, callbacks = model.dashboardCallbacks)
+                    Dashboard(Modifier.padding(innerPadding), navController, state = dashboardState, callbacks =
+                        DashboardCallbacks(
+                            updatePaneValue = { pane ->
+                                model.updateSettingPane(pane)
+                            },
+                            disconnect = {
+                                model.showDisconnectDialog(true)
+                            },
+                            runCommand = { cmd ->
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    module.runCommand(cmd)
+                                }
+                            }
+                        )
+                    )
                 }
                 composable(Screen.FILE_GALLERY.strId) {
                     BackHandler { goBack() }
                     Gallery(Modifier.padding(innerPadding), galleryState, requestLoad = { items ->
-                        module.galleryViewModel.enqueueObjects(items, true)
+                        module.galleryViewModel.enqueueObjects(items)
                     }, onItemClick = { i ->
                         module.goToViewer(FileHandle(i))
                     })
@@ -422,7 +422,7 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
                     }
                 }, {
                     module.tryConnectAgain()
-                }, debugLogState, connectProgress, action, module.target)
+                }, debugLogState, connectProgress, action, module.target, module.request.getSetupOption()?.transport ?: ModuleManifest.Transport.WIFI_AP)
             }
         }
         composable("home") {

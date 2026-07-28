@@ -103,12 +103,11 @@ data class ViewerState(
 )
 
 class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolean = true) : ViewModel() {
-    var temporaryBuffer: ByteArray? = null
+    private var temporaryBuffer: ByteArray? = null
     private val _viewerState = MutableStateFlow<ViewerState?>(null)
     val viewerState = _viewerState.asStateFlow()
 
     override fun onCleared() {
-        super.onCleared()
         clear()
     }
 
@@ -154,27 +153,14 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
     fun clear() {
         _viewerState.value = null
     }
-    fun setFileContents(data: ByteArray, isPartial: Boolean) {
-        val temporaryBufferRef = temporaryBuffer
-        if (isPartial) {
-            if (temporaryBufferRef == null) {
-                temporaryBuffer = data
-            } else {
-                temporaryBuffer = temporaryBufferRef + data
-            }
-            return
-        } else {
-            if (temporaryBufferRef != null) {
-                temporaryBuffer = temporaryBufferRef + data
-            }
-        }
+    private fun loadImage(data: ByteArray) {
         _viewerState.update { viewerState ->
             viewerState?.copy(
                 isDecoding = true
             )
         }
         val bitmap = AndroidRuntime.decodeImageContents(
-            temporaryBuffer ?: data,
+            data,
             null,
             _viewerState.value?.metadata?.orientation)
         if (bitmap == null) {
@@ -186,6 +172,34 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
                     isDecoding = false,
                     isLoading = false,
                 )
+            }
+        }
+    }
+    fun setFileContents(data: ByteArray?, offset: Long, totalSize: Long) {
+        val temporaryBufferRef = temporaryBuffer
+        if (temporaryBufferRef == null) {
+//            if (totalSize == 0L && data != null) {
+//                temporaryBuffer = data
+//            } else {
+//                temporaryBuffer = ByteArray(totalSize.toInt())
+//            }
+            temporaryBuffer = data
+            if (data != null && (data.size.toLong() >= totalSize)) {
+                loadImage(data)
+            }
+            return
+        } else {
+            if (data != null) {
+                // todo: copy to offset
+                val newBuf = temporaryBufferRef + data
+                println("${totalSize}, ${newBuf.size}")
+                if (totalSize > newBuf.size) {
+                    temporaryBuffer = newBuf
+                    return
+                }
+                loadImage(newBuf)
+            } else {
+                loadImage(temporaryBufferRef)
             }
         }
     }
@@ -216,12 +230,11 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp)
-                    .padding(16.dp),
+                    .height(200.dp),
                 shape = RoundedCornerShape(16.dp),
             ) {
-                Box(Modifier.fillMaxSize()) {
-                    Column(Modifier.align(Alignment.Center), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(Modifier.fillMaxSize().padding(16.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
                             text = "Error",
                             style = TextStyle(
@@ -398,8 +411,8 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
         currentDownloadSpeed = "5 mbps",
         currentDownloadProgress = 40,
         numberOfItems = 30,
-        isError = false,
-        errorMessage = "Failed to decode",
+        isError = true,
+        errorMessage = "BUG: Failed to decode, blah blah blah",
     )) }
     ViewerScreen(state, switchTo = { i ->
         state = state.copy(

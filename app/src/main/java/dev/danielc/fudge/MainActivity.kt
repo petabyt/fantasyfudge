@@ -17,7 +17,22 @@ import dev.danielc.libpak.Pak
 import dev.danielc.libpak.WiFi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
+
+private data class Event(
+    val name: String,
+    val setupOption: String?,
+)
+private val externalEvents = MutableSharedFlow<Event>(replay = 1)
+private val externalEventsShared = externalEvents.asSharedFlow()
+
+fun startModule(name: String, setupOption: String?) {
+    CoroutineScope(Dispatchers.IO).launch {
+        externalEvents.emit(Event(name, setupOption))
+    }
+}
 
 class MainActivity : ComponentActivity(), ComponentCallbacks2 {
     override fun onRequestPermissionsResult(
@@ -41,7 +56,7 @@ class MainActivity : ComponentActivity(), ComponentCallbacks2 {
     }
 
     override fun onTrimMemory(level: Int) {
-        super<ComponentActivity>.onTrimMemory(level)
+        super.onTrimMemory(level)
         Log.d("main", "onTrimMemory")
         for (e in Runtime.moduleInstances) {
             e.value.trimMemory()
@@ -68,6 +83,11 @@ class MainActivity : ComponentActivity(), ComponentCallbacks2 {
         setContent {
             val navController = rememberNavController()
             MainNav(navController)
+            LaunchedEffect(Unit) {
+                externalEventsShared.collect {
+                    navController.navigate(ModuleInstanceRequest(it.name, targetIndex = 0, chosenSetupOption = it.setupOption))
+                }
+            }
             if (false) {
                 LaunchedEffect(Unit) {
                     navController.navigate(ModuleInstanceRequest("goveelife", 0))

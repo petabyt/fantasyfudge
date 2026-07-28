@@ -7,24 +7,14 @@
 #include <runtime_ext.h>
 #include <dlfcn.h>
 #include <stdint.h>
+#include <android/log.h>
 #include "thread.h"
 #include "main.h"
 
-jobject pak_wifi_ap_filter_to_jobject(JNIEnv *env, struct PakWiFiApFilter *filter);
-
 static struct PakModule *create_module(JNIEnv *env, jobject o_mod) {
 	struct PakModule *mod = calloc(1, sizeof(struct PakModule));
-	mod->rt = malloc(sizeof(struct RuntimePriv));
-
+	mod->rt = calloc(sizeof(struct RuntimePriv), 1);
 	mod->rt->obj = (*env)->NewGlobalRef(env, o_mod);
-	jstring str = (*env)->CallObjectMethod(env, o_mod, (*env)->GetMethodID(env, (*env)->FindClass(env, "dev/danielc/common/ModuleInstance"), "getSetupOptionName", "()Ljava/lang/String;"));
-	if (str == NULL) {
-		mod->rt->setup_option = NULL;
-	} else {
-		const char *setup_option = (*env)->GetStringUTFChars(env, str, 0);
-		mod->rt->setup_option = strdup(setup_option);
-		(*env)->ReleaseStringUTFChars(env, str, setup_option);
-	}
 	return mod;
 }
 static int finalize_module(JNIEnv *env, struct PakModule *mod) {
@@ -47,14 +37,19 @@ JNIEXPORT void JNICALL
 Java_dev_danielc_fudge_AndroidRuntime_init(JNIEnv *env, jclass clazz) {
 	set_jni_env_ctx(env, clazz);
 	pak_global_log("AndroidRuntime init");
+	//pak_global_log("%p", exif_start_raw);
 }
 
 void pak_global_log(const char *fmt, ...) {
-	char buffer[512] = {0};
+	char buffer[10000] = {0};
 	va_list args;
 	va_start(args, fmt);
-	vsnprintf(buffer, sizeof(buffer), fmt, args);
+	int b = vsnprintf(buffer, sizeof(buffer), fmt, args);
 	va_end(args);
+
+	if (buffer[b - 1] == '\n') {
+		buffer[b - 1] = '\0';
+	}
 
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
@@ -76,7 +71,7 @@ int pak_rt_set_tick_interval(struct PakModule *mod, unsigned int us) {
 }
 
 void pak_debug_log(struct PakModule *mod, const char *fmt, ...) {
-	char buffer[512] = {0};
+	char buffer[10000] = {0};
 	va_list args;
 	va_start(args, fmt);
 	vsnprintf(buffer, sizeof(buffer), fmt, args);
@@ -194,7 +189,7 @@ int pak_rt_set_progress_bar(struct PakModule *mod, int job, int percent) {
 	return 0;
 }
 
-int pak_rt_set_storage_info(struct PakModule *mod, const char *storage_name, unsigned int n_items, enum SortedBy sorted_by) {
+int pak_rt_set_storage_info(struct PakModule *mod, const char *storage_name, unsigned int n_items, enum PakSortedBy sorted_by) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
@@ -205,17 +200,17 @@ int pak_rt_set_storage_info(struct PakModule *mod, const char *storage_name, uns
 	return 0;
 }
 
-int pak_rt_add_file_contents(struct PakModule *mod, struct PakFileHandle *file, void *image_data, unsigned int length, int is_partial) {
+int pak_rt_add_file_contents(struct PakModule *mod, struct PakFileHandle *file, void *image_data, unsigned int length, unsigned int offset, unsigned int total_size) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
 	jobject handle_o = create_filehandle(env, file);
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
-	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "setFileContents", "(Ldev/danielc/common/PakFileHandle;[BZ)V");
+	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "setFileContents", "(Ldev/danielc/common/FileHandle;[BJJ)V");
 
 	jbyteArray image_data_o = (*env)->NewByteArray(env, (jsize)length);
 	(*env)->SetByteArrayRegion(env, image_data_o, 0, (jsize)length, (const jbyte *)image_data);
 
-	(*env)->CallVoidMethod(env, mod->rt->obj, set_storage_info, handle_o, image_data_o, (jboolean)is_partial);
+	(*env)->CallVoidMethod(env, mod->rt->obj, set_storage_info, handle_o, image_data_o, (jlong)offset, (jlong)total_size);
 	(*env)->PopLocalFrame(env, NULL);
 	return 0;
 }
@@ -225,7 +220,7 @@ int pak_rt_add_file_thumbnail(struct PakModule *mod, struct PakFileHandle *file,
 	(*env)->PushLocalFrame(env, 10);
 	jobject handle_o = create_filehandle(env, file);
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
-	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "addFileThumbnail", "(Ldev/danielc/common/PakFileHandle;[B)V");
+	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "addFileThumbnail", "(Ldev/danielc/common/FileHandle;[B)V");
 
 	jbyteArray image_data_o = (*env)->NewByteArray(env, (jsize)length);
 	(*env)->SetByteArrayRegion(env, image_data_o, 0, (jsize)length, (const jbyte *)image_data);
@@ -282,6 +277,20 @@ int pak_rt_set_dashboard_pane(struct PakModule *mod, const struct PakWidget *s) 
 		jintArray arr = (*env)->NewIntArray(env, (jsize)s->u.graphv.n_points);
 		(*env)->SetIntArrayRegion(env, arr, 0, (jsize)s->u.graphv.n_points, (const jint *)s->u.graphv.points);
 		pane_o = (*env)->NewObject(env, booleansetting_c, (*env)->GetMethodID(env, booleansetting_c, "<init>", "(Ldev/danielc/common/DashboardPane$Properties;[I)V"), properties_o, arr);
+	} else if (s->type == PAK_DROPDOWN) {
+		jclass booleansetting_c = (*env)->FindClass(env, "dev/danielc/common/DashboardPane$DropdownSetting");
+
+		int n;
+		for (n = 0; s->u.dropdownv.list[n] != NULL; n++);
+
+		jintArray arr = (*env)->NewObjectArray(env, (jsize)n, (*env)->FindClass(env, "java/lang/String"), NULL);
+		for (int i = 0; i < n; i++) {
+			(*env)->SetObjectArrayElement(env, arr, i, (*env)->NewStringUTF(env, s->u.dropdownv.list[i]));
+		}
+		pane_o = (*env)->NewObject(env, booleansetting_c, (*env)->GetMethodID(env, booleansetting_c, "<init>", "(Ldev/danielc/common/DashboardPane$Properties;I[Ljava/lang/String;)V"), properties_o,
+			(jint)s->u.dropdownv.index_value,
+			arr
+		);
 	}
 	if (pane_o != NULL) {
 		jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
@@ -301,7 +310,7 @@ int pak_rt_add_file_metadata(struct PakModule *mod, struct PakFileHandle *file, 
 	jobject metadata_o = create_filemetadata(env, metadata);
 
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
-	jmethodID method = (*env)->GetMethodID(env, module_c, "addFileMetadata", "(Ldev/danielc/common/PakFileHandle;Ldev/danielc/common/PakFileMetadata;)V");
+	jmethodID method = (*env)->GetMethodID(env, module_c, "addFileMetadata", "(Ldev/danielc/common/FileHandle;Ldev/danielc/common/FileMetadata;)V");
 	(*env)->CallVoidMethod(env, mod->rt->obj, method, handle_o, metadata_o);
 
 	(*env)->PopLocalFrame(env, NULL);
@@ -353,7 +362,7 @@ struct PakFileMetadata *pak_rt_get_metadata(struct PakModule *mod, struct PakFil
 	(*env)->PushLocalFrame(env, 10);
 	jobject handle_o = create_filehandle(env, file);
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
-	jmethodID method = (*env)->GetMethodID(env, module_c, "getMetadata", "(Ldev/danielc/common/PakFileHandle;)Ldev/danielc/common/PakFileMetadata;");
+	jmethodID method = (*env)->GetMethodID(env, module_c, "getMetadata", "(Ldev/danielc/common/FileHandle;)Ldev/danielc/common/FileMetadata;");
 	jobject md_o = (*env)->CallObjectMethod(env, mod->rt->obj, method, handle_o);
 	if (md_o == NULL) {
 		(*env)->PushLocalFrame(env, 10);
@@ -376,15 +385,17 @@ void pak_rt_release_metadata(struct PakModule *mod, struct PakFileMetadata *md) 
 	free(md);
 }
 
-int pak_rt_add_wifi_connection(struct PakModule *mod, struct PakWiFiApFilter *filter) {
+int pak_rt_add_wifi_connection(struct PakModule *mod, struct PakWiFiApFilter *filter, const char *setup_option) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
 
 	jobject filter_o = pak_wifi_ap_filter_to_jobject(env, filter);
 
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
-	jmethodID method = (*env)->GetMethodID(env, module_c, "addWiFiConnection", "(Ldev/danielc/libpak/WiFi$ApFilter;)V");
-	(*env)->CallVoidMethod(env, mod->rt->obj, method, filter_o);
+	jmethodID method = (*env)->GetMethodID(env, module_c, "addWiFiConnection", "(Ldev/danielc/libpak/WiFi$ApFilter;Ljava/lang/String;)V");
+	(*env)->CallVoidMethod(env, mod->rt->obj, method, filter_o,
+		(*env)->NewStringUTF(env, setup_option)
+	);
 
 	(*env)->PopLocalFrame(env, NULL);
 	return 0;
@@ -409,7 +420,7 @@ Java_dev_danielc_fudge_AndroidRuntime_setupJavascriptModule(JNIEnv *env, jclass 
 	struct PakModule *mod = create_module(env, mod_o);
 	jbyte *buf = (*env)->GetByteArrayElements(env, fileContents, NULL);
 	jsize size = (*env)->GetArrayLength(env, fileContents);
-	int rc = setup_quickjs_module(mod, (char *)buf, (unsigned int)size);
+	int rc = setup_quickjs_module(mod, (char *)buf, (unsigned int)(size - 1));
 	(*env)->ReleaseByteArrayElements(env, fileContents, buf, 0);
 	if (rc) return rc;
 	return finalize_module(env, mod);
@@ -440,4 +451,15 @@ Java_dev_danielc_fudge_AndroidRuntime_setupSharedLibraryModule(JNIEnv *env, jcla
 
 	(*env)->ReleaseStringUTFChars(env, path, path_s);
 	return finalize_module(env, mod);
+}
+
+JNIEXPORT jobject JNICALL Java_dev_danielc_fudge_InstrumentedTest_getTestWiFiApFilter(JNIEnv *env, jobject thiz) {
+	struct PakWiFiApFilter filter = {0};
+	filter.has_ssid = 1;
+	strcpy(filter.ssid_pattern, "Test.*");
+	filter.is_hidden = 1;
+	filter.has_password = 1;
+	strcpy(filter.password, "123456789");
+	return pak_wifi_ap_filter_to_jobject(env, &filter);
+	//(*env)->ThrowNew(env, (*env)->FindClass(env, "java/lang/Exception"), "Failed assert");
 }

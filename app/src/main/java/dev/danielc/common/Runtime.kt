@@ -42,7 +42,9 @@ sealed interface DashboardPane {
     data class BooleanSetting(override val args: Properties, val value: Boolean): DashboardPane
     data class IntSetting(override val args: Properties, val value: Int): DashboardPane
     data class SliderSetting(override val args: Properties, val value: Int, val min: Int, val max: Int): DashboardPane
-    data class DropdownSetting(override val args: Properties, val index: Int, val options: List<String>): DashboardPane
+    data class DropdownSetting(override val args: Properties, val index: Int, val options: List<String>): DashboardPane {
+        constructor(args: Properties, index: Int, options: Array<String>) : this(args, index, options.toList())
+    }
     @Suppress("ArrayInDataClass")
     data class Graph(
         override val args: Properties,
@@ -243,6 +245,7 @@ object Runtime {
         fun matchAgainstManifest(m: ModuleManifest, d: Bluetooth.Device): Boolean {
             for (t in m.targets) {
                 for (b in t.bluetoothDiscovery) {
+                    // TODO: async try to fetch UUIDs over sdp
                     if (!checkServiceUuids(b, d)) continue
                     if (b.namePattern != null) {
                         if (!Regex(b.namePattern).matches(d.name)) continue
@@ -257,19 +260,23 @@ object Runtime {
             return false
         }
         for (d in devices) {
+            //d.refreshSdpUuids()
             for (m in moduleManifests) {
                 if (matchAgainstManifest(m, d)) break
             }
+            //d.closeAll()
         }
         connectableDevices = list
 
         // Sense nearby devices in database
         savedDevices = getDatabase().deviceDao().getAllDevices()
         val savedDevices = getDatabase().deviceDao().getAllDevicesList()
-//        for (d in savedDevices) {
-//            if (d.bluetoothMacAddress != null)
-//                Bluetooth.senseNearbyDevice(d.bluetoothMacAddress)
-//        }
+        for (d in savedDevices) {
+//            if (d.associationId != null)
+//                Bluetooth.senseNearbyDevice(d.associationId)
+            if (d.bluetoothMacAddress != null)
+                Bluetooth.senseNearbyDevice(d.bluetoothMacAddress)
+        }
     }
 
     fun getManifestFromName(name: String): ModuleManifest? {
@@ -350,7 +357,7 @@ object Runtime {
                     deviceId = Device.EARBUDS,
                     products = listOf("Buds Pro 2", "Buds 2"),
                     bluetoothDiscovery = listOf(ModuleManifest.BluetoothDiscovery(
-                        isClassic = true,
+                        isClassic = false,
                         namePattern = "CMF.*",
                         mfgData = byteArrayOf(0x31, 0x44, 0x42, 0xee.toByte(), 0xbe.toByte(), 0x2c),
                         mfgDataMask = byteArrayOf(0xff.toByte(), 0xff.toByte()),
@@ -396,26 +403,38 @@ object Runtime {
                 val targets = mutableListOf<ModuleManifest.Target>()
                 if (jsonTarget != null) {
                     for (target in jsonTarget) {
-                        targets += ModuleManifest.Target(
-                            company = target.jsonObject["company"]?.jsonPrimitive?.content!!,
+                        var t = ModuleManifest.Target(
+                            company = target.jsonObject["company"]?.jsonPrimitive?.content ?: throw Error("Missing company field"),
                             summary = target.jsonObject["summary"]?.jsonPrimitive?.content,
-                            products = Json.decodeFromJsonElement<List<String>>(target.jsonObject["products"]!!),
-                            deviceId = Device.fromId(target.jsonObject["deviceType"]?.jsonPrimitive?.content)!!
+                            products = Json.decodeFromJsonElement<List<String>>(target.jsonObject["products"] ?: throw Error("Missing products field")),
+                            deviceId = Device.fromId(target.jsonObject["deviceType"]?.jsonPrimitive?.content) ?: throw Error("Missing deviceType field")
                         )
+
+                        val jsonWiFiFilter = target.jsonObject["wifiFilter"]?.jsonObject
+                        if (jsonWiFiFilter != null) {
+                            t = t.copy(
+                                wifiDiscovery = ModuleManifest.WiFiDiscovery(
+                                    ssidPattern = jsonWiFiFilter.jsonObject["ssidPattern"]?.jsonPrimitive?.content ?: throw Error("Missing ssidPattern field"),
+                                    defaultPassword = jsonWiFiFilter.jsonObject["defaultPassword"]?.jsonPrimitive?.content
+                                )
+                            )
+                        }
+
+                        targets += t
                     }
                 }
                 val manifest = ModuleManifest(
-                    name = root["name"]?.jsonPrimitive?.content!!,
+                    name = root["name"]?.jsonPrimitive?.content ?: throw Error("missing name field"),
                     description = root["description"]?.jsonPrimitive?.content,
                     author = root["author"]?.jsonPrimitive?.content,
                     website = root["website"]?.jsonPrimitive?.content,
-                    scriptPath = filename.replaceAfterLast("/", root["modulePath"]?.jsonPrimitive?.content!!),
-                    moduleType = when (root["moduleType"]?.jsonPrimitive?.content!!) {
+                    scriptPath = filename.replaceAfterLast("/", root["modulePath"]?.jsonPrimitive?.content ?: throw Error("missing modulePath field")),
+                    moduleType = when (root["moduleType"]?.jsonPrimitive?.content ?: throw Error("missing moduleType field")) {
                         "js" -> ModuleManifest.ModuleType.QUICKJS
                         "wasm" -> ModuleManifest.ModuleType.WEBASSEMBLY
                         else -> ModuleManifest.ModuleType.SHARED_LIBRARY
                     },
-                    version = root["version"]?.jsonPrimitive?.int!!,
+                    version = root["version"]?.jsonPrimitive?.int ?: throw Error("Missing version field"),
                     isDraft = root["isDraft"]?.jsonPrimitive?.booleanOrNull == true,
                     targets = targets,
                 )
@@ -423,7 +442,7 @@ object Runtime {
                 list += manifest
             } catch (e: Exception) {
                 logGlobalLine("Error parsing manifest $filename")
-                logGlobalLine(e.toString())
+                logGlobalLine(e.message ?: "")
             }
         }
         moduleManifests = list

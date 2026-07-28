@@ -57,7 +57,7 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
         if (data == null) {
             viewer.setError("Failed to decode image")
         } else {
-            viewer.setFileContents(data, false)
+            viewer.setFileContents(data, 0, 0)
         }
 
         viewer.updateSideBitmaps(
@@ -77,7 +77,7 @@ fun LocalGallery(onItemClick: (Int) -> Unit, modifier: Modifier, model: LocalGal
     if (model != null) {
         val state by model.uiState.collectAsStateWithLifecycle()
         Gallery(modifier, state, requestLoad = { items ->
-            model.enqueueObjects(items, true)
+            model.enqueueObjects(items)
         }, onItemClick = { i ->
             onItemClick(i)
         }, onRefresh = {

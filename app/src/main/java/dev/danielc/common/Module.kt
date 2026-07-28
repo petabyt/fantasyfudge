@@ -22,6 +22,8 @@ import kotlin.collections.plus
 import kotlin.time.DurationUnit
 import kotlin.time.TimeSource
 
+annotation class CalledFromNative
+
 typealias JobUpdateCallback = (ModuleJob) -> Unit
 
 /**
@@ -39,11 +41,15 @@ data class ModuleJob(
 class ModuleGalleryViewModel: GalleryViewModel() {
     var module: ModuleInstance? = null
     override fun fulfillThumbnail(file: GalleryObjectReference) {
-        module?.getFileThumbnail(file = FileHandle(file.index, null))
+        if (module!!.getFileThumbnail(file = FileHandle(file.index, null)) != 0) {
+            updateThumbnail(file.index, thumbData = null)
+        }
     }
 
     override fun fulfillMetadata(file: GalleryObjectReference) {
-        module?.getFileMetadata(file = FileHandle(file.index, null))
+        if (module!!.getFileMetadata(file = FileHandle(file.index, null)) != 0) {
+            updateMetadata(file.index, null)
+        }
     }
 }
 
@@ -64,19 +70,23 @@ abstract class ModuleBase: NativeModule() {
     }
 
     fun createJob(onUpdate: JobUpdateCallback): ModuleJob {
-        val id = ++jobCounter
-        val job = ModuleJob(
-            id = id,
-            onUpdate = onUpdate
-        )
-        jobs.put(id, job)
-        return job
+        synchronized(jobs) {
+            val id = ++jobCounter
+            val job = ModuleJob(
+                id = id,
+                onUpdate = onUpdate
+            )
+            jobs.put(id, job)
+            return job
+        }
     }
 
     fun closeJob(job: ModuleJob) {
-        val key = jobs.entries.find { it.value == job }?.key
-        if (key != null) {
-            jobs.remove(key)
+        synchronized(jobs) {
+            val key = jobs.entries.find { it.value == job }?.key
+            if (key != null) {
+                jobs.remove(key)
+            }
         }
     }
 
@@ -184,17 +194,17 @@ data class ModuleInstanceRequest(
 /**
  * Instance of a module with a single connection
  */
-class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRequest, val homeModelView: ModuleInstanceModel, viewModels: ViewModelReferences): ModuleBase() {
+class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRequest, val homeModelView: ModuleInstanceModel, viewModels: ViewModelReferences): ModuleBase() {
     val galleryViewModel: ModuleGalleryViewModel = viewModels.galleryViewModel
     val viewerViewModel: ViewerModel = viewModels.viewerViewModel
     var viewerDownloadJob: ModuleJob? = null
     val debugLogModel: ConsoleViewModel = viewModels.debugLogModel
+    val target = manifest.targets[request.targetIndex]
+    val companionName = "${target.company} ${target.deviceId.getReadableName()}"
     init {
         Runtime.addModuleInstance(this)
         galleryViewModel.module = this
     }
-
-    val target = manifest.targets[request.targetIndex]
     var currentTickIntervalUs: Int = (100 * 1000)
     private var mainLoopJob: kotlinx.coroutines.Job? = null
     private var initJob: kotlinx.coroutines.Job? = null
@@ -203,36 +213,40 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
     var disconnectReason: String? = null
     var disconnectedErrorCode: Int? = null
     private var isNavigating = false
-    private var connectedBluetoothMacAddress: String? = null
+    private var connectedBluetoothDevice: Bluetooth.Device? = null
+    private var connectedWiFiAdapter: WiFi.Adapter? = null
 
+    fun trimMemory() {
+        galleryViewModel.trimMemory()
+    }
+
+    @CalledFromNative
     fun saveDeviceSignature(info: SavedDeviceInfo) {
         CoroutineScope(Dispatchers.IO).launch {
             AndroidRuntime.getDatabase().deviceDao().saveDevice(SavedDeviceEntity(
-                info.uniqueIdentifier,
+                uniqueIdentifier = info.uniqueIdentifier,
                 name = info.name,
                 privateData = info.privateData,
                 manifestName = manifest.name,
                 targetIndex = request.targetIndex,
                 setupOption = request.chosenSetupOption,
-                bluetoothMacAddress = connectedBluetoothMacAddress,
+                bluetoothMacAddress = connectedBluetoothDevice?.address,
+                associationId = connectedBluetoothDevice?.associationId
             ))
         }
     }
-    fun trimMemory() {
-        galleryViewModel.trimMemory()
-    }
+    @CalledFromNative
     fun setTickRate(us: Int) {
         currentTickIntervalUs = us
     }
+    @CalledFromNative
     fun debugLog(s: String) {
         debugLogModel.addLine(s)
-    }
-    fun getSetupOptionName(): String? {
-        return request.chosenSetupOption
     }
     suspend fun stopAllThreads() {
         println("Stopping module threads")
         cancelAllJobs()
+        Bluetooth.interruptAll()
         galleryViewModel.stop()
         initJob?.cancelAndJoin()
         mainLoopJob?.cancelAndJoin()
@@ -243,21 +257,27 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         Runtime.removeModuleInstance(this)
         if (!homeModelView.initializationError.value) free()
     }
+    @CalledFromNative
     fun getMetadata(file: FileHandle): FileMetadata? {
         return galleryViewModel.getMetadata(file)
     }
+    @CalledFromNative
     fun setProperty(type: String, value: String) {
-        homeModelView.setProperty(ModuleProperty.fromId(type)!!, value)
+        homeModelView.setProperty(ModuleProperty.fromId(type) ?: return, value)
     }
+    @CalledFromNative
     fun setProperty(type: String, value: Int) {
-        homeModelView.setProperty(ModuleProperty.fromId(type)!!, value)
+        homeModelView.setProperty(ModuleProperty.fromId(type) ?: return, value)
     }
+    @CalledFromNative
     fun setScreenSupported(id: Int, v: Boolean) {
         homeModelView.setSupportedScreen(Screen.fromId(id)!!, v)
     }
+    @CalledFromNative
     fun setDashboardPane(pane: DashboardPane) {
         homeModelView.setDashboardPane(pane)
     }
+    @CalledFromNative
     fun setProgressBar(job: Int, v: Int) {
         val jobObj = getJob(job)
         if (jobObj != null) {
@@ -265,6 +285,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
             jobObj.onUpdate(jobObj)
         }
     }
+    @CalledFromNative
     fun isJobCancelled(job: Int): Boolean {
         val jobObj = getJob(job)
         if (jobObj != null) {
@@ -272,6 +293,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         }
         return false
     }
+    @CalledFromNative
     fun addFileMetadata(file: FileHandle, v: FileMetadata?) {
         galleryViewModel.updateMetadata(file.index, v)
         // Update the image viewer state if it doesn't already have the metadata
@@ -283,68 +305,92 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
             }
         }
     }
-    fun setFileContents(file: FileHandle, data: ByteArray, isPartial: Boolean) {
-        // TODO: check viewer matches file
-        viewerViewModel.setFileContents(data, isPartial)
+    @CalledFromNative
+    fun setFileContents(file: FileHandle, data: ByteArray, offset: Long, totalSize: Long) {
+        viewerViewModel.setFileContents(data, offset, totalSize)
     }
+    @CalledFromNative
     fun addFileThumbnail(file: FileHandle, data: ByteArray) {
         galleryViewModel.updateThumbnail(file.index, data)
     }
+    @CalledFromNative
     fun setStorageInfo(nItems: Int, name: String, sortBy: Int) {
         // TODO: Manage multiple storage devices
         galleryViewModel.setProperties(nItems, name, SortBy.fromId(sortBy)!!)
         // TODO: Count total files if needed
         homeModelView.updateNumFiles(nItems)
     }
-
+    @CalledFromNative
     private fun setIsConnected() {
         isConnected = true
         startMainLoop()
         switchScreen(Screen.DASHBOARD, false)
     }
-
-    fun addWiFiConnection(filter: WiFi.ApFilter) {
+    @CalledFromNative
+    fun addWiFiConnection(filter: WiFi.ApFilter, setupOption: String) {
         CoroutineScope(Dispatchers.IO).launch {
             homeModelView.goToScreen(Screen.CONNECT_SECONDARY, false)
+            setSetupOptionName(setupOption)
             val callback = object : WiFi.WiFiDiscoveryCallback() {
                 override fun failed(reason: String, code: Int) {
                     debugLog("<error>${reason}")
                 }
 
-                override fun found(net: WiFi.Adapter) {
-                    if (tryConnectWiFi(net) == 0) {
+                override fun onConnected(net: WiFi.Adapter) {
+                    debugLog("Found network")
+                    request = request.copy(
+                        chosenSetupOption = setupOption
+                    )
+                    val rc = tryConnectWiFi(net)
+                    if (rc == 0) {
                         homeModelView.back(false)
+                    } else {
+                        debugLog("Failed to connect: ${rc}")
                     }
                 }
             }
-            WiFi.connectToAccessPoint(filter, callback)
+            filter.hidden = false
+            WiFi.connectToAccessPointCompanion(filter, companionName,callback)
         }
     }
 
     private fun wifiConnectRoutine(wifi: ModuleManifest.WiFiDiscovery) {
         val primaryAdapter = WiFi.getPrimaryAdapter()
         // Try connection over primary adapter in case user connected to access point manually
-        debugLog("First trying connection over primary adapter...")
-        if (tryConnectWiFi(primaryAdapter, {job -> connectCallback(job)}) == 0) {
-            setIsConnected()
-            return
+        if (primaryAdapter != null) {
+            debugLog("First trying connection over primary adapter...")
+            val rc = tryConnectWiFi(primaryAdapter, {job -> connectCallback(job)})
+            if (rc == Pak.Error.CANCELLED) return
+            if (rc == 0) {
+                setIsConnected()
+                return
+            }
         }
 
         val filter = WiFi.ApFilter()
         filter.ssidPattern = wifi.ssidPattern
-        // TODO: Additional fields from WiFiDiscovery
+        filter.password = wifi.defaultPassword
         val callback = object : WiFi.WiFiDiscoveryCallback() {
             override fun failed(reason: String, code: Int) {
                 debugLog("<error>${reason}")
             }
 
-            override fun found(net: WiFi.Adapter) {
+            override fun onConnected(net: WiFi.Adapter) {
                 if (tryConnectWiFi(net) == 0) {
+                    connectedWiFiAdapter = net
                     setIsConnected()
                 }
             }
+
+            override fun onConnecting(ssid: String?) {
+                if (ssid != null) debugLog("Connecting to ${ssid}...") else debugLog("Connecting to the network...")
+            }
+
+            override fun onUserCancelled() {
+                debugLog("Cancelled")
+            }
         }
-        WiFi.connectToAccessPoint(filter, callback)
+        WiFi.connectToAccessPointCompanion(filter, companionName, callback)
     }
 
     private fun connectCallback(job: ModuleJob) {
@@ -355,7 +401,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
 
     private fun bluetoothConnectRoutine(info: List<ModuleManifest.BluetoothDiscovery>, saved: SavedDeviceEntity?) {
         if (!Bluetooth.checkPermission()) {
-            homeModelView.connectRequiredAction.value = ConnectingRequiredAction.ACCEPT_BLUETOOTH_PERMISSION
+            homeModelView.connectRequiredAction.value = ConnectingRequiredAction.ACCEPT_PERMISSION
             Bluetooth.requestConnectPermission()
         } else if (!Bluetooth.isBluetoothEnabled()) {
             homeModelView.connectRequiredAction.value = ConnectingRequiredAction.TURN_ON_BLUETOOTH
@@ -363,18 +409,19 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         } else {
             fun doConnect(dev: Bluetooth.Device) {
                 debugLog("Connecting to '${dev.name}'...")
-                connectedBluetoothMacAddress = dev.address
+                connectedBluetoothDevice = dev
                 val rc = tryConnectBluetooth(dev, saved, {job -> connectCallback(job)})
                 if (rc == 0) {
                     setIsConnected()
                 } else {
+                    connectedBluetoothDevice = null
                     disconnect("Failed to connect", rc)
                 }
             }
 
             if (request.deviceMacAddress != null) {
-                val dev = Bluetooth.fromAddress(request.deviceMacAddress)
-                debugLog("Connecting to a bonded device")
+                val dev = Bluetooth.fromAddress(request.deviceMacAddress!!) // wtf
+                if (dev.isBonded) debugLog("Connecting to a bonded device")
                 doConnect(dev)
                 return
             }
@@ -435,8 +482,12 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
                 -1
             }
         }
-        if (rc != 0) homeModelView.initializationError.value = true
-        return rc != 0
+        if (rc != 0) {
+            homeModelView.initializationError.value = true
+            return true
+        }
+        setSetupOptionName(request.chosenSetupOption)
+        return false
     }
 
     private fun initConnection() {
@@ -454,6 +505,12 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         } else if (target.bluetoothDiscovery.isNotEmpty() && transport == ModuleManifest.Transport.BLUETOOTH) {
             bluetoothConnectRoutine(target.bluetoothDiscovery, savedDeviceInfo)
         } else if (transport == ModuleManifest.Transport.INTERNET) {
+            if (!WiFi.checkPermission()) {
+                homeModelView.connectRequiredAction.value = ConnectingRequiredAction.ACCEPT_PERMISSION
+                WiFi.requestConnectPermission()
+                return
+            }
+
             val primaryAdapter = WiFi.getPrimaryAdapter()
             val rc = tryConnectWiFi(primaryAdapter, {job -> connectCallback(job)})
             if (rc == 0) {
@@ -487,11 +544,7 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
             val job = mainLoopJob
             var curr = TimeSource.Monotonic.markNow()
             while (job != null && !job.isCancelled) {
-                val rc = module.onIdleTick(curr.elapsedNow().toInt(DurationUnit.MICROSECONDS))
-                if (rc != 0) {
-                    forceDisconnect( "onIdleTick", rc)
-                    break
-                }
+                module.onIdleTick(curr.elapsedNow().toInt(DurationUnit.MICROSECONDS))
                 curr = TimeSource.Monotonic.markNow()
                 delay(currentTickIntervalUs.toLong() / 1000)
             }
@@ -505,7 +558,8 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
         homeModelView.goToScreen(Screen.DISCONNECTED)
     }
 
-    fun forceDisconnect(reason: String, code: Int = 0) {
+    @CalledFromNative
+    fun forceDisconnect(reason: String, code: Int = 0) {;
         if (isConnected) {
             isConnected = false
             CoroutineScope(Dispatchers.IO).launch {
@@ -588,7 +642,10 @@ class ModuleInstance(val manifest: ModuleManifest, val request: ModuleInstanceRe
                 if (rc == Pak.Error.CANCELLED) {
                     onCancel()
                 } else if (rc != 0) {
-                    viewerViewModel.setError("Image load error: ${rc}")
+                    viewerViewModel.setError("Image download error: ${rc}")
+                }
+                if (viewerViewModel.viewerState.value?.isLoading == true) {
+                    viewerViewModel.setError("BUG: Image not loaded entirely by module")
                 }
             }
         }

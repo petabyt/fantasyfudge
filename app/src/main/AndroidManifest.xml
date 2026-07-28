@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:ignore="ScopedStorage,SelectedPhotoAccess" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"  tools:ignore="ScopedStorage" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:ignore="PhotoAndVideoPolicy" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -12,16 +16,13 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Fudge">
 
-<!--        <service-->
-<!--            android:name="dev.danielc.libpak.Bluetooth$MyCompanionDeviceService"-->
-<!--            android:exported="true"-->
-<!--            android:foregroundServiceType="connectedDevice"-->
-<!--            android:permission="android.permission.BIND_COMPANION_DEVICE_SERVICE"-->
-<!--            tools:targetApi="31">-->
-<!--            <intent-filter>-->
-<!--                <action android:name="android.companion.CompanionDeviceService" />-->
-<!--            </intent-filter>-->
-<!--        </service>-->
+        <receiver
+            android:name="dev.danielc.fudge.AdbCommandReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.danielc.fudge.START_MODULE" />
+            </intent-filter>
+        </receiver>
 
         <activity
             android:name=".fudge.MainActivity"

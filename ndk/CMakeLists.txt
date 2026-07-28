@@ -58,7 +58,9 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
 target_compile_options(${CMAKE_PROJECT_NAME}
     PRIVATE -Wall -Wshadow -Wcast-qual -Wpedantic -Werror=incompatible-pointer-types -Werror=incompatible-pointer-types -Werror=deprecated-declarations -Wstrict-aliasing=3 -Werror=narrowing
 )
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE pak libjpeg-turbo)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE -Wl,--whole-archive pak -Wl,--no-whole-archive libjpeg-turbo)
+get_target_property(PAK_INCLUDES_TEMP pak INCLUDE_DIRECTORIES)
+target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC ${PAK_INCLUDES_TEMP})
 if(APP_WASM_SUPPORT)
     target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE vmlib)
 endif()
@@ -68,7 +70,9 @@ endif()
 
 # pakrt alias for shared library modules
 add_library(pakrt INTERFACE)
-target_link_libraries(pakrt INTERFACE pak ${CMAKE_PROJECT_NAME})
+#get_target_property(MY_INCLUDES pak INCLUDE_DIRECTORIES)
+target_link_libraries(pakrt INTERFACE ${CMAKE_PROJECT_NAME})
+#target_include_directories(pakrt INTERFACE ${MY_INCLUDES})
 
 # compile modules so they can be opened with dlopen
 

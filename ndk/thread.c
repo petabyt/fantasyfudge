@@ -8,7 +8,7 @@ struct AndroidLocal {
 	jobject ctx;
 };
 
-// This will be put 'local' in a __emutls_t.* variable
+// This will be put 'local' in a __emutls_t.* variable that will be unique to each thread
 // It's up to the compiler to decide how to implement it
 __thread struct AndroidLocal local = {0, 0};
 

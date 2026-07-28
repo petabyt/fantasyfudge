@@ -118,7 +118,8 @@ data class ModuleManifest(
         WIFI_AP(3),
         USB_DEVICE_MODE(4),
         HOST_WIFI_AP(5),
-        INTERNET(6),
+        LOCAL_NETWORK_UDP(6),
+        INTERNET(7),
     }
 
     enum class ModuleType {
@@ -149,6 +150,7 @@ data class ModuleManifest(
     )
     data class WiFiDiscovery(
         val ssidPattern: String,
+        val defaultPassword: String? = null,
     )
     @Suppress("ArrayInDataClass")
     data class BluetoothDiscovery(
@@ -161,7 +163,7 @@ data class ModuleManifest(
         fun toBluetoothDeviceFilter(): Bluetooth.BtFilter {
             val filter = Bluetooth.BtFilter()
             filter.serviceUuids = this.serviceUuids.toTypedArray()
-            filter.isClassic = false
+            filter.isClassic = this.isClassic
             filter.manufacData = this.mfgData
             filter.manufacDataMask = this.mfgDataMask
             return filter

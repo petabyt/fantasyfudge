@@ -3,6 +3,7 @@
 package dev.danielc.fudge
 
 import android.Manifest
+import android.content.BroadcastReceiver
 import android.content.ClipData
 import android.content.ContentUris
 import android.content.ContentValues
@@ -52,7 +53,6 @@ object AndroidRuntime {
         )
         .fallbackToDestructiveMigration(true)
         .build()
-        println(getDeviceFriendlyName())
         init()
     }
     fun getDatabase(): AppDatabase {
@@ -74,7 +74,7 @@ object AndroidRuntime {
 
     @JvmStatic
     fun logGlobalLine(s: String) {
-        Log.d("logGlobalLine", s)
+        Log.d("global-log", s)
         Runtime.logGlobalLine(s)
     }
 

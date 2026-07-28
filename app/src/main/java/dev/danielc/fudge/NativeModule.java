@@ -11,16 +11,17 @@ import dev.danielc.libpak.WiFi;
 
 public class NativeModule {
     byte[] struct;
-    public native int onFindConnection(int job);
-    public native int onTryConnectWiFi(@NonNull WiFi.Adapter adapter, int job);
-    public native int onTryConnectBluetooth(@NonNull Bluetooth.Device adapter, SavedDeviceInfo saved, int job);
-    public native int onIdleTick(int usSinceLastTick);
-    public native int onDisconnect();
-    public native int onSwitchScreen(int oldScreen, int newScreen, int job);
-    public native int onRequestFileContents(int job, @NonNull FileHandle file);
-    public native int onRequestFileThumbnail(int job, @NonNull FileHandle file);
-    public native int onRequestFileMetadata(int job, @NonNull FileHandle file);
-    public native int onRunCommand(int job, String arg0, String arg1, String arg2, String arg3);
-    public native int onPropChanged(int job, DashboardPane pane);
-    public native void free();
+    public synchronized native int onFindConnection(int job);
+    public synchronized native int onTryConnectWiFi(@NonNull WiFi.Adapter adapter, int job);
+    public synchronized native int onTryConnectBluetooth(@NonNull Bluetooth.Device adapter, SavedDeviceInfo saved, int job);
+    public synchronized native int onIdleTick(int usSinceLastTick);
+    public synchronized native int onDisconnect();
+    public synchronized native int onSwitchScreen(int oldScreen, int newScreen, int job);
+    public synchronized native int onRequestFileContents(int job, @NonNull FileHandle file);
+    public synchronized native int onRequestFileThumbnail(int job, @NonNull FileHandle file);
+    public synchronized native int onRequestFileMetadata(int job, @NonNull FileHandle file);
+    public synchronized native int onRunCommand(int job, String arg0, String arg1, String arg2, String arg3);
+    public synchronized native int onPropChanged(int job, DashboardPane pane);
+    public synchronized native void free();
+    public synchronized native void setSetupOptionName(String name);
 }

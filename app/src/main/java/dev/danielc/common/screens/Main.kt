@@ -225,13 +225,13 @@ fun SavedDeviceCard(manifest: ModuleManifest, target: ModuleManifest.Target, dev
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                     )
-                    Spacer(Modifier.weight(1f))
-                    Box(Modifier.size(7.dp).clip(CircleShape).background(Color.Green))
-                    Text(
-                        text = "Nearby",
-                        style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1,
-                    )
+//                    Spacer(Modifier.weight(1f))
+//                    Box(Modifier.size(7.dp).clip(CircleShape).background(Color.Green))
+//                    Text(
+//                        text = "Nearby",
+//                        style = MaterialTheme.typography.titleMedium,
+//                        maxLines = 1,
+//                    )
                 }
                 val diff = System.currentTimeMillis().milliseconds.toLong(DurationUnit.MILLISECONDS) - dev.lastSeenTimestamp
                 Text("Last connected ${diff / 1000 / 60 / 60} hours ago")
@@ -465,7 +465,7 @@ fun MainNav(navController: NavHostController) {
         LocalGallery(onItemClick = { i ->
             navController.navigate("local-viewer")
             CoroutineScope(Dispatchers.IO).launch {
-                currentLocalGallery?.itemClicked(GalleryObjectReference(i, false))
+                currentLocalGallery?.itemClicked(GalleryObjectReference(i))
             }
         }, Modifier, currentLocalGallery)
     }
@@ -496,7 +496,10 @@ fun MainNav(navController: NavHostController) {
         }
         composable<ModuleInstanceRequest> { backStackEntry ->
             val request = backStackEntry.toRoute<ModuleInstanceRequest>()
-            val manifest = Runtime.getManifestFromName(request.manifestName)!!
+            val manifest = Runtime.getManifestFromName(request.manifestName)
+            if (manifest == null) {
+                throw Error("${request.manifestName} not found in manifest list")
+            }
             val target = manifest.targets[request.targetIndex]
             if (target.setupOptions.isNotEmpty() && request.chosenSetupOption == null) {
                 InstanceSetup(target.setupOptions, onClick = { opt ->
@@ -521,7 +524,7 @@ fun MainNav(navController: NavHostController) {
                 val state by gallery.viewer.viewerState.collectAsStateWithLifecycle()
                 ViewerScreen(state, { i ->
                     CoroutineScope(Dispatchers.IO).launch {
-                        gallery.itemClicked(GalleryObjectReference(i, false))
+                        gallery.itemClicked(GalleryObjectReference(i))
                     }
                 }, close = {
                     gallery.viewer.clear()
