@@ -79,7 +79,7 @@ tasks.register<Exec>("compileLibs") {
     group = "verification"
     description = "Compiles and copies modules"
     doNotTrackState("Always run this script during compilation")
-    commandLine("bash", "-c", "cd ../../pak/src/typescript && make")
+    commandLine("bash", "-c", "cd ../libpak/src/typescript && make")
 }
 tasks.named("preBuild") {
     dependsOn("compileModules", "compileLibs")
