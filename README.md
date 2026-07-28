@@ -1,26 +1,30 @@
 # FantasyFudge (temp name)
 
-This is an app that can connect to various gadgets and devices, serving as an alternative to the vendor-provided app.
+This is an Android app that can connect to mirrorless cameras and various other devices, serving as an alternative to the vendor-provided app.
 
 | <img src='https://s1.danielc.dev/screenshots/Screenshot_20260128-140111.png' width='350'> | <img src='https://s1.danielc.dev/screenshots/Screenshot_20260430-204144.png' width='350'> | <img src='https://s1.danielc.dev/screenshots/Screenshot_20260430-205138.png' width='350'> | <img src='https://s1.danielc.dev/screenshots/Screenshot_20260501-205616.png' width='350'> |
 |-|-|-|-|
 
 ## Goals
-- Connect to and control a wide range of devices and gadgets - such as earbuds, mirrorless cameras, smart TVs, diagnostic systems
-- Serve as an attractive alternative to (often privacy-invasive, buggy, or outdated) vendor-provided apps
-- Deep integration with the wireless features of each device, adjusting UI depending on circumstance
+- Connect to and control a wide range of devices and gadgets - such as earbuds, mirrorless cameras, dashcams, smart TVs, diagnostic systems
+- Deep integration with the wireless features of each device, adjusting UI depending on the circumstance
+- Serve as a functional alternative to (often privacy-invasive, buggy, or outdated) vendor-provided apps
 - Separate the logic between the frontend and reverse-engineered protocol code (similar to [Grayjay](https://grayjay.app/))
 
+## Features
+- Material 3 UI with Jetpack Compose
+- WiFi and Bluetooth scripting APIs for Android+Linux
+- Diverse set of scriptable screens and UI
+- Supports many devices out of the box
+- Uses new companion APIs to connect - location permission is not required
+
 ## Roadmap
-- [x] Material 3 UI with Jetpack Compose
-- [ ] WiFi and Bluetooth bindings for Android+Linux
-  - Based on [libpak](https://github.com/petabyt/pak)
-- [x] Runtime + reliable thread model
-- [x] Initial [set of modules](https://github.com/petabyt/gadget-libs)
-- [x] Dashboard with interactive grid of cards
-- [x] FIFO photo gallery
-- [ ] Liveview screen
-- [ ] Intervalometer screen
+- [x] Fujifilm support (libfuji)
+- [ ] Canon/Nikon/Sony support (libgphoto2)
+- [ ] Dashcam support (top 5 brands)
+- [x] QuickJS runtime
+- [ ] WebAssembly runtime
+- [ ] Sandbox with permissions
 
 ## Modules
 Reverse-engineered protocol logic is separated from the frontend through a runtime and module system.
