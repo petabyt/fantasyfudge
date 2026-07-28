@@ -7,6 +7,7 @@ import dev.danielc.common.screens.ModuleInstanceModel
 import dev.danielc.common.screens.SortBy
 import dev.danielc.common.screens.ViewerModel
 import dev.danielc.fudge.AndroidRuntime
+import dev.danielc.fudge.FileLayer
 import dev.danielc.fudge.NativeModule
 import dev.danielc.libpak.Bluetooth
 import dev.danielc.libpak.Pak
@@ -467,7 +468,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                     debugLog("<error>script path not included")
                     -1
                 } else {
-                    var fileContents = AndroidRuntime.readFile(path)
+                    var fileContents = FileLayer.readFile(path)
                     if (fileContents == null) {
                         debugLog("Failed to read ${path}")
                         -1
@@ -631,6 +632,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             if (rc == Pak.Error.CANCELLED) {
                 onCancel()
             } else {
+                getFileMetadata(file = file)
                 rc = getFileContents({ job ->
                     viewerDownloadJob = job
                     if (job.isCancelled) {

@@ -6,13 +6,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.danielc.common.FileHandle
-import dev.danielc.fudge.AndroidRuntime
+import dev.danielc.fudge.FileLayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : GalleryViewModel() {
-    var files = emptyList<AndroidRuntime.MediaStoreFile>()
+    var files = emptyList<FileLayer.MediaStoreFile>()
     init {
         CoroutineScope(Dispatchers.IO).launch {
             refresh()
@@ -27,9 +27,9 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
 
     fun refresh() {
         try {
-            files = AndroidRuntime.getFiles()
+            files = FileLayer.getFiles()
             reset()
-            setProperties(files.size, directory, SortBy.NEWEST_FIRST)
+            setProperties(files.size, "Downloads", SortBy.NEWEST_FIRST)
             for (i in files.indices) {
                 updateMetadata(i, files[i].metadata)
             }
@@ -40,7 +40,7 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
     }
 
     override fun fulfillThumbnail(file: GalleryObjectReference) {
-        updateThumbnail(file.index, AndroidRuntime.getMediaThumbnail(files[file.index]))
+        updateThumbnail(file.index, FileLayer.getMediaThumbnail(files[file.index]))
     }
 
     override fun fulfillMetadata(file: GalleryObjectReference) {
@@ -52,7 +52,7 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
         viewer.update(FileHandle(ref.index), files.size)
         viewer.updateMetadata(file.metadata)
         viewer.updateStats(10,"Reading image")
-        val data = AndroidRuntime.readFile(file)
+        val data = FileLayer.readFile(file)
         viewer.updateStats(60,"Decoding image")
         if (data == null) {
             viewer.setError("Failed to decode image")
@@ -61,13 +61,13 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
         }
 
         viewer.updateSideBitmaps(
-            if (files.getOrNull(ref.index - 1) == null) null else AndroidRuntime.getMediaThumbnail(files[ref.index - 1]),
-            if (files.getOrNull(ref.index + 1) == null) null else AndroidRuntime.getMediaThumbnail(files[ref.index + 1])
+            if (files.getOrNull(ref.index - 1) == null) null else FileLayer.getMediaThumbnail(files[ref.index - 1]),
+            if (files.getOrNull(ref.index + 1) == null) null else FileLayer.getMediaThumbnail(files[ref.index + 1])
         )
     }
 
     fun share(i: Int) {
-        AndroidRuntime.openImageInDefaultApp(files[i])
+        FileLayer.openImageInDefaultApp(files[i])
     }
 }
 

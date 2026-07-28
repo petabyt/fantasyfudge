@@ -41,6 +41,7 @@ import dev.danielc.R
 import dev.danielc.common.AppSettingEntity
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
+import dev.danielc.fudge.FileLayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -120,7 +121,7 @@ fun SettingsScreen(navController: NavController = rememberNavController()) {
                     }
                     HorizontalDivider()
                     Button(onClick = {
-                        AndroidRuntime.requestExternalImagesPermission()
+                        FileLayer.requestExternalImagesPermission()
                     }) {
                         Text("Grant access to all local images (optional)")
                     }

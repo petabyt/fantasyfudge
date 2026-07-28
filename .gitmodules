@@ -13,3 +13,6 @@
 [submodule "libpak"]
 	path = libpak
 	url = https://github.com/petabyt/libpak
+[submodule "third_party/rtsp-client-android"]
+	path = third_party/rtsp-client-android
+	url = https://github.com/alexeyvasilyev/rtsp-client-android.git

@@ -44,10 +44,8 @@ import dev.danielc.common.ModuleProperty
 import dev.danielc.common.Runtime
 import dev.danielc.common.Screen
 import dev.danielc.common.ViewModelReferences
-import dev.danielc.common.screens.DashboardCallbacks
 import dev.danielc.common.ui.DefaultNavHost
 import dev.danielc.common.ui.DisconnectDialog
-import dev.danielc.common.ui.composableSlideBackwards
 import dev.danielc.common.ui.theme.FudgeTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -428,7 +426,7 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
         composable("home") {
             ModuleHomeScreen(module, navController)
         }
-        composableSlideBackwards("disconnected") {
+        composable("disconnected") {
             val reason = "${module.disconnectReason ?: "(no reason)"} - (${Runtime.errorCodeToString(module.disconnectedErrorCode ?: 0)})"
             DisconnectedScreen(reason, backToMainScreen = backToMainScreen, consoleState = debugLogState)
         }
@@ -445,6 +443,9 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
                     module.viewerDownloadJob?.let {
                         module.cancelJob(it)
                     }
+                },
+                save = {
+                    module.viewerViewModel.onSave()
                 }
             )
         }

@@ -112,7 +112,19 @@ enum class MimeType {
     FOLDER,
     JPEG,
     PNG,
-    MOV,
+    MOV;
+    fun isImage(): Boolean {
+        return when (this) {
+            JPEG, PNG -> true
+            else -> false
+        }
+    }
+    fun isVideo(): Boolean {
+        return when (this) {
+            MOV -> true
+            else -> false
+        }
+    }
 }
 
 enum class DisplayType {
@@ -506,9 +518,11 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
             horizontalArrangement = Arrangement.spacedBy(5.dp),
             modifier = Modifier.fillMaxWidth().padding(2.dp),
         ) {
-//            Box(Modifier.padding(4.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))) {
-//                Text("sdcard", color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(6.dp))
-//            }
+            if (state.storageName != null) {
+                Box(Modifier.padding(4.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))) {
+                    Text(state.storageName, color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(6.dp))
+                }
+            }
             Spacer(Modifier.weight(1f))
             val interactionSource = remember { MutableInteractionSource() }
             Slider(modifier = Modifier.weight(1f), value = rows.toFloat(), valueRange = 2f..5f , steps = 3, onValueChange = {

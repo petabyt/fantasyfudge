@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
@@ -85,7 +86,7 @@ fun Material3DropDown(expanded: Boolean, current: String, options: List<String>,
             ),
             modifier = Modifier
                 .fillMaxWidth()
-                .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
                 .clickable(
                     interactionSource = interactionSource,
                     indication = ripple(),
@@ -203,20 +204,7 @@ fun IntGridGraph(
     }
 }
 
-private const val transitionDuration = 200
-
-fun NavGraphBuilder.composableSlideBackwards(
-    route: String,
-    content: @Composable (AnimatedContentScope.(NavBackStackEntry) -> Unit)
-): Unit {
-    composable(route,
-        enterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)) },
-        exitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)) },
-        popEnterTransition = { slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)) },
-        popExitTransition = { slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)) },
-        content = content
-    )
-}
+private const val transitionDuration = 300
 
 @Composable
 fun DefaultNavHost(
@@ -228,16 +216,24 @@ fun DefaultNavHost(
 ): Unit {
     NavHost(navController, startDestination = startDestination, modifier = modifier, route = route, builder = builder,
         enterTransition = {
-            slideIn(
-                initialOffset = { IntOffset(it.width, 0) },
-                animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)
-            )
+            if (targetState.destination.route == "disconnected") {
+                slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing))
+            } else {
+                slideIn(
+                    initialOffset = { IntOffset(it.width, 0) },
+                    animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)
+                )
+            }
         },
         exitTransition = {
-            slideOut(
-                targetOffset = { IntOffset(-it.width / 4, 0) },
-                animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)
-            )
+            if (targetState.destination.route == "disconnected") {
+                slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing))
+            } else {
+                slideOut(
+                    targetOffset = { IntOffset(-it.width / 4, 0) },
+                    animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)
+                )
+            }
         },
         popEnterTransition = {
             slideIn(
@@ -251,6 +247,5 @@ fun DefaultNavHost(
                 animationSpec = tween(transitionDuration, easing = FastOutSlowInEasing)
             )
         },
-
     )
 }

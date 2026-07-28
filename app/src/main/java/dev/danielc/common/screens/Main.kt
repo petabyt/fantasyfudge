@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -44,7 +43,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
@@ -75,6 +73,7 @@ import dev.danielc.common.ui.TargetCard
 import dev.danielc.common.ui.dummyManifestList
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
+import dev.danielc.fudge.FileLayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -93,7 +92,7 @@ private val dummyOptions = listOf(
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true, device = "id:pixel_9", uiMode = 32)
+//@Preview(showBackground = true, device = "id:pixel_9", uiMode = 32)
 @Composable
 fun InstanceSetup(options: List<ModuleManifest.SetupOption> = dummyOptions, onClick: (ModuleManifest.SetupOption) -> Unit = {}, back: () -> Unit = {}) {
     return FudgeTheme {
@@ -461,7 +460,7 @@ fun MainNav(navController: NavHostController) {
     @Composable
     fun localGallery() {
         val viewer: ViewerModel = viewModel(initializer = { ViewerModel(false, false) })
-        currentLocalGallery = viewModel(initializer = { LocalGalleryViewModel(AndroidRuntime.getDownloadDirectory(), viewer) })
+        currentLocalGallery = viewModel(initializer = { LocalGalleryViewModel(FileLayer.getDownloadDirectory(), viewer) })
         LocalGallery(onItemClick = { i ->
             navController.navigate("local-viewer")
             CoroutineScope(Dispatchers.IO).launch {

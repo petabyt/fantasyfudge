@@ -6,6 +6,7 @@ import dev.danielc.common.screens.ConsoleViewModel
 import dev.danielc.common.screens.MimeType
 import dev.danielc.fudge.AndroidRuntime
 import dev.danielc.fudge.AndroidRuntime.getDatabase
+import dev.danielc.fudge.FileLayer
 import dev.danielc.libpak.Bluetooth
 import dev.danielc.libpak.Pak
 import kotlinx.coroutines.flow.Flow
@@ -390,7 +391,7 @@ object Runtime {
 
         for (filename in pathList) {
             try {
-                val text = AndroidRuntime.readFile(filename)
+                val text = FileLayer.readFile(filename)
                 if (text == null) {
                     logGlobalLine("Failed to read ${filename}")
                     continue

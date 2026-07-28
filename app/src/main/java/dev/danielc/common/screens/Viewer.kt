@@ -61,6 +61,7 @@ import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
+import dev.danielc.fudge.FileLayer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -100,15 +101,44 @@ data class ViewerState(
     val bitmapRight: ImageBitmap? = null,
     val showSaveButton: Boolean = true,
     val showLoadDialog: Boolean = true,
+    val hasSaved: Boolean = false,
 )
 
 class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolean = true) : ViewModel() {
     private var temporaryBuffer: ByteArray? = null
+    private var fileHandle: FileLayer.Handle? = null
+    private var rejectTransfers = false
+    private val MAX_BUFFER_SIZE = 1000000
     private val _viewerState = MutableStateFlow<ViewerState?>(null)
     val viewerState = _viewerState.asStateFlow()
 
+    fun clear() {
+        _viewerState.value = null
+        temporaryBuffer = null
+        fileHandle = null
+        rejectTransfers = false
+    }
+
+    private fun getMetadata(): FileMetadata {
+        return viewerState.value?.metadata ?: FileMetadata(
+            filename = null,
+            mimeType = MimeType.JPEG,
+        )
+    }
+
     override fun onCleared() {
         clear()
+    }
+
+    fun onSave() {
+        temporaryBuffer?.let {
+            val md = getMetadata()
+            val fd = FileLayer.openFileForWriting(md.filename ?: "unknown.jpg", md)
+            if (fd == null) return
+            fd.write(it)
+            fd.close()
+            _viewerState.update { state -> state?.copy(hasSaved = true) }
+        }
     }
 
     fun update(file: FileHandle, numberOfItems: Int) {
@@ -150,9 +180,6 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
             )
         }
     }
-    fun clear() {
-        _viewerState.value = null
-    }
     private fun loadImage(data: ByteArray) {
         _viewerState.update { viewerState ->
             viewerState?.copy(
@@ -189,15 +216,29 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
             }
             return
         } else {
-            if (data != null) {
-                // todo: copy to offset
-                val newBuf = temporaryBufferRef + data
-                println("${totalSize}, ${newBuf.size}")
-                if (totalSize > newBuf.size) {
-                    temporaryBuffer = newBuf
-                    return
+            if (data != null && !rejectTransfers) {
+                if (temporaryBufferRef.size + data.size > MAX_BUFFER_SIZE || totalSize > MAX_BUFFER_SIZE && fileHandle == null) {
+                    val md = getMetadata()
+                    fileHandle = FileLayer.openFileForWriting(md.filename ?: "unknown.jpg", md)
+                    if (fileHandle == null) {
+                        rejectTransfers = true
+                        return
+                    } else {
+                        fileHandle?.write(temporaryBufferRef)
+                    }
                 }
-                loadImage(newBuf)
+                if (fileHandle != null) {
+                    fileHandle?.write(data)
+                } else {
+                    // todo: copy to offset
+                    val newBuf = temporaryBufferRef + data
+                    println("${totalSize}, ${newBuf.size}")
+                    if (totalSize > newBuf.size) {
+                        temporaryBuffer = newBuf
+                        return
+                    }
+                    loadImage(newBuf)
+                }
             } else {
                 loadImage(temporaryBufferRef)
             }
@@ -411,7 +452,7 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
         currentDownloadSpeed = "5 mbps",
         currentDownloadProgress = 40,
         numberOfItems = 30,
-        isError = true,
+        isError = false,
         errorMessage = "BUG: Failed to decode, blah blah blah",
     )) }
     ViewerScreen(state, switchTo = { i ->
@@ -459,7 +500,7 @@ fun ViewerScreen(state: ViewerState?, switchTo: (Int) -> Unit, close: () -> Unit
                     actions = {
                         if (state != null) {
                             if (state.showSaveButton) {
-                                IconButton(onClick = save) {
+                                IconButton(onClick = save, enabled = !state.hasSaved) {
                                     Icon(
                                         painter = painterResource(R.drawable.outline_save_24),
                                         contentDescription = "Save"

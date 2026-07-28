@@ -10,6 +10,7 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
 import dev.danielc.fudge.AndroidRuntime
+import dev.danielc.fudge.FileLayer
 import kotlinx.coroutines.flow.Flow
 
 @Suppress("ArrayInDataClass")
@@ -44,7 +45,7 @@ interface DeviceDao {
 @Entity(tableName = "app_settings")
 data class AppSettingEntity(
     @PrimaryKey val id: Int = 1,
-    val downloadsLocation: String = AndroidRuntime.getDefaultDownloadDirectory(),
+    val downloadsLocation: String = FileLayer.getDefaultDownloadDirectory(),
 )
 
 @Dao
