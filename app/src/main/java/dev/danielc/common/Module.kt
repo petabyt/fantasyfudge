@@ -57,7 +57,6 @@ class ModuleGalleryViewModel: GalleryViewModel() {
 
 data class ViewModelReferences(
     val galleryViewModel: ModuleGalleryViewModel,
-    val viewerViewModel: ViewerModel,
 )
 
 abstract class ModuleBase: NativeModule() {
@@ -197,7 +196,7 @@ data class ModuleInstanceRequest(
  */
 class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRequest, val homeModelView: ModuleInstanceModel, viewModels: ViewModelReferences): ModuleBase() {
     val galleryViewModel: ModuleGalleryViewModel = viewModels.galleryViewModel
-    val viewerViewModel: ViewerModel = viewModels.viewerViewModel
+    val viewerViewModel = ViewerModel()
     val intervalometerModel = ModuleIntervalometerModel(this)
     val debugLogModel = ConsoleModel()
     val target = manifest.targets[request.targetIndex]

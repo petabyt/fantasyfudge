@@ -317,7 +317,7 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun MainScreen(navController: NavHostController = rememberNavController(), localGallery: @Composable () -> Unit = {}) {
+fun MainScreen(navController: NavHostController = rememberNavController()) {
     val subNavController = rememberNavController()
     val haptic = LocalHapticFeedback.current
     val navBackStackEntry by subNavController.currentBackStackEntryAsState()
@@ -411,14 +411,13 @@ fun MainScreen(navController: NavHostController = rememberNavController(), local
                 composable("modules") {
                     ModuleList(manifestList = Runtime.moduleManifests)
                 }
-                composable("local-gallery") { backStackEntry ->
-                    // Bind viewmodel state to this nav graph so compose can save/restore states
-                    val parentEntry = remember(backStackEntry) {
-                        subNavController.getBackStackEntry("route")
-                    }
-                    CompositionLocalProvider(LocalViewModelStoreOwner provides parentEntry) {
-                        localGallery()
-                    }
+                composable("local-gallery") {
+                    LocalGallery(onItemClick = { i ->
+                        navController.navigate("local-viewer")
+                        CoroutineScope(Dispatchers.IO).launch {
+                            Runtime.localGalleryViewModel.itemClicked(GalleryObjectReference(i))
+                        }
+                    }, Modifier, Runtime.localGalleryViewModel)
                 }
             }
         }
@@ -442,32 +441,15 @@ fun PreviewMainScreen() {
 
 @Composable
 fun MainNav(navController: NavHostController) {
-    var currentLocalGallery by remember { mutableStateOf<LocalGalleryViewModel?>(null) }
-    val duration = 200
-
     LaunchedEffect(Unit) {
-        Runtime.trimMemorySignal.collect { event ->
-            currentLocalGallery?.trimMemory()
+        Runtime.trimMemorySignal.collect {
+            Runtime.localGalleryViewModel.trimMemory()
         }
-    }
-
-    @Composable
-    fun localGallery() {
-        val viewer: ViewerModel = viewModel(initializer = { ViewerModel(false, false) })
-        currentLocalGallery = viewModel(initializer = { LocalGalleryViewModel(FileLayer.getDownloadDirectory(), viewer) })
-        LocalGallery(onItemClick = { i ->
-            navController.navigate("local-viewer")
-            CoroutineScope(Dispatchers.IO).launch {
-                currentLocalGallery?.itemClicked(GalleryObjectReference(i))
-            }
-        }, Modifier, currentLocalGallery)
     }
 
     DefaultNavHost(navController = navController, startDestination = "home") {
         composable("home") {
-            MainScreen(navController, {
-                localGallery()
-            })
+            MainScreen(navController)
         }
         composable("help") {
             HelpScreen(navController)
@@ -502,8 +484,7 @@ fun MainNav(navController: NavHostController) {
                 })
             } else {
                 val models = ViewModelReferences(
-                    viewModel(initializer = { ModuleGalleryViewModel() }),
-                    viewModel(initializer = { ViewerModel() })
+                    viewModel(initializer = { ModuleGalleryViewModel() })
                 )
                 val model = viewModel(initializer = { ModuleInstanceModel(manifest, request, models) })
                 ModuleInstanceNav(model.module, backToMainScreen = {
@@ -512,21 +493,19 @@ fun MainNav(navController: NavHostController) {
             }
         }
         composable("local-viewer") {
-            currentLocalGallery?.let { gallery ->
-                val state by gallery.viewer.viewerState.collectAsStateWithLifecycle()
-                ViewerScreen(state, { i ->
-                    CoroutineScope(Dispatchers.IO).launch {
-                        gallery.itemClicked(GalleryObjectReference(i))
-                    }
-                }, close = {
-                    gallery.viewer.clear()
-                    navController.popBackStack()
-                }, share = {
-                    gallery.viewer.viewerState.value?.handle?.index?.let {
-                        gallery.share(it)
-                    }
-                })
-            }
+            val state by Runtime.localGalleryViewModel.viewer.viewerState.collectAsStateWithLifecycle()
+            ViewerScreen(state, { i ->
+                CoroutineScope(Dispatchers.IO).launch {
+                    Runtime.localGalleryViewModel.itemClicked(GalleryObjectReference(i))
+                }
+            }, close = {
+                Runtime.localGalleryViewModel.viewer.clear()
+                navController.popBackStack()
+            }, share = {
+                Runtime.localGalleryViewModel.viewer.viewerState.value?.handle?.index?.let {
+                    Runtime.localGalleryViewModel.share(it)
+                }
+            })
         }
     }
 }

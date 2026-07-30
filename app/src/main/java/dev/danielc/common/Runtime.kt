@@ -2,6 +2,7 @@ package dev.danielc.common
 
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleModel
+import dev.danielc.common.screens.LocalGalleryViewModel
 import dev.danielc.common.screens.MimeType
 import dev.danielc.fudge.AndroidRuntime
 import dev.danielc.fudge.AndroidRuntime.getDatabase
@@ -33,6 +34,7 @@ open class BackgroundViewModel {
     open fun onTrimMemory() {
         println("TODO: Trim memory")
     }
+    /** Similar to onCleared */
     open fun onShutdown() {
         println("TODO: Shut down")
     }
@@ -199,7 +201,8 @@ object Runtime {
     private val _trimMemorySignal = MutableSharedFlow<Unit>()
     val trimMemorySignal = _trimMemorySignal.asSharedFlow()
     suspend fun emitMemoryTrimSignal() { _trimMemorySignal.emit(Unit) }
-    var mainLog = ConsoleModel()
+    val mainLog = ConsoleModel()
+    val localGalleryViewModel = LocalGalleryViewModel()
     var connectableDevices = listOf<ConnectableDevice>()
     var moduleManifests = listOf<ModuleManifest>()
     var savedDevices: Flow<List<SavedDeviceEntity>> = MutableStateFlow(emptyList())

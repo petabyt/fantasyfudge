@@ -57,6 +57,7 @@ import androidx.lifecycle.ViewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
+import dev.danielc.common.BackgroundViewModel
 import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
 import dev.danielc.common.ui.theme.FudgeTheme
@@ -69,6 +70,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import net.engawapg.lib.zoomable.rememberZoomState
 import net.engawapg.lib.zoomable.zoomable
+
+private const val MAX_BUFFER_SIZE = 10 * 1000000
 
 private fun painterToImageBitmap(
     painter: Painter,
@@ -104,12 +107,11 @@ data class ViewerState(
     val hasSaved: Boolean = false,
 )
 
-class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolean = true) : ViewModel() {
+class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolean = true) : BackgroundViewModel() {
     private var temporaryBuffer: ByteArray? = null
     private var fileHandle: FileLayer.Handle? = null
     private var fileTotalSize: Long? = null
     private var rejectTransfers = false
-    private val MAX_BUFFER_SIZE = 10 * 1000000
     private val _viewerState = MutableStateFlow<ViewerState?>(null)
     val viewerState = _viewerState.asStateFlow()
 
@@ -122,10 +124,6 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
             filename = null,
             mimeType = MimeType.JPEG.mediaTypeString,
         )
-    }
-
-    override fun onCleared() {
-        clear()
     }
 
     fun onSave() {
