@@ -27,7 +27,7 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
 
     fun refresh() {
         try {
-            files = FileLayer.getFiles()
+            files = FileLayer.getDownloadedMediaFiles()
             reset()
             setProperties(files.size, "Downloads", SortBy.NEWEST_FIRST)
             for (i in files.indices) {
