@@ -143,15 +143,11 @@ object FileLayer {
         return Handle(resolver.openFileDescriptor(ref.contentUri, "r") ?: return null, ref.contentUri)
     }
 
-    fun openFileForWriting(filename: String, metadata: FileMetadata): Handle? {
+    fun openFileForWriting(filename: String, metadata: FileMetadata, subdirectory: String = "fudge"): Handle? {
         val resolver = Pak.getActivity().contentResolver
 
         val pair = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            if (MimeType.fromString(metadata.mimeType).isImage()) {
-                Pair(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), Environment.DIRECTORY_PICTURES)
-            } else {
-                Pair(MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), Environment.DIRECTORY_MOVIES)
-            }
+            Pair(MediaStore.Downloads.EXTERNAL_CONTENT_URI, Environment.DIRECTORY_DOWNLOADS)
         } else {
             if (MimeType.fromString(metadata.mimeType).isVideo()) {
                 Pair(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, Environment.DIRECTORY_PICTURES)
@@ -165,7 +161,7 @@ object FileLayer {
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
             put(MediaStore.MediaColumns.MIME_TYPE, metadata.mimeType)
-            put(MediaStore.MediaColumns.RELATIVE_PATH, directory + File.separator + "fudge")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, "${directory}/${subdirectory}")
         }
 
         val uri = resolver.insert(collection, values) ?: return null
@@ -178,7 +174,7 @@ object FileLayer {
                 val bitmap = Pak.getActivity().contentResolver.loadThumbnail(file.contentUri, Size(640, 480), null)
                 return bitmap.asImageBitmap()
             } catch (ignored: Exception) {
-                println("${ignored.message} ${file.contentUri}")
+                println("Failed for ${file.contentUri}: ${ignored.message}")
                 return null
             }
         } else {
@@ -192,9 +188,11 @@ object FileLayer {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ctx.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
                 Handler(ctx.mainLooper).post {
-                    ctx.requestPermissions(arrayOf<String?>(Manifest.permission.READ_MEDIA_IMAGES), 1)
+                    ctx.requestPermissions(arrayOf<String?>(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO), 1)
                 }
             }
+        } else {
+            // TODO: ???
         }
     }
 
@@ -203,7 +201,7 @@ object FileLayer {
     }
 
     fun getDefaultDownloadDirectory(): String {
-        val mainStorage = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES).path
+        val mainStorage = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).path
         val path = mainStorage + File.separator + "fudge"
         val directory = File(path)
         if (!directory.exists()) {
@@ -224,6 +222,7 @@ object FileLayer {
             MediaStore.MediaColumns.MIME_TYPE,
             MediaStore.MediaColumns.ORIENTATION,
             MediaStore.Files.FileColumns.MEDIA_TYPE,
+            MediaStore.Files.FileColumns.RELATIVE_PATH,
         )
 
         val selection = (
@@ -235,18 +234,20 @@ object FileLayer {
             + MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO
             + ")"
             + " AND "
-            + "("
-            + "${MediaStore.Files.FileColumns.RELATIVE_PATH} LIKE ?"
-            + " OR "
-            + "${MediaStore.Files.FileColumns.RELATIVE_PATH} LIKE ?"
-            + ")"
+            + if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                "${MediaStore.Files.FileColumns.RELATIVE_PATH} LIKE ?"
+            else
+                "(${MediaStore.Files.FileColumns.DATA} LIKE ? OR ${MediaStore.Files.FileColumns.DATA} LIKE ?)"
         )
 
         Pak.getActivity().contentResolver.query(
             MediaStore.Files.getContentUri("external"),
             columns,
             selection,
-            arrayOf("Pictures/${subfolder}%", "Movies/${subfolder}%"),
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                arrayOf("${Environment.DIRECTORY_DOWNLOADS}/${subfolder}/%")
+            else
+                arrayOf("%/${Environment.DIRECTORY_PICTURES}/${subfolder}/%", "%/${Environment.DIRECTORY_MOVIES}/${subfolder}/%"),
             "${MediaStore.MediaColumns.DATE_ADDED} DESC"
         )?.use { cursor ->
             val typeColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MEDIA_TYPE)
