@@ -20,6 +20,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import javax.microedition.khronos.opengles.GL10
+import kotlin.math.max
+import kotlin.math.min
 
 object AndroidRuntime {
     var hasInited: Boolean = false
@@ -68,28 +70,22 @@ object AndroidRuntime {
         return "${Build.MANUFACTURER}-${Build.MODEL}" + "-fudge"
     }
 
-    fun decodeImageContents(data: ByteArray, imageHorizontalSize: Int? = null, orientation: Int? = null): ImageBitmap? {
-        val options = BitmapFactory.Options()
+    fun decodeImageContents(data: ByteArray, orientation: Int? = null): ImageBitmap? {
+        var options = BitmapFactory.Options()
 
-//        if (imageHorizontalSize != null && imageHorizontalSize > GL10.GL_MAX_TEXTURE_SIZE) {
-//            options.inSampleSize = 2
-//            options.inDensity = 2
-//            options.inTargetDensity = 2
-//            options.inScaled = true
-//        }
+        options.inJustDecodeBounds = true
+        BitmapFactory.decodeByteArray(data, 0, data.size, options)
+        val scaleX = options.outWidth / GL10.GL_MAX_TEXTURE_SIZE
+        val scaleY = options.outHeight / GL10.GL_MAX_TEXTURE_SIZE
+        val scale = max(scaleY + 1, scaleX + 1)
 
         try {
-            var bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, options)
-            if (bitmap.width > GL10.GL_MAX_TEXTURE_SIZE) {
-                bitmap = null
-                System.gc()
-                // TODO: do math
-                options.inSampleSize = 2
-                options.inDensity = 2
-                options.inTargetDensity = 2
-                options.inScaled = true
-                bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, options)
-            }
+            options = BitmapFactory.Options()
+            options.inSampleSize = scale
+            options.inDensity = scale
+            options.inTargetDensity = scale
+            options.inScaled = true
+            var bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, options) ?: return null
 
             if (orientation != null) {
                 val matrix = Matrix()
@@ -98,7 +94,36 @@ object AndroidRuntime {
             }
 
             return bitmap.asImageBitmap()
-        } catch (e: Exception) {
+        } catch (ignored: Exception) {
+            return null
+        }
+    }
+
+    fun decodeImageFile(data: FileLayer.Handle, orientation: Int? = null): ImageBitmap? {
+        var options = BitmapFactory.Options()
+
+        options.inJustDecodeBounds = true
+        BitmapFactory.decodeFileDescriptor(data.fd.fileDescriptor, null, options)
+        val scaleX = options.outWidth / GL10.GL_MAX_TEXTURE_SIZE
+        val scaleY = options.outHeight / GL10.GL_MAX_TEXTURE_SIZE
+        val scale = max(scaleY + 1, scaleX + 1)
+
+        try {
+            options = BitmapFactory.Options()
+            options.inSampleSize = scale
+            options.inDensity = scale
+            options.inTargetDensity = scale
+            options.inScaled = true
+            var bitmap = BitmapFactory.decodeFileDescriptor(data.fd.fileDescriptor, null, options) ?: return null
+
+            if (orientation != null) {
+                val matrix = Matrix()
+                matrix.postRotate(orientation.toFloat())
+                bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            }
+
+            return bitmap.asImageBitmap()
+        } catch (ignored: Exception) {
             return null
         }
     }

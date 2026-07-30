@@ -51,13 +51,11 @@ class LocalGalleryViewModel(val directory: String, val viewer: ViewerModel) : Ga
         val file = files[ref.index]
         viewer.update(FileHandle(ref.index), files.size)
         viewer.updateMetadata(file.metadata)
-        viewer.updateStats(10,"Reading image")
-        val data = FileLayer.readFile(file)
-        viewer.updateStats(60,"Decoding image")
-        if (data == null) {
+        val handle = FileLayer.openFileForReading(file)
+        if (handle == null) {
             viewer.setError("Failed to decode image")
         } else {
-            viewer.setFileContents(data, 0, 0)
+            viewer.loadImageFileHandle(handle)
         }
 
         viewer.updateSideBitmaps(

@@ -11,6 +11,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.os.Handler
+import android.os.ParcelFileDescriptor
 import android.provider.MediaStore
 import android.util.Size
 import androidx.compose.ui.graphics.ImageBitmap
@@ -22,9 +23,11 @@ import dev.danielc.fudge.AndroidRuntime.decodeImageContents
 import dev.danielc.libpak.Exif
 import dev.danielc.libpak.Pak
 import java.io.File
+import java.io.FileDescriptor
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.io.OutputStream
 
 object FileLayer {
@@ -40,7 +43,7 @@ object FileLayer {
         }
     }
 
-    fun shareFile(uri: Uri) {
+    private fun shareFile(uri: Uri) {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "image/jpeg"
             putExtra(Intent.EXTRA_STREAM, uri)
@@ -109,13 +112,19 @@ object FileLayer {
     )
 
     data class Handle(
-        val stream: OutputStream,
+        val fd: ParcelFileDescriptor,
+        val uri: Uri,
+        val write: Boolean = true
     ) {
+        val streamIn: InputStream? = if (write) FileInputStream(fd.fileDescriptor) else null
+        val streamOut: OutputStream? = if (!write) FileOutputStream(fd.fileDescriptor) else null
         fun write(byteArray: ByteArray) {
-            stream.write(byteArray)
+            streamOut?.write(byteArray)
         }
         fun close() {
-            stream.close()
+            streamOut?.close()
+            streamIn?.close()
+            fd.close()
         }
     }
 
@@ -127,6 +136,11 @@ object FileLayer {
         stream.close()
         fd.close()
         return data
+    }
+
+    fun openFileForReading(ref: MediaStoreFile): Handle? {
+        val resolver = Pak.getActivity().contentResolver
+        return Handle(resolver.openFileDescriptor(ref.contentUri, "r") ?: return null, ref.contentUri)
     }
 
     fun openFileForWriting(filename: String, metadata: FileMetadata): Handle? {
@@ -155,7 +169,7 @@ object FileLayer {
         }
 
         val uri = resolver.insert(collection, values) ?: return null
-        return Handle(resolver.openOutputStream(uri) ?: return null)
+        return Handle(resolver.openFileDescriptor(uri, "r") ?: return null, uri)
     }
 
     fun getMediaThumbnail(file: MediaStoreFile): ImageBitmap? {

@@ -181,16 +181,9 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
             )
         }
     }
-    private fun loadImage(data: ByteArray) {
-        _viewerState.update { viewerState ->
-            viewerState?.copy(
-                isDecoding = true
-            )
-        }
-        val bitmap = AndroidRuntime.decodeImageContents(
-            data,
-            null,
-            _viewerState.value?.metadata?.orientation)
+    fun loadImage(data: ByteArray) {
+        _viewerState.update { it?.copy(isDecoding = true) }
+        val bitmap = AndroidRuntime.decodeImageContents(data, _viewerState.value?.metadata?.orientation)
         if (bitmap == null) {
             setError("Failed to decode image contents")
         } else {
@@ -203,19 +196,24 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
             }
         }
     }
-    private fun loadImageFileHandle(handle: FileLayer.Handle) {
-        handle.close()
-        _viewerState.update { viewerState ->
-            viewerState?.copy(
-                isDecoding = false,
-                isLoading = false,
-            )
+    fun loadImageFileHandle(handle: FileLayer.Handle) {
+        _viewerState.update { it?.copy(isDecoding = true) }
+        val bitmap = AndroidRuntime.decodeImageFile(handle, _viewerState.value?.metadata?.orientation)
+        if (bitmap == null) {
+            setError("Failed to decode image contents")
+        } else {
+            _viewerState.update { viewerState ->
+                viewerState?.copy(
+                    bitmap = bitmap,
+                    isDecoding = false,
+                    isLoading = false,
+                )
+            }
         }
-        setError("TODO: Load image from file")
+        handle.close()
     }
     fun setFileContents(data: ByteArray?, offset: Long, totalSize: Long) {
         if (rejectTransfers) return
-//        println("${data?.size}, ${offset}, ${totalSize}")
         val temporaryBufferRef = temporaryBuffer
         if (temporaryBufferRef == null) {
             if (totalSize != 0L) fileTotalSize = totalSize
