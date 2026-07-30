@@ -6,6 +6,7 @@ import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.database.Cursor
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -23,7 +24,6 @@ import dev.danielc.fudge.AndroidRuntime.decodeImageContents
 import dev.danielc.libpak.Exif
 import dev.danielc.libpak.Pak
 import java.io.File
-import java.io.FileDescriptor
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
@@ -174,8 +174,13 @@ object FileLayer {
 
     fun getMediaThumbnail(file: MediaStoreFile): ImageBitmap? {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val bitmap = Pak.getActivity().contentResolver.loadThumbnail(file.contentUri, Size(640, 480), null)
-            return bitmap.asImageBitmap()
+            try {
+                val bitmap = Pak.getActivity().contentResolver.loadThumbnail(file.contentUri, Size(640, 480), null)
+                return bitmap.asImageBitmap()
+            } catch (ignored: Exception) {
+                println("${ignored.message} ${file.contentUri}")
+                return null
+            }
         } else {
             val thumb = Exif.getExifThumbnail(file.path) ?: return null
             return decodeImageContents(thumb, null)
@@ -207,41 +212,67 @@ object FileLayer {
         return path
     }
 
-    fun getFiles(subfolder: String = "fudge"): List<MediaStoreFile> {
+    fun getDownloadedMediaFiles(subfolder: String = "fudge"): List<MediaStoreFile> {
         val list = mutableListOf<MediaStoreFile>()
-        val collection = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val columns = arrayOf(
+            MediaStore.MediaColumns._ID,
+            MediaStore.MediaColumns.DATA,
+            MediaStore.MediaColumns.DISPLAY_NAME,
+            MediaStore.MediaColumns.SIZE,
+            MediaStore.MediaColumns.WIDTH,
+            MediaStore.MediaColumns.HEIGHT,
+            MediaStore.MediaColumns.MIME_TYPE,
+            MediaStore.MediaColumns.ORIENTATION,
+            MediaStore.Files.FileColumns.MEDIA_TYPE,
+        )
+
+        val selection = (
+            "("
+            + MediaStore.Files.FileColumns.MEDIA_TYPE + "="
+            + MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE
+            + " OR "
+            + MediaStore.Files.FileColumns.MEDIA_TYPE + "="
+            + MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO
+            + ")"
+            + " AND "
+            + "("
+            + "${MediaStore.Files.FileColumns.RELATIVE_PATH} LIKE ?"
+            + " OR "
+            + "${MediaStore.Files.FileColumns.RELATIVE_PATH} LIKE ?"
+            + ")"
+        )
+
         Pak.getActivity().contentResolver.query(
-            collection,
-            arrayOf(
-                MediaStore.Images.Media._ID,
-                MediaStore.Images.Media.DATA,
-                MediaStore.Images.Media.DISPLAY_NAME,
-                MediaStore.Images.Media.SIZE,
-                MediaStore.Images.Media.WIDTH,
-                MediaStore.Images.Media.HEIGHT,
-                MediaStore.Images.Media.MIME_TYPE,
-                MediaStore.Images.Media.ORIENTATION,
-            ),
-            "${MediaStore.Images.Media.RELATIVE_PATH} LIKE ?",
-            arrayOf("Pictures/${subfolder}/%"),
-            "${MediaStore.Images.Media.DATE_ADDED} DESC"
+            MediaStore.Files.getContentUri("external"),
+            columns,
+            selection,
+            arrayOf("Pictures/${subfolder}%", "Movies/${subfolder}%"),
+            "${MediaStore.MediaColumns.DATE_ADDED} DESC"
         )?.use { cursor ->
-            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
-            val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME)
-            val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
-            val typeColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.MIME_TYPE)
-            val widthColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.WIDTH)
-            val heightColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.HEIGHT)
-            val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
-            val orientationColumn = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.ORIENTATION)
+            val typeColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MEDIA_TYPE)
+            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID)
+            val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
+            val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.SIZE)
+            val mimeTypeColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.MIME_TYPE)
+            val widthColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.WIDTH)
+            val heightColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.HEIGHT)
+            val dataColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATA)
+            val orientationColumn = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.ORIENTATION)
             while (cursor.moveToNext()) {
                 val id = cursor.getLong(idColumn)
+                val type = cursor.getInt(typeColumn)
+                val collection = if (type == MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE) {
+                    ContentUris.withAppendedId(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id)
+                } else {
+                    ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
+                }
+
                 list += MediaStoreFile(
-                    ContentUris.withAppendedId(collection, id),
+                    collection,
                     cursor.getString(dataColumn),
                     FileMetadata(
                         filename = cursor.getString(nameColumn),
-                        mimeType = cursor.getString(typeColumn),
+                        mimeType = cursor.getString(mimeTypeColumn),
                         width = cursor.getInt(widthColumn),
                         height = cursor.getInt(heightColumn),
                         filesize = cursor.getInt(sizeColumn),
