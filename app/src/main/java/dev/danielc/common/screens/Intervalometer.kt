@@ -30,15 +30,15 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
+import dev.danielc.common.BackgroundViewModel
 import dev.danielc.common.Command
 import dev.danielc.common.ModuleInstance
+import dev.danielc.common.ui.PreviewPixel9ProDark
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.errorIconButtonColors
 import dev.danielc.common.ui.theme.primaryIconButtonColors
@@ -52,18 +52,22 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-class IntervalometerModel(val module: ModuleInstance): ViewModel() {
+class ModuleIntervalometerModel(val module: ModuleInstance): IntervalometerModel() {
+    override fun runCommand(cmd: Command) {
+        module.runCommand(cmd)
+    }
+}
+
+open class IntervalometerModel: BackgroundViewModel() {
     var job: Job? = null
     val status = MutableStateFlow("Not started")
     val doingCapture = MutableStateFlow(false)
-    fun stop() {
+    override fun onShutdown() {
         job?.cancel()
         job = null
         status.value = "Stopping"
     }
-    override fun onCleared() {
-        stop()
-    }
+    open fun runCommand(cmd: Command) {}
     fun start(num: Int, interval: Double) {
         if (doingCapture.value) return
         job = CoroutineScope(Dispatchers.IO).launch {
@@ -71,8 +75,8 @@ class IntervalometerModel(val module: ModuleInstance): ViewModel() {
             for (i in 0..num) {
                 if (!isActive) break
                 status.value = "Capturing #${i + 1}"
-                module.runCommand(Command.PAK_CMD_SHUTTER_DOWN)
-                module.runCommand(Command.PAK_CMD_SHUTTER_UP)
+                runCommand(Command.PAK_CMD_SHUTTER_DOWN)
+                runCommand(Command.PAK_CMD_SHUTTER_UP)
                 if (!isActive) break
                 try {
                     delay((1000 * interval).toLong())
@@ -87,7 +91,7 @@ class IntervalometerModel(val module: ModuleInstance): ViewModel() {
     fun shutter(press: Boolean) {
         if (doingCapture.value) return
         job = CoroutineScope(Dispatchers.IO).launch {
-            module.runCommand(if (press) Command.PAK_CMD_SHUTTER_DOWN else Command.PAK_CMD_SHUTTER_UP)
+            runCommand(if (press) Command.PAK_CMD_SHUTTER_DOWN else Command.PAK_CMD_SHUTTER_UP)
         }
     }
 }
@@ -96,17 +100,6 @@ class IntervalometerModel(val module: ModuleInstance): ViewModel() {
 fun Intervalometer(modifier: Modifier = Modifier, model: IntervalometerModel) {
     val doingCapture by model.doingCapture.collectAsStateWithLifecycle()
     val status by model.status.collectAsStateWithLifecycle()
-    Intervalometer(modifier, start = { n, s ->
-        model.start(n, s)
-    }, stop = {
-        model.stop()
-    }, shutter = { press ->
-        model.shutter(press)
-    }, doingCapture = doingCapture, status = status)
-}
-
-@Composable
-fun Intervalometer(modifier: Modifier = Modifier, start: (Int, Double) -> Unit = {a, b ->}, stop: () -> Unit = {}, shutter: (Boolean) -> Unit = {}, doingCapture: Boolean = false, status: String = "") {
     val haptic = LocalHapticFeedback.current
     Column(modifier.padding(10.dp).fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         var shotsToTake by remember { mutableStateOf("10") }
@@ -144,7 +137,7 @@ fun Intervalometer(modifier: Modifier = Modifier, start: (Int, Double) -> Unit =
                         colors = errorIconButtonColors(),
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                            stop()
+                            model.onShutdown()
                         }
                     ) {
                         Icon(
@@ -158,7 +151,7 @@ fun Intervalometer(modifier: Modifier = Modifier, start: (Int, Double) -> Unit =
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
                             try {
-                                start(shotsToTake.toInt(), secondsInBetweenShots.toDouble())
+                                model.start(shotsToTake.toInt(), secondsInBetweenShots.toDouble())
                             } catch (ignored: Exception) { }
                         }
                     ) {
@@ -175,10 +168,10 @@ fun Intervalometer(modifier: Modifier = Modifier, start: (Int, Double) -> Unit =
                 interactionSource.interactions.collect { interaction ->
                     if (interaction is PressInteraction.Press) {
                         haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                        shutter(true)
+                        model.shutter(true)
                     } else {
                         haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                        shutter(false)
+                        model.shutter(false)
                     }
                 }
             }
@@ -196,9 +189,9 @@ fun Intervalometer(modifier: Modifier = Modifier, start: (Int, Double) -> Unit =
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
+@PreviewPixel9ProDark
 @Composable
-fun IntervalometerScreen(navController: NavHostController = rememberNavController()) {
+fun IntervalometerScreen(navController: NavHostController = rememberNavController(), model: IntervalometerModel = IntervalometerModel()) {
     return FudgeTheme {
         Scaffold(
             topBar = {
@@ -221,7 +214,7 @@ fun IntervalometerScreen(navController: NavHostController = rememberNavControlle
             },
         ) { innerPadding ->
             Column(Modifier.padding(innerPadding)) {
-                Intervalometer()
+                Intervalometer(model = model)
             }
         }
     }

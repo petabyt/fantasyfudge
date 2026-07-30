@@ -5,6 +5,7 @@ import dev.danielc.common.screens.GalleryObjectReference
 import dev.danielc.common.screens.GalleryViewModel
 import dev.danielc.common.screens.MimeType
 import dev.danielc.common.screens.ModuleInstanceModel
+import dev.danielc.common.screens.ModuleIntervalometerModel
 import dev.danielc.common.screens.SortBy
 import dev.danielc.common.screens.ViewerModel
 import dev.danielc.fudge.AndroidRuntime
@@ -199,9 +200,10 @@ data class ModuleInstanceRequest(
 class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRequest, val homeModelView: ModuleInstanceModel, viewModels: ViewModelReferences): ModuleBase() {
     val galleryViewModel: ModuleGalleryViewModel = viewModels.galleryViewModel
     val viewerViewModel: ViewerModel = viewModels.viewerViewModel
-    var viewerDownloadJob: ModuleJob? = null
+    val intervalometerModel = ModuleIntervalometerModel(this)
     val debugLogModel: ConsoleViewModel = viewModels.debugLogModel
     val target = manifest.targets[request.targetIndex]
+    var viewerDownloadJob: ModuleJob? = null
     val companionName = "${target.company} ${target.deviceId.getReadableName()}"
     init {
         Runtime.addModuleInstance(this)
@@ -578,10 +580,16 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         val rc = withJob(callback) { job ->
             onSwitchScreen(prev.id, new.id, job.id)
         }
-        if (new == Screen.FILE_GALLERY) {
-            galleryViewModel.start()
-        } else if (prev == Screen.FILE_GALLERY) {
-            galleryViewModel.setPaused(true)
+        if (new != prev) {
+            when (new) {
+                Screen.FILE_GALLERY -> galleryViewModel.start()
+                else -> {}
+            }
+            when (prev) {
+                Screen.FILE_GALLERY -> galleryViewModel.setPaused(true)
+                Screen.INTERVALOMETER -> intervalometerModel.onShutdown()
+                else -> {}
+            }
         }
         return rc
     }

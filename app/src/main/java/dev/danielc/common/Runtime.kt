@@ -9,6 +9,8 @@ import dev.danielc.fudge.AndroidRuntime.getDatabase
 import dev.danielc.fudge.FileLayer
 import dev.danielc.libpak.Bluetooth
 import dev.danielc.libpak.Pak
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,10 +25,18 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-// TODO:
-open class MyViewModel() {
-    fun onFreeMemory() {}
-    fun onExit() {}
+/**
+ * This is used over ViewModel so that it can be easily stowed away and kept running in the background
+ * without having to keep it bound to a composable
+ */
+open class BackgroundViewModel {
+    val scope = CoroutineScope(Dispatchers.IO)
+    open fun onTrimMemory() {
+        println("TODO: Trim memory")
+    }
+    open fun onShutdown() {
+        println("TODO: Shut down")
+    }
 }
 
 @Suppress("ArrayInDataClass")

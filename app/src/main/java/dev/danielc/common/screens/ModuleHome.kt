@@ -227,7 +227,7 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
     val navScreens = homeState.supportedNavBarScreenList.sortedBy { when (it) {
         Screen.DASHBOARD -> 0 // ensure dashboard is always first
         Screen.FILE_GALLERY -> 1
-        else -> 1
+        else -> 2
     } }
     var screenSwitchProgress by remember { mutableStateOf<Int?>(null) }
 
@@ -337,8 +337,7 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                 }
                 composable(Screen.INTERVALOMETER.strId) {
                     BackHandler { goBack() }
-                    val model: IntervalometerModel = viewModel(initializer = {IntervalometerModel(module)})
-                    Intervalometer(Modifier.padding(innerPadding), model)
+                    Intervalometer(Modifier.padding(innerPadding), module.intervalometerModel)
                 }
             }
             if (homeState.showDisconnectDialog) {
