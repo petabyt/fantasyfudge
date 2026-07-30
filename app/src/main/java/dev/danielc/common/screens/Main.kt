@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -61,6 +62,8 @@ import androidx.navigation.toRoute
 import dev.danielc.R
 import dev.danielc.common.ConnectableDevice
 import dev.danielc.common.ModuleGalleryViewModel
+import dev.danielc.common.ModuleInstance
+import dev.danielc.common.ModuleInstanceReference
 import dev.danielc.common.ModuleInstanceRequest
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Runtime
@@ -441,22 +444,23 @@ fun PreviewMainScreen() {
     MainScreen()
 }
 
+class DummyModuleViewModel(val module: ModuleInstance): ViewModel() {
+    override fun onCleared() {
+        CoroutineScope(Dispatchers.IO).launch {
+            module.deregister()
+        }
+    }
+}
+
 @Composable
 fun MainNav(navController: NavHostController) {
     var currentLocalGallery by remember { mutableStateOf<LocalGalleryViewModel?>(null) }
-    val duration = 200
 
     LaunchedEffect(Unit) {
-        Runtime.trimMemorySignal.collect { event ->
+        Runtime.trimMemorySignal.collect {
             currentLocalGallery?.trimMemory()
         }
     }
-
-    val mainlog: ConsoleViewModel = viewModel(initializer = {
-        val vm = ConsoleViewModel(Runtime.earlyConsoleLogs)
-        Runtime.mainLog = vm
-        vm
-    })
 
     @Composable
     fun localGallery() {
@@ -480,7 +484,7 @@ fun MainNav(navController: NavHostController) {
             HelpScreen(navController)
         }
         composable("console") {
-            val state by mainlog.uiState.collectAsStateWithLifecycle()
+            val state by Runtime.mainLog.uiState.collectAsStateWithLifecycle()
             ConsoleScreen({
                 navController.navigateUp()
             }, state, "Debug Console")
@@ -508,12 +512,7 @@ fun MainNav(navController: NavHostController) {
                     navController.navigateUp()
                 })
             } else {
-                val models = ViewModelReferences(
-                    viewModel(initializer = { ModuleGalleryViewModel() }),
-                    viewModel(initializer = { ViewerModel() }),
-                    viewModel(initializer = { ConsoleViewModel() })
-                )
-                val model = viewModel(initializer = { ModuleInstanceModel(manifest, request, models) })
+                val model = viewModel(initializer = { DummyModuleViewModel(ModuleInstance(manifest, request)) })
                 ModuleInstanceNav(model.module, backToMainScreen = {
                     navController.popBackStack(route = "home", inclusive = false)
                 })

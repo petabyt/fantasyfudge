@@ -35,6 +35,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import dev.danielc.common.BackgroundViewModel
 import dev.danielc.common.DashboardPane
 import dev.danielc.common.FileHandle
 import dev.danielc.common.ModuleInstance
@@ -75,14 +76,14 @@ data class UiEvent(
     }
 }
 
-class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceRequest, viewModels: ViewModelReferences) : ViewModel() {
-    override fun onCleared() {
+class ModuleInstanceModel(val module: ModuleInstance) : BackgroundViewModel() {
+    override fun onShutdown() {
         runBlocking {
             module.deregister()
         }
     }
 
-    private val _dashboardState = MutableStateFlow(DashboardState(manifest, connectionType = request.getSetupOption()?.transport))
+    private val _dashboardState = MutableStateFlow(DashboardState(module.manifest, connectionType = module.request.getSetupOption()?.transport))
     val dashboardState = _dashboardState.asStateFlow()
     private val _homeState = MutableStateFlow(HomeState())
     val homeState = _homeState.asStateFlow()
@@ -91,11 +92,6 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
     val connectProgress = MutableStateFlow<Int?>(null)
     val connectRequiredAction = MutableStateFlow(ConnectingRequiredAction.NONE)
     val initializationError = MutableStateFlow(false)
-
-    var module: ModuleInstance = ModuleInstance(manifest, request, this, viewModels)
-    init {
-        module.initThread()
-    }
 
     fun updateNumFiles(files: Int?) {
         _dashboardState.update { state ->
@@ -227,7 +223,7 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
     val navScreens = homeState.supportedNavBarScreenList.sortedBy { when (it) {
         Screen.DASHBOARD -> 0 // ensure dashboard is always first
         Screen.FILE_GALLERY -> 1
-        else -> 1
+        else -> 2
     } }
     var screenSwitchProgress by remember { mutableStateOf<Int?>(null) }
 

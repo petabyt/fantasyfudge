@@ -3,12 +3,18 @@ package dev.danielc.common
 import dev.danielc.R
 import dev.danielc.common.screens.ConsoleLine
 import dev.danielc.common.screens.ConsoleViewModel
+import dev.danielc.common.screens.Gallery
+import dev.danielc.common.screens.GalleryViewModel
+import dev.danielc.common.screens.LocalGalleryViewModel
 import dev.danielc.common.screens.MimeType
+import dev.danielc.common.screens.ViewerModel
 import dev.danielc.fudge.AndroidRuntime
 import dev.danielc.fudge.AndroidRuntime.getDatabase
 import dev.danielc.fudge.FileLayer
 import dev.danielc.libpak.Bluetooth
 import dev.danielc.libpak.Pak
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,10 +29,17 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-// TODO:
-open class MyViewModel() {
-    fun onFreeMemory() {}
-    fun onExit() {}
+/**
+ * This is used over ViewModel so that it can be easily
+ */
+open class BackgroundViewModel {
+    val viewModelScope = CoroutineScope(Dispatchers.IO)
+    open fun onFreeMemory() {
+        println("Free memory")
+    }
+    open fun onShutdown() {
+        println("Shut down")
+    }
 }
 
 @Suppress("ArrayInDataClass")
@@ -190,8 +203,9 @@ object Runtime {
     private val _trimMemorySignal = MutableSharedFlow<Unit>()
     val trimMemorySignal = _trimMemorySignal.asSharedFlow()
     suspend fun emitMemoryTrimSignal() { _trimMemorySignal.emit(Unit) }
-    var earlyConsoleLogs: MutableList<ConsoleLine> = mutableListOf()
-    var mainLog: ConsoleViewModel? = null
+    val mainLog = ConsoleViewModel()
+    val localViewerModel = ViewerModel(showSaveButton = false, showLoadDialog = false)
+    val localGalleryModel = LocalGalleryViewModel(FileLayer.getDownloadDirectory(), localViewerModel)
     var connectableDevices = listOf<ConnectableDevice>()
     var moduleManifests = listOf<ModuleManifest>()
     var savedDevices: Flow<List<SavedDeviceEntity>> = MutableStateFlow(emptyList())
@@ -215,6 +229,10 @@ object Runtime {
             Pak.Error.NON_FATAL -> "Non fatal error"
             else -> ""
         }
+    }
+
+    fun getModuleInstance(id: Int): ModuleInstance? {
+        return moduleInstances.entries.find { it.key == id }?.value
     }
 
     fun addModuleInstance(mod: ModuleInstance): Int {
@@ -292,10 +310,7 @@ object Runtime {
     }
 
     fun logGlobalLine(s: String) {
-        if (mainLog == null) {
-            earlyConsoleLogs.add(ConsoleLine(s))
-        }
-        mainLog?.addLine(s)
+        mainLog.addLine(s)
     }
 
     fun loadModulesFromManifests(pathList: List<String>) {

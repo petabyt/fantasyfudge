@@ -95,25 +95,18 @@ fun ModuleErrorScreen(back: () -> Unit = {}, state: ConsoleState = ConsoleState(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: ConsoleState = ConsoleState(), progress: Int? = 50,
-                     action: ConnectingRequiredAction = ConnectingRequiredAction.NONE,
+                     action: ConnectingRequiredAction = ConnectingRequiredAction.TURN_ON_BLUETOOTH,
                      target: ModuleManifest.Target = dummyManifestList[0].targets[0],
                      transport: ModuleManifest.Transport = ModuleManifest.Transport.WIFI_AP) {
     val clipboardManager = LocalClipboard.current
     val scope = rememberCoroutineScope()
     @Composable
-    fun ActionMessage(icon: Painter, text: String, buttonText: String? = null) {
+    fun ActionMessage(icon: Painter, text: String) {
         Column(Modifier.fillMaxSize().padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(200.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
             Text(text, textAlign = TextAlign.Center)
-            if (buttonText != null) {
-                Button({
-
-                }) {
-                    Text(buttonText)
-                }
-            }
             // TODO: Disable button during connecting
             Button({
                 tryAgain()

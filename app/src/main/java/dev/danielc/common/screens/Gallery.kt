@@ -69,6 +69,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
+import dev.danielc.common.BackgroundViewModel
 import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
 import dev.danielc.common.ui.theme.FudgeRippleConfig
@@ -187,7 +188,7 @@ data class FilesystemState(
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
 )
 
-abstract class GalleryViewModel : ViewModel() {
+abstract class GalleryViewModel : BackgroundViewModel() {
     private val _uiState = MutableStateFlow(FilesystemState())
     val uiState = _uiState.asStateFlow()
     private var thread: Job? = null
@@ -195,7 +196,7 @@ abstract class GalleryViewModel : ViewModel() {
     private var isThumbnailPriority: Boolean = true
     private val queueMutex = Mutex()
 
-    override fun onCleared() {
+    override fun onShutdown() {
         stop()
     }
 
