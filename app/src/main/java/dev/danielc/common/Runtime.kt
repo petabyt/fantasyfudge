@@ -23,6 +23,12 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
+// TODO:
+open class MyViewModel() {
+    fun onFreeMemory() {}
+    fun onExit() {}
+}
+
 @Suppress("ArrayInDataClass")
 data class SavedDeviceInfo(
     val uniqueIdentifier: String,
@@ -134,21 +140,12 @@ data class FileHandle(
     var storageName: String? = null,
 )
 
-fun getMimeType(str: String?): MimeType {
-    return when (str) {
-        "image/jpeg" -> MimeType.JPEG
-        "image/png" -> MimeType.PNG
-        "image/quicktime" -> MimeType.MOV
-        else -> MimeType.FILE
-    }
-}
-
 /**
  * struct PakFileMetadata
  */
 data class FileMetadata(
     var filename: String? = null,
-    val mimeType: MimeType = MimeType.FILE,
+    val mimeType: String? = null,
     val width: Int = 0,
     val height: Int = 0,
     val filesize: Int = 0,
@@ -156,7 +153,9 @@ data class FileMetadata(
     val updatedDate: String? = null,
     val orientation: Int = 0,
 ) {
-    constructor(filename: String?, mimeTypeString: String?, width: Int, height: Int, size: Int) : this(filename, mimeType = getMimeType(mimeTypeString), width = width, height = height, filesize = size)
+    fun getMimeType(): MimeType {
+        return MimeType.fromString(this.mimeType.orEmpty())
+    }
 }
 
 /**
@@ -339,7 +338,7 @@ object Runtime {
                     )),
                     setupOptions = listOf(
                         ModuleManifest.SetupOption("wifi", "WiFi (Legacy)", ModuleManifest.Transport.WIFI_AP),
-                        ModuleManifest.SetupOption("local-network", "PC AutoSave & Wireless Tether Shoot", ModuleManifest.Transport.INTERNET),
+                        ModuleManifest.SetupOption("local-network", "PC AutoSave & Wireless Tether Shoot", ModuleManifest.Transport.LOCAL_NETWORK_UDP),
                         ModuleManifest.SetupOption("bluetooth", "Bluetooth", ModuleManifest.Transport.BLUETOOTH),
                         ModuleManifest.SetupOption("usb", "USB", ModuleManifest.Transport.USB),
                     ),

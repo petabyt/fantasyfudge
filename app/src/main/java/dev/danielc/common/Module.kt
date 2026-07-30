@@ -3,6 +3,7 @@ import dev.danielc.common.screens.ConnectingRequiredAction
 import dev.danielc.common.screens.ConsoleViewModel
 import dev.danielc.common.screens.GalleryObjectReference
 import dev.danielc.common.screens.GalleryViewModel
+import dev.danielc.common.screens.MimeType
 import dev.danielc.common.screens.ModuleInstanceModel
 import dev.danielc.common.screens.SortBy
 import dev.danielc.common.screens.ViewerModel
@@ -307,7 +308,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         }
     }
     @CalledFromNative
-    fun setFileContents(file: FileHandle, data: ByteArray, offset: Long, totalSize: Long) {
+    fun setFileContents(file: FileHandle, data: ByteArray?, offset: Long, totalSize: Long) {
         viewerViewModel.setFileContents(data, offset, totalSize)
     }
     @CalledFromNative
@@ -505,7 +506,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             wifiConnectRoutine(target.wifiDiscovery)
         } else if (target.bluetoothDiscovery.isNotEmpty() && transport == ModuleManifest.Transport.BLUETOOTH) {
             bluetoothConnectRoutine(target.bluetoothDiscovery, savedDeviceInfo)
-        } else if (transport == ModuleManifest.Transport.INTERNET) {
+        } else if (transport == ModuleManifest.Transport.LOCAL_NETWORK_UDP) {
             if (!WiFi.checkPermission()) {
                 homeModelView.connectRequiredAction.value = ConnectingRequiredAction.ACCEPT_PERMISSION
                 WiFi.requestConnectPermission()
@@ -573,7 +574,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         }
     }
 
-    fun switchScreen(prev: Screen, new: Screen, callback: JobUpdateCallback): Int {
+    private fun switchScreen(prev: Screen, new: Screen, callback: JobUpdateCallback): Int {
         val rc = withJob(callback) { job ->
             onSwitchScreen(prev.id, new.id, job.id)
         }
@@ -612,6 +613,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     fun goToViewer(file: FileHandle) {
         CoroutineScope(Dispatchers.IO).launch {
             val galleryState = galleryViewModel.uiState.value
+            viewerViewModel.clear()
             viewerViewModel.update(file, galleryState.objects.size)
             viewerViewModel.updateMetadata(galleryViewModel.getMetadata(file))
             viewerViewModel.updateSideBitmaps(galleryViewModel.getThumbnail(file, -1), galleryViewModel.getThumbnail(file, 1))
@@ -645,8 +647,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                     onCancel()
                 } else if (rc != 0) {
                     viewerViewModel.setError("Image download error: ${rc}")
-                }
-                if (viewerViewModel.viewerState.value?.isLoading == true) {
+                } else if (viewerViewModel.viewerState.value?.isLoading == true) {
                     viewerViewModel.setError("BUG: Image not loaded entirely by module")
                 }
             }

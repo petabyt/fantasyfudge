@@ -107,22 +107,41 @@ private fun bitmapFromColor(
     return imageBitmap
 }
 
-enum class MimeType {
-    FILE,
-    FOLDER,
-    JPEG,
-    PNG,
-    MOV;
+enum class MimeType(val mediaTypeString: String) {
+    FILE("application/octet-stream"),
+    FOLDER("inode/directory"),
+    JPEG("image/jpeg"),
+    PNG("image/png"),
+    IMAGE("image"),
+    VIDEO("video"),
+    MOV("video/quicktime");
     fun isImage(): Boolean {
         return when (this) {
-            JPEG, PNG -> true
+            JPEG, PNG, IMAGE -> true
             else -> false
         }
     }
     fun isVideo(): Boolean {
         return when (this) {
-            MOV -> true
+            MOV, VIDEO -> true
             else -> false
+        }
+    }
+    companion object {
+        fun getIcon(type: MimeType?): Int {
+            return when (type) {
+                FOLDER -> R.drawable.baseline_folder_open_24
+                JPEG -> R.drawable.baseline_landscape_24
+                PNG -> R.drawable.baseline_landscape_24
+                MOV -> R.drawable.baseline_movie_24
+                else -> R.drawable.outline_files_24
+            }
+        }
+        fun toString(t: MimeType?): String {
+            return (t ?: FILE).mediaTypeString
+        }
+        fun fromString(str: String?): MimeType {
+            return MimeType.entries.find { it.mediaTypeString == str } ?: FILE
         }
     }
 }
@@ -386,19 +405,12 @@ fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
             )
         ) {
             if (obj != null) {
-                val icon = when (obj.metadata?.mimeType) {
-                    null -> R.drawable.baseline_question_mark_24
-                    MimeType.FILE -> R.drawable.outline_files_24
-                    MimeType.FOLDER -> R.drawable.baseline_folder_open_24
-                    MimeType.JPEG -> R.drawable.baseline_landscape_24
-                    MimeType.PNG -> R.drawable.baseline_landscape_24
-                    MimeType.MOV -> R.drawable.baseline_movie_24
-                }
+                val icon = MimeType.getIcon(obj.metadata?.getMimeType())
                 if (obj.thumbnail != null) {
                     // TODO: Better content scale handling?
                     Image(modifier = Modifier.fillMaxSize(), bitmap = obj.thumbnail, contentDescription = null, contentScale = ContentScale.FillHeight)
                 }
-                if (obj.thumbnail == null || obj.metadata?.mimeType == MimeType.MOV) {
+                if (obj.thumbnail == null || obj.metadata?.getMimeType()?.isVideo() ?: false) {
                     Icon(
                         modifier = Modifier.align(Alignment.Center).size(45.dp),
                         painter = painterResource(icon),
@@ -458,13 +470,7 @@ fun GalleryFile(obj: GalleryObject?, onClick: () -> Unit = {}) {
                 .background(MaterialTheme.colorScheme.surfaceContainer)
         ) {
             Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                val icon = when (obj.metadata?.mimeType) {
-                    null, MimeType.FILE -> R.drawable.baseline_question_mark_24
-                    MimeType.FOLDER -> R.drawable.baseline_folder_open_24
-                    MimeType.JPEG -> R.drawable.baseline_landscape_24
-                    MimeType.PNG -> R.drawable.baseline_landscape_24
-                    MimeType.MOV -> R.drawable.baseline_movie_24
-                }
+                val icon = MimeType.getIcon(obj.metadata?.getMimeType())
                 Icon(
                     tint = MaterialTheme.colorScheme.primary,
                     painter = painterResource(icon),
@@ -478,28 +484,6 @@ fun GalleryFile(obj: GalleryObject?, onClick: () -> Unit = {}) {
                 }
             }
         }
-    }
-}
-
-// TODO:
-data class GalleryCallbacks(
-    val onRefresh: () -> Unit = {},
-    val requestLoad: (Int) -> Unit = {},
-    val onItemClick: (Int) -> Unit = {},
-    val setDisplayType: (DisplayType) -> Unit = {},
-)
-
-@Composable
-fun GalleryWithModel(onItemClick: (Int) -> Unit, modifier: Modifier, model: GalleryViewModel?) {
-    if (model != null) {
-        val state by model.uiState.collectAsStateWithLifecycle()
-        Gallery(modifier, state, requestLoad = { items ->
-            model.enqueueObjects(items)
-        }, onItemClick = { i ->
-            onItemClick(i)
-        }, onRefresh = {
-            model.onRefresh()
-        })
     }
 }
 
@@ -622,9 +606,9 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
 @Composable
 fun PreviewGalleryScreen(navController: NavHostController = rememberNavController()) {
     val state = FilesystemState(objects = mutableListOf(
-        GalleryObject(FileMetadata("DCIM/", mimeType = MimeType.FOLDER)),
-        GalleryObject(FileMetadata("DSC1111.JPG", mimeType = MimeType.JPEG), thumbnail = bitmapFromColor(Color.Red)),
-        GalleryObject(FileMetadata("DSC1234.MOV", mimeType = MimeType.MOV), thumbnail = bitmapFromColor(Color.Green)),
+        GalleryObject(FileMetadata("DCIM/", mimeType = MimeType.FOLDER.mediaTypeString)),
+        GalleryObject(FileMetadata("DSC1111.JPG", mimeType = MimeType.JPEG.mediaTypeString), thumbnail = bitmapFromColor(Color.Red)),
+        GalleryObject(FileMetadata("DSC1234.MOV", mimeType = MimeType.MOV.mediaTypeString), thumbnail = bitmapFromColor(Color.Green)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Cyan)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Magenta)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Yellow, width = 300)),

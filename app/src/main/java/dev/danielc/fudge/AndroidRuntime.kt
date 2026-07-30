@@ -70,15 +70,26 @@ object AndroidRuntime {
 
     fun decodeImageContents(data: ByteArray, imageHorizontalSize: Int? = null, orientation: Int? = null): ImageBitmap? {
         val options = BitmapFactory.Options()
-        if (imageHorizontalSize != null && imageHorizontalSize > GL10.GL_MAX_TEXTURE_SIZE) {
-            options.inSampleSize = 2
-            options.inDensity = 2
-            options.inTargetDensity = 2
-            options.inScaled = true
-        }
+
+//        if (imageHorizontalSize != null && imageHorizontalSize > GL10.GL_MAX_TEXTURE_SIZE) {
+//            options.inSampleSize = 2
+//            options.inDensity = 2
+//            options.inTargetDensity = 2
+//            options.inScaled = true
+//        }
 
         try {
             var bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, options)
+            if (bitmap.width > GL10.GL_MAX_TEXTURE_SIZE) {
+                bitmap = null
+                System.gc()
+                // TODO: do math
+                options.inSampleSize = 2
+                options.inDensity = 2
+                options.inTargetDensity = 2
+                options.inScaled = true
+                bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, options)
+            }
 
             if (orientation != null) {
                 val matrix = Matrix()

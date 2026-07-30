@@ -137,6 +137,7 @@ fun InstanceSetup(options: List<ModuleManifest.SetupOption> = dummyOptions, onCl
                                 when (e.name) {
                                     "wifi" -> painterResource(R.drawable.outline_wifi_24)
                                     "bluetooth" -> painterResource(R.drawable.outline_bluetooth_24)
+                                    "usb" -> painterResource(R.drawable.outline_usb_24)
                                     else -> painterResource(R.drawable.outline_general_device_24)
                                 },
                                 contentDescription = null,

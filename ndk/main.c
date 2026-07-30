@@ -33,11 +33,9 @@ static int finalize_module(JNIEnv *env, struct PakModule *mod) {
 	return rc;
 }
 
-JNIEXPORT void JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_init(JNIEnv *env, jclass clazz) {
+JNIEXPORT void JNICALL Java_dev_danielc_fudge_AndroidRuntime_init(JNIEnv *env, jclass clazz) {
 	set_jni_env_ctx(env, clazz);
 	pak_global_log("AndroidRuntime init");
-	//pak_global_log("%p", exif_start_raw);
 }
 
 void pak_global_log(const char *fmt, ...) {
@@ -139,13 +137,16 @@ static jobject create_filemetadata(JNIEnv *env, const struct PakFileMetadata *me
 	if (meta == NULL) return NULL;
 	(*env)->PushLocalFrame(env, 10);
 	jclass metadata_c = (*env)->FindClass(env, "dev/danielc/common/FileMetadata");
-	jmethodID constructor = (*env)->GetMethodID(env, metadata_c, "<init>", "(Ljava/lang/String;Ljava/lang/String;III)V");
+	jmethodID constructor = (*env)->GetMethodID(env, metadata_c, "<init>", "(Ljava/lang/String;Ljava/lang/String;IIILjava/lang/String;Ljava/lang/String;I)V");
 	jobject handle_o = (*env)->NewObject(env, metadata_c, constructor,
 		(*env)->NewStringUTF(env, meta->filename),
 		(*env)->NewStringUTF(env, meta->mime_type),
 		meta->image_width,
 		meta->image_height,
-		meta->file_size
+		meta->file_size,
+		NULL,
+		NULL,
+		0
 	);
 	return (*env)->PopLocalFrame(env, handle_o);
 }
@@ -207,8 +208,8 @@ int pak_rt_add_file_contents(struct PakModule *mod, struct PakFileHandle *file, 
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "setFileContents", "(Ldev/danielc/common/FileHandle;[BJJ)V");
 
-	jbyteArray image_data_o = (*env)->NewByteArray(env, (jsize)length);
-	(*env)->SetByteArrayRegion(env, image_data_o, 0, (jsize)length, (const jbyte *)image_data);
+	jbyteArray image_data_o = (image_data == NULL || length == 0) ? NULL : (*env)->NewByteArray(env, (jsize)length);
+	if (image_data_o != NULL) (*env)->SetByteArrayRegion(env, image_data_o, 0, (jsize)length, (const jbyte *)image_data);
 
 	(*env)->CallVoidMethod(env, mod->rt->obj, set_storage_info, handle_o, image_data_o, (jlong)offset, (jlong)total_size);
 	(*env)->PopLocalFrame(env, NULL);

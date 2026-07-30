@@ -17,7 +17,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.net.toUri
 import dev.danielc.common.FileMetadata
-import dev.danielc.common.getMimeType
+import dev.danielc.common.screens.MimeType
 import dev.danielc.fudge.AndroidRuntime.decodeImageContents
 import dev.danielc.libpak.Exif
 import dev.danielc.libpak.Pak
@@ -132,23 +132,26 @@ object FileLayer {
     fun openFileForWriting(filename: String, metadata: FileMetadata): Handle? {
         val resolver = Pak.getActivity().contentResolver
 
-        val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + File.separator + "fudge")
-        }
-
-        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            if (metadata.mimeType.isImage()) {
-                MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val pair = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (MimeType.fromString(metadata.mimeType).isImage()) {
+                Pair(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), Environment.DIRECTORY_PICTURES)
             } else {
-                MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                Pair(MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), Environment.DIRECTORY_MOVIES)
             }
         } else {
-            if (metadata.mimeType.isImage()) {
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            if (MimeType.fromString(metadata.mimeType).isVideo()) {
+                Pair(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, Environment.DIRECTORY_PICTURES)
             } else {
-                MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                Pair(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, Environment.DIRECTORY_MOVIES)
             }
+        }
+        val collection = pair.first
+        val directory = pair.second
+
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+            put(MediaStore.MediaColumns.MIME_TYPE, metadata.mimeType)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, directory + File.separator + "fudge")
         }
 
         val uri = resolver.insert(collection, values) ?: return null
@@ -224,7 +227,7 @@ object FileLayer {
                     cursor.getString(dataColumn),
                     FileMetadata(
                         filename = cursor.getString(nameColumn),
-                        mimeType = getMimeType(cursor.getString(typeColumn)),
+                        mimeType = cursor.getString(typeColumn),
                         width = cursor.getInt(widthColumn),
                         height = cursor.getInt(heightColumn),
                         filesize = cursor.getInt(sizeColumn),

@@ -107,22 +107,20 @@ data class ViewerState(
 class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolean = true) : ViewModel() {
     private var temporaryBuffer: ByteArray? = null
     private var fileHandle: FileLayer.Handle? = null
+    private var fileTotalSize: Long? = null
     private var rejectTransfers = false
-    private val MAX_BUFFER_SIZE = 1000000
+    private val MAX_BUFFER_SIZE = 10 * 1000000
     private val _viewerState = MutableStateFlow<ViewerState?>(null)
     val viewerState = _viewerState.asStateFlow()
 
     fun clear() {
         _viewerState.value = null
-        temporaryBuffer = null
-        fileHandle = null
-        rejectTransfers = false
     }
 
     private fun getMetadata(): FileMetadata {
         return viewerState.value?.metadata ?: FileMetadata(
             filename = null,
-            mimeType = MimeType.JPEG,
+            mimeType = MimeType.JPEG.mediaTypeString,
         )
     }
 
@@ -143,6 +141,9 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
 
     fun update(file: FileHandle, numberOfItems: Int) {
         temporaryBuffer = null
+        fileHandle = null
+        rejectTransfers = false
+        fileTotalSize = null
 
         val state = _viewerState.value
         val tempBitmap = if (state != null) {
@@ -202,45 +203,62 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
             }
         }
     }
+    private fun loadImageFileHandle(handle: FileLayer.Handle) {
+        handle.close()
+        _viewerState.update { viewerState ->
+            viewerState?.copy(
+                isDecoding = false,
+                isLoading = false,
+            )
+        }
+        setError("TODO: Load image from file")
+    }
     fun setFileContents(data: ByteArray?, offset: Long, totalSize: Long) {
+        if (rejectTransfers) return
+//        println("${data?.size}, ${offset}, ${totalSize}")
         val temporaryBufferRef = temporaryBuffer
         if (temporaryBufferRef == null) {
-//            if (totalSize == 0L && data != null) {
-//                temporaryBuffer = data
-//            } else {
-//                temporaryBuffer = ByteArray(totalSize.toInt())
-//            }
+            if (totalSize != 0L) fileTotalSize = totalSize
             temporaryBuffer = data
             if (data != null && (data.size.toLong() >= totalSize)) {
                 loadImage(data)
             }
             return
-        } else {
-            if (data != null && !rejectTransfers) {
-                if (temporaryBufferRef.size + data.size > MAX_BUFFER_SIZE || totalSize > MAX_BUFFER_SIZE && fileHandle == null) {
-                    val md = getMetadata()
-                    fileHandle = FileLayer.openFileForWriting(md.filename ?: "unknown.jpg", md)
-                    if (fileHandle == null) {
-                        rejectTransfers = true
-                        return
-                    } else {
-                        fileHandle?.write(temporaryBufferRef)
-                    }
-                }
-                if (fileHandle != null) {
-                    fileHandle?.write(data)
-                } else {
-                    // todo: copy to offset
-                    val newBuf = temporaryBufferRef + data
-                    println("${totalSize}, ${newBuf.size}")
-                    if (totalSize > newBuf.size) {
-                        temporaryBuffer = newBuf
-                        return
-                    }
-                    loadImage(newBuf)
-                }
-            } else {
+        }
+
+        if (data == null || data.isEmpty()) {
+            if (fileHandle == null) {
                 loadImage(temporaryBufferRef)
+            } else {
+                loadImageFileHandle(fileHandle!!)
+            }
+            return
+        }
+
+        // Automatically route to file if too large
+        if (temporaryBufferRef.size + data.size > MAX_BUFFER_SIZE || totalSize > MAX_BUFFER_SIZE && fileHandle == null) {
+            val md = getMetadata()
+            fileHandle = FileLayer.openFileForWriting(md.filename ?: "unknown", md)
+            if (fileHandle == null) {
+                rejectTransfers = true
+                // TODO: set isLoading to false
+                return
+            } else {
+                fileHandle?.write(temporaryBufferRef)
+            }
+        }
+
+        if (fileHandle != null) {
+            fileHandle?.write(data)
+        } else {
+            temporaryBuffer = temporaryBufferRef + data
+        }
+
+        if (data.size + offset >= totalSize) {
+            if (fileHandle == null) {
+                loadImage(temporaryBuffer!!)
+            } else {
+                loadImageFileHandle(fileHandle!!)
             }
         }
     }
@@ -293,7 +311,7 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
             }
         }
     } else if (state.isLoading && state.showLoadDialog) {
-        val text = "Downloading " + when (state.metadata?.mimeType) {
+        val text = "Downloading " + when (MimeType.fromString(state.metadata?.mimeType)) {
             MimeType.JPEG, MimeType.PNG -> "image"
             MimeType.MOV -> "movie"
             else -> "file"
@@ -444,7 +462,7 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
     val scope = rememberCoroutineScope()
     var state by remember { mutableStateOf(ViewerState(
         handle = FileHandle(index = 10, "sdcard"),
-        metadata = FileMetadata("DSCF00001.JPG", mimeType = MimeType.JPEG),
+        metadata = FileMetadata("DSCF00001.JPG", mimeType = MimeType.JPEG.mediaTypeString),
         bitmap = painterToImageBitmap(painter),
         bitmapLeft = painterToImageBitmap(painter),
         bitmapRight = painterToImageBitmap(painter),
