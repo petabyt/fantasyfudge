@@ -1,8 +1,7 @@
 package dev.danielc.common
 
 import dev.danielc.R
-import dev.danielc.common.screens.ConsoleLine
-import dev.danielc.common.screens.ConsoleViewModel
+import dev.danielc.common.screens.ConsoleModel
 import dev.danielc.common.screens.MimeType
 import dev.danielc.fudge.AndroidRuntime
 import dev.danielc.fudge.AndroidRuntime.getDatabase
@@ -200,8 +199,7 @@ object Runtime {
     private val _trimMemorySignal = MutableSharedFlow<Unit>()
     val trimMemorySignal = _trimMemorySignal.asSharedFlow()
     suspend fun emitMemoryTrimSignal() { _trimMemorySignal.emit(Unit) }
-    var earlyConsoleLogs: MutableList<ConsoleLine> = mutableListOf()
-    var mainLog: ConsoleViewModel? = null
+    var mainLog = ConsoleModel()
     var connectableDevices = listOf<ConnectableDevice>()
     var moduleManifests = listOf<ModuleManifest>()
     var savedDevices: Flow<List<SavedDeviceEntity>> = MutableStateFlow(emptyList())
@@ -302,10 +300,7 @@ object Runtime {
     }
 
     fun logGlobalLine(s: String) {
-        if (mainLog == null) {
-            earlyConsoleLogs.add(ConsoleLine(s))
-        }
-        mainLog?.addLine(s)
+        mainLog.addLine(s)
     }
 
     fun loadModulesFromManifests(pathList: List<String>) {

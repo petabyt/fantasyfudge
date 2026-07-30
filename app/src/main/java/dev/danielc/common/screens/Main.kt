@@ -72,7 +72,6 @@ import dev.danielc.common.ui.ModuleListScreen
 import dev.danielc.common.ui.TargetCard
 import dev.danielc.common.ui.dummyManifestList
 import dev.danielc.common.ui.theme.FudgeTheme
-import dev.danielc.fudge.AndroidRuntime
 import dev.danielc.fudge.FileLayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -452,12 +451,6 @@ fun MainNav(navController: NavHostController) {
         }
     }
 
-    val mainlog: ConsoleViewModel = viewModel(initializer = {
-        val vm = ConsoleViewModel(Runtime.earlyConsoleLogs)
-        Runtime.mainLog = vm
-        vm
-    })
-
     @Composable
     fun localGallery() {
         val viewer: ViewerModel = viewModel(initializer = { ViewerModel(false, false) })
@@ -480,7 +473,7 @@ fun MainNav(navController: NavHostController) {
             HelpScreen(navController)
         }
         composable("console") {
-            val state by mainlog.uiState.collectAsStateWithLifecycle()
+            val state by Runtime.mainLog.uiState.collectAsStateWithLifecycle()
             ConsoleScreen({
                 navController.navigateUp()
             }, state, "Debug Console")
@@ -510,8 +503,7 @@ fun MainNav(navController: NavHostController) {
             } else {
                 val models = ViewModelReferences(
                     viewModel(initializer = { ModuleGalleryViewModel() }),
-                    viewModel(initializer = { ViewerModel() }),
-                    viewModel(initializer = { ConsoleViewModel() })
+                    viewModel(initializer = { ViewerModel() })
                 )
                 val model = viewModel(initializer = { ModuleInstanceModel(manifest, request, models) })
                 ModuleInstanceNav(model.module, backToMainScreen = {

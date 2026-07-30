@@ -2,13 +2,10 @@ package dev.danielc.common.screens
 
 import android.annotation.SuppressLint
 import android.content.ClipData
-import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -33,19 +30,16 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.R
-import kotlinx.coroutines.Dispatchers
+import dev.danielc.common.BackgroundViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.collections.plus
 import kotlin.time.Duration
 import kotlin.time.DurationUnit
@@ -73,38 +67,30 @@ data class ConsoleState(
     }
 }
 
-class ConsoleViewModel(initialLines: List<ConsoleLine> = emptyList()) : ViewModel() {
-    private val _uiState = MutableStateFlow(ConsoleState(initialLines))
+class ConsoleModel: BackgroundViewModel() {
+    private val _uiState = MutableStateFlow(ConsoleState())
     val uiState: StateFlow<ConsoleState> = _uiState.asStateFlow()
 
     fun addLine(line: String) {
-        viewModelScope.launch() {
-            withContext(Dispatchers.IO) {
-                _uiState.update { currentState ->
-                    var line = line
-                    val color = if (line.startsWith("<error>")) {
-                        line = line.substringAfter("<error>")
-                        Color.Red
-                    } else {
-                        Color.White
-                    }
-                    val newLine = ConsoleLine(
-                        color = color,
-                        line = line,
-                        timestamp = currentState.initialTime.elapsedNow()
-                    )
-                    currentState.copy(lines = currentState.lines + newLine)
-                }
+        _uiState.update { currentState ->
+            var line = line
+            val color = if (line.startsWith("<error>")) {
+                line = line.substringAfter("<error>")
+                Color.Red
+            } else {
+                Color.White
             }
+            val newLine = ConsoleLine(
+                color = color,
+                line = line,
+                timestamp = currentState.initialTime.elapsedNow()
+            )
+            currentState.copy(lines = currentState.lines + newLine)
         }
     }
 
     fun clearText(line: String) {
-        viewModelScope.launch() {
-            withContext(Dispatchers.IO) {
-                _uiState.value.lines = emptyList()
-            }
-        }
+        _uiState.value.lines = emptyList()
     }
 }
 

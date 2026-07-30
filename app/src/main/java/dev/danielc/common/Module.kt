@@ -1,9 +1,8 @@
 package dev.danielc.common
 import dev.danielc.common.screens.ConnectingRequiredAction
-import dev.danielc.common.screens.ConsoleViewModel
+import dev.danielc.common.screens.ConsoleModel
 import dev.danielc.common.screens.GalleryObjectReference
 import dev.danielc.common.screens.GalleryViewModel
-import dev.danielc.common.screens.MimeType
 import dev.danielc.common.screens.ModuleInstanceModel
 import dev.danielc.common.screens.ModuleIntervalometerModel
 import dev.danielc.common.screens.SortBy
@@ -59,7 +58,6 @@ class ModuleGalleryViewModel: GalleryViewModel() {
 data class ViewModelReferences(
     val galleryViewModel: ModuleGalleryViewModel,
     val viewerViewModel: ViewerModel,
-    val debugLogModel: ConsoleViewModel,
 )
 
 abstract class ModuleBase: NativeModule() {
@@ -201,7 +199,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     val galleryViewModel: ModuleGalleryViewModel = viewModels.galleryViewModel
     val viewerViewModel: ViewerModel = viewModels.viewerViewModel
     val intervalometerModel = ModuleIntervalometerModel(this)
-    val debugLogModel: ConsoleViewModel = viewModels.debugLogModel
+    val debugLogModel = ConsoleModel()
     val target = manifest.targets[request.targetIndex]
     var viewerDownloadJob: ModuleJob? = null
     val companionName = "${target.company} ${target.deviceId.getReadableName()}"
