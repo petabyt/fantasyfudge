@@ -189,7 +189,7 @@ fun ConnectableDeviceCard(dev: ConnectableDevice, clicked: (String?) -> Unit = {
 }
 
 @Composable
-fun SavedDeviceCard(manifest: ModuleManifest, target: ModuleManifest.Target, dev: SavedDeviceEntity, isNearby: Boolean, clicked: () -> Unit = {}) {
+fun SavedDeviceCard(target: ModuleManifest.Target, transport: ModuleManifest.Transport?, dev: SavedDeviceEntity, isNearby: Boolean, clicked: () -> Unit = {}) {
     Box(modifier = Modifier
         .fillMaxWidth()
         .clip(RoundedCornerShape(12.dp))
@@ -221,8 +221,14 @@ fun SavedDeviceCard(manifest: ModuleManifest, target: ModuleManifest.Target, dev
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                     )
+                    Spacer(Modifier.weight(1f))
+                    if (transport != null) {
+                        Icon(painterResource(when (transport) {
+                            ModuleManifest.Transport.BLUETOOTH -> R.drawable.outline_bluetooth_24
+                            else -> R.drawable.outline_wifi_24
+                        }), contentDescription = null)
+                    }
                     if (isNearby) {
-                        Spacer(Modifier.weight(1f))
                         Box(Modifier.size(7.dp).clip(CircleShape).background(Color.Green))
                         Text(
                             text = "Nearby",
@@ -282,9 +288,10 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, clicked: (ModuleInstanceRequ
                 items(savedDevices) { dev ->
                     val manifest = Runtime.getManifestFromName(dev.manifestName)
                     val target = manifest?.targets?.getOrNull(dev.targetIndex)
+                    val setupOption = target?.setupOptions?.find { it.name == dev.setupOption }
                     val isNearby = nearbyList.contains(dev.bluetoothMacAddress)
                     if (manifest != null && target != null) {
-                        SavedDeviceCard(manifest, target, dev, isNearby, clicked = {
+                        SavedDeviceCard(target, setupOption?.transport, dev, isNearby, clicked = {
                             clicked(ModuleInstanceRequest(
                                 manifest.name,
                                 dev.targetIndex,

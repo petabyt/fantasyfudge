@@ -199,6 +199,10 @@ class ModuleDashboardModel(val module: ModuleInstance) : DashboardModel(module.m
     override fun runCommand(line: String) {
         module.runCommand(line)
     }
+
+    override fun save() {
+        module.userSave()
+    }
 }
 
 /**
@@ -229,9 +233,19 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         galleryViewModel.onTrimMemory()
     }
 
+    fun userSave() {
+        val name = dashboardModel.state.value.nameOfDevice ?: return
+        saveDeviceSignature(SavedDeviceInfo(
+            uniqueIdentifier = name,
+            name = name,
+            privateData = null,
+        ))
+    }
+
     @CalledFromNative
     fun saveDeviceSignature(info: SavedDeviceInfo) {
         CoroutineScope(Dispatchers.IO).launch {
+            dashboardModel.setSaved()
             AndroidRuntime.getDatabase().deviceDao().saveDevice(SavedDeviceEntity(
                 uniqueIdentifier = info.uniqueIdentifier,
                 name = info.name,

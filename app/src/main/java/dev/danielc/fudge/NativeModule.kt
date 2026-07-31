@@ -4,7 +4,6 @@ import dev.danielc.common.DashboardPane
 import dev.danielc.common.FileHandle
 import dev.danielc.common.SavedDeviceInfo
 import dev.danielc.libpak.Bluetooth
-import dev.danielc.libpak.Pak
 import dev.danielc.libpak.WiFi
 
 open class NativeModule {
@@ -36,6 +35,7 @@ open class NativeModule {
         return null
     }
     fun close() {
+        // TODO: Auto disassociate if not saved?
 //        if (!takenAssociationId) {
 //            connectedBluetoothDevice?.let {
 //                Pak.disassociate(it.address)

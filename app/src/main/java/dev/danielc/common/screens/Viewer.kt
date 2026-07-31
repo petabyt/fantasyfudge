@@ -215,6 +215,7 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
         handle.close()
     }
     fun setFileContents(data: ByteArray?, offset: Long, totalSize: Long) {
+        println("${data?.size}, ${offset}, ${totalSize}")
         if (rejectTransfers) return
         val temporaryBufferRef = temporaryBuffer
         if (temporaryBufferRef == null) {

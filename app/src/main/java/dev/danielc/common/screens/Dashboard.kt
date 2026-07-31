@@ -67,8 +67,6 @@ import dev.danielc.common.ui.PreviewPixel9ProDark
 import dev.danielc.common.ui.theme.FudgeRippleConfig
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.errorButtonColors
-import dev.danielc.common.ui.theme.primaryIconButtonColors
-import dev.danielc.common.ui.theme.secondaryIconButtonColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -87,7 +85,7 @@ data class DashboardState(
     val humidity: Int? = null,
     val firmwareVersion: String? = null,
     val connectionType: ModuleManifest.Transport? = null,
-    val saved: Boolean = false,
+    val isSaved: Boolean = false,
 )
 
 open class DashboardModel(val manifest: ModuleManifest, initialState: DashboardState? = null): BackgroundViewModel() {
@@ -101,6 +99,7 @@ open class DashboardModel(val manifest: ModuleManifest, initialState: DashboardS
     fun updateNumFiles(files: Int?) {
         _state.update { it.copy(filesOnStorage = files) }
     }
+    fun setSaved() { _state.update { it.copy(isSaved = true) } }
     fun setProperty(type: ModuleProperty, value: String) {
         scope.launch(Dispatchers.IO) {
             _state.update { currentState ->
@@ -420,10 +419,10 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
                         Icon(painterResource(R.drawable.baseline_settings_24), contentDescription = null)
                     }
                     Spacer(Modifier.weight(1f))
-                    Button(onClick = { model.save() }, modifier = Modifier, enabled = !state.saved) {
+                    Button(onClick = { model.save() }, modifier = Modifier, enabled = !state.isSaved) {
                         Icon(painterResource(R.drawable.outline_save_24), contentDescription = null)
                         Spacer(Modifier.width(2.dp))
-                        Text(if (state.saved) "Saved" else "Save")
+                        Text(if (state.isSaved) "Saved" else "Save")
                     }
                     Button(onClick = { model.disconnect() }, modifier = Modifier, colors = errorButtonColors()) {
                         Icon(painterResource(R.drawable.outline_close_24), contentDescription = null)
