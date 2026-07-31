@@ -459,7 +459,11 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                     doConnect(device)
                 }
                 override fun onFailure(reason: String) {
-                    debugLog("System popup dismissed (${reason})")
+                    debugLog("System error: ${reason}")
+                }
+
+                override fun onCancel() {
+                    debugLog("Cancelled")
                 }
             }
             val rc = Bluetooth.pairWithDeviceCompanion(filters, "FudgeDevice1", null,callback)
