@@ -48,17 +48,21 @@ class LocalGalleryViewModel: GalleryViewModel() {
         val file = files[ref.index]
         viewer.update(FileHandle(ref.index), files.size)
         viewer.updateMetadata(file.metadata)
-        val handle = FileLayer.openFileForReading(file)
-        if (handle == null) {
-            viewer.setError("Failed to decode image")
+        if (file.metadata.getMimeType().isVideo()) {
+            viewer.setError("Video not supported in viewer yet")
         } else {
-            viewer.loadImageFileHandle(handle)
-        }
+            val handle = FileLayer.openFileForReading(file)
+            if (handle == null) {
+                viewer.setError("Failed to decode image")
+            } else {
+                viewer.loadImageFileHandle(handle)
+            }
 
-        viewer.updateSideBitmaps(
-            if (files.getOrNull(ref.index - 1) == null) null else FileLayer.getMediaThumbnail(files[ref.index - 1]),
-            if (files.getOrNull(ref.index + 1) == null) null else FileLayer.getMediaThumbnail(files[ref.index + 1])
-        )
+            viewer.updateSideBitmaps(
+                if (files.getOrNull(ref.index - 1) == null) null else FileLayer.getMediaThumbnail(files[ref.index - 1]),
+                if (files.getOrNull(ref.index + 1) == null) null else FileLayer.getMediaThumbnail(files[ref.index + 1])
+            )
+        }
     }
 
     fun share(i: Int) {

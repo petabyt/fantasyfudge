@@ -140,7 +140,9 @@ object FileLayer {
 
     fun openFileForReading(ref: MediaStoreFile): Handle? {
         val resolver = Pak.getActivity().contentResolver
-        return Handle(resolver.openFileDescriptor(ref.contentUri, "r") ?: return null, ref.contentUri)
+        try {
+            return Handle(resolver.openFileDescriptor(ref.contentUri, "r") ?: return null, ref.contentUri)
+        } catch (ignored: Exception) { return null }
     }
 
     fun openFileForWriting(filename: String, metadata: FileMetadata, subdirectory: String = "fudge"): Handle? {
@@ -165,7 +167,9 @@ object FileLayer {
         }
 
         val uri = resolver.insert(collection, values) ?: return null
-        return Handle(resolver.openFileDescriptor(uri, "r") ?: return null, uri)
+        try {
+            return Handle(resolver.openFileDescriptor(uri, "w") ?: return null, uri)
+        } catch (ignored: Exception) { return null }
     }
 
     fun getMediaThumbnail(file: MediaStoreFile): ImageBitmap? {

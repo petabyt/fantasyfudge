@@ -394,7 +394,9 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
                 module.homeModelView.back(false)
             }, {
 
-            }, debugLogState, connectProgress, action, module.target)
+            }, ConnectingScreenState(
+                debugLogState, connectProgress, action, module.target
+            ))
         }
         composable("connecting") {
             val connectProgress by module.homeModelView.connectProgress.collectAsStateWithLifecycle()
@@ -417,7 +419,9 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
                     }
                 }, {
                     module.tryConnectAgain()
-                }, debugLogState, connectProgress, action, module.target, module.request.getSetupOption()?.transport ?: ModuleManifest.Transport.WIFI_AP)
+                }, ConnectingScreenState(debugLogState, connectProgress, action, module.target,
+                    transport = module.request.getSetupOption()?.transport ?: ModuleManifest.Transport.WIFI_AP)
+                )
             }
         }
         composable("home") {

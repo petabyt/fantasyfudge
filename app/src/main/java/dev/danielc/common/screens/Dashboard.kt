@@ -15,9 +15,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
@@ -28,7 +26,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardColors
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalRippleConfiguration
@@ -62,7 +59,6 @@ import dev.danielc.common.DashboardPane
 import dev.danielc.common.Device
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.ui.IntGridGraph
-import dev.danielc.common.ui.Material3DropDown
 import dev.danielc.common.ui.PreviewPixel9ProDark
 import dev.danielc.common.ui.theme.FudgeRippleConfig
 import dev.danielc.common.ui.theme.FudgeTheme

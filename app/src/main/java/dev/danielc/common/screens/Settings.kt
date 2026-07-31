@@ -92,7 +92,7 @@ fun SettingsScreen(navController: NavController = rememberNavController()) {
                             Icon(painterResource(R.drawable.baseline_download_24), contentDescription = null)
                         },
                         keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Decimal
+                            keyboardType = KeyboardType.Text
                         ),
                         value = settingsValue.downloadsLocation,
                         onValueChange = {

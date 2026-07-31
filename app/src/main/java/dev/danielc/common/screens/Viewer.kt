@@ -7,6 +7,8 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -24,6 +27,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -97,13 +101,15 @@ data class ViewerState(
     val isError: Boolean = false,
     val errorMessage: String? = null,
     val currentDownloadProgress: Int = 0,
-    val currentDownloadSpeed: String = "",
+    val currentDownloadSpeed: String? = null,
+    val currentDownloadStatusMessage: String? = null,
     val bitmap: ImageBitmap? = null,
     val bitmapLeft: ImageBitmap? = null,
     val bitmapRight: ImageBitmap? = null,
     val showSaveButton: Boolean = true,
     val showLoadDialog: Boolean = true,
     val hasSaved: Boolean = false,
+    val fileTooBigAutomaticallySaved: Boolean = false,
 )
 
 class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolean = true) : BackgroundViewModel() {
@@ -198,14 +204,13 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
         val bitmap = AndroidRuntime.decodeImageFile(handle, _viewerState.value?.metadata?.orientation)
         if (bitmap == null) {
             setError("Failed to decode image contents")
-        } else {
-            _viewerState.update { viewerState ->
-                viewerState?.copy(
-                    bitmap = bitmap,
-                    isDecoding = false,
-                    isLoading = false,
-                )
-            }
+        }
+        _viewerState.update { viewerState ->
+            viewerState?.copy(
+                bitmap = bitmap,
+                isDecoding = false,
+                isLoading = false,
+            )
         }
         handle.close()
     }
@@ -239,6 +244,7 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
                 // TODO: set isLoading to false
                 return
             } else {
+                _viewerState.update { it?.copy(fileTooBigAutomaticallySaved = true) }
                 fileHandle?.write(temporaryBufferRef)
             }
         }
@@ -257,13 +263,11 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
             }
         }
     }
-    fun updateStats(downloadPercent: Int, downloadSpeed: String) {
-        _viewerState.update { viewerState ->
-            viewerState?.copy(
-                currentDownloadProgress = downloadPercent,
-                currentDownloadSpeed = downloadSpeed,
-            )
-        }
+    fun updateProgress(downloadPercent: Int) {
+        _viewerState.update { it?.copy(currentDownloadProgress = downloadPercent) }
+    }
+    fun updateSpeed(downloadSpeed: String) {
+        _viewerState.update { it?.copy(currentDownloadSpeed = downloadSpeed) }
     }
     fun setError(message: String) {
         _viewerState.update { viewerState ->
@@ -280,31 +284,36 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
     val filename = state.metadata?.filename ?: "File"
 
     if (state.isError) {
-        Dialog(onDismissRequest = {}) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp),
-                shape = RoundedCornerShape(16.dp),
-            ) {
-                Box(Modifier.fillMaxSize().padding(16.dp)) {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = "Error",
-                            style = TextStyle(
-                                fontSize = 20.sp
-                            ),
-                        )
-                        Text("'${state.errorMessage.orEmpty()}'", color = MaterialTheme.colorScheme.error)
-                        Button(onClick = {
-                            close()
-                        }) {
-                            Text("Exit")
-                        }
+        AlertDialog(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+            title = {
+                Text(text = "Error", color = MaterialTheme.colorScheme.onErrorContainer)
+            },
+            text = {
+                Text(state.errorMessage ?: "Unknown error", color = MaterialTheme.colorScheme.onErrorContainer)
+            },
+            onDismissRequest = {
+                close()
+            },
+//            dismissButton = {
+//                TextButton(
+//                    onClick = {
+//                        close()
+//                    }
+//                ) {
+//                    Text("Open in default app")
+//                }
+//            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        close()
                     }
+                ) {
+                    Text("Exit")
                 }
             }
-        }
+        )
     } else if (state.isLoading && state.showLoadDialog) {
         val text = "Downloading " + when (MimeType.fromString(state.metadata?.mimeType)) {
             MimeType.JPEG, MimeType.PNG -> "image"
@@ -313,31 +322,29 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
         }
 
         Dialog(onDismissRequest = {}) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .padding(16.dp),
+            Card(modifier = Modifier
+                .padding(16.dp),
                 shape = RoundedCornerShape(16.dp),
             ) {
-                Box(Modifier.fillMaxSize()) {
-                    Column(Modifier.align(Alignment.Center), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            text = text,
-                            modifier = Modifier,
-                            style = TextStyle(
-                                fontSize = 20.sp
-                            ),
-                        )
+                Box {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(text, style = MaterialTheme.typography.titleLarge)
                         LinearProgressIndicator(
-                            modifier = Modifier,
+                            modifier = Modifier.fillMaxWidth(),
                             color = MaterialTheme.colorScheme.primary,
                             progress = { state.currentDownloadProgress.toFloat() / 100 }
                         )
-                        Text(
-                            text = state.currentDownloadSpeed,
-                            modifier = Modifier,
-                        )
+                        Row(Modifier.fillMaxWidth()) {
+                            if (state.fileTooBigAutomaticallySaved) {
+                                Text("Saving file - too big", style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.weight(1f))
+                            } else { Spacer(Modifier.weight(1f)) }
+                            if (state.currentDownloadSpeed != null) {
+                                Text(state.currentDownloadSpeed, style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.tertiary)
+                            } else { Spacer(Modifier.weight(1f)) }
+                        }
                         Button(onClick = {
                             cancel()
                         }) {
@@ -396,7 +403,8 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
         )
     }
 
-    Box(modifier = modifier.fillMaxSize()
+    Box(modifier = modifier
+        .fillMaxSize()
         .graphicsLayer {
             scaleX = scaleFactor.value
             scaleY = scaleFactor.value
@@ -415,26 +423,35 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
             }
         }
         HorizontalPager(
-            state = pagerState, modifier = Modifier.fillMaxSize().align(Alignment.Center)) { page ->
+            state = pagerState, modifier = Modifier
+                .fillMaxSize()
+                .align(Alignment.Center)) { page ->
             if (page == state.handle.index) {
                 if (state.bitmap != null) {
                     val zoomState = rememberZoomState(contentSize = Size(state.bitmap.width.toFloat(), state.bitmap.height.toFloat()))
                     Image(
-                        modifier = Modifier.fillMaxSize().align(Alignment.Center).zoomable(zoomState),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .align(Alignment.Center)
+                            .zoomable(zoomState),
                         bitmap = state.bitmap,
                         contentDescription = filename,
                     )
                 }
             } else if (page == state.handle.index - 1 && state.bitmapLeft != null) {
                 Image(
-                    modifier = Modifier.align(Alignment.Center).fillMaxWidth(),
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .fillMaxWidth(),
                     bitmap = state.bitmapLeft,
                     contentScale = ContentScale.FillWidth,
                     contentDescription = filename,
                 )
             } else if (page == state.handle.index + 1 && state.bitmapRight != null) {
                 Image(
-                    modifier = Modifier.align(Alignment.Center).fillMaxWidth(),
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .fillMaxWidth(),
                     bitmap = state.bitmapRight,
                     contentScale = ContentScale.FillWidth,
                     contentDescription = filename,
@@ -461,11 +478,12 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
         bitmap = painterToImageBitmap(painter),
         bitmapLeft = painterToImageBitmap(painter),
         bitmapRight = painterToImageBitmap(painter),
-        isLoading = false,
+        isLoading = true,
         currentDownloadSpeed = "5 mbps",
         currentDownloadProgress = 40,
         numberOfItems = 30,
         isError = false,
+        fileTooBigAutomaticallySaved = true,
         errorMessage = "BUG: Failed to decode, blah blah blah",
     )) }
     ViewerScreen(state, switchTo = { i ->

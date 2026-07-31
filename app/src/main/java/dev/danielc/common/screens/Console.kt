@@ -157,7 +157,7 @@ fun ConsoleScreen(back: () -> Unit = {}, state: ConsoleState = ConsoleState(), t
                             }
                         }) {
                             Icon(
-                                painter = painterResource(R.drawable.baseline_content_copy_24),
+                                painter = painterResource(R.drawable.outline_content_copy_24),
                                 contentDescription = "Copy"
                             )
                         }

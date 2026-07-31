@@ -20,7 +20,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlin.collections.plus
 import kotlin.time.DurationUnit
 import kotlin.time.TimeSource
 
@@ -36,6 +35,7 @@ data class ModuleJob(
     val onUpdate: JobUpdateCallback,
     val id: Int,
     var progressBarValue: Int? = null,
+    var downloadSpeedString: String? = null,
     var isCancelled: Boolean = false,
     var isFinished: Boolean = false,
 )
@@ -300,8 +300,15 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             }
         }
     }
+    private var elapsed = TimeSource.Monotonic.markNow()
     @CalledFromNative
     fun setFileContents(file: FileHandle, data: ByteArray?, offset: Long, totalSize: Long) {
+        if (offset != 0L && data != null) {
+            var ms = elapsed.elapsedNow().toInt(DurationUnit.MILLISECONDS)
+            if (ms == 0) ms++
+            viewerViewModel.updateSpeed("${(data.size / ms) / 1000.0}MB/s")
+            elapsed = TimeSource.Monotonic.markNow()
+        }
         viewerViewModel.setFileContents(data, offset, totalSize)
     }
     @CalledFromNative
@@ -628,7 +635,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                 if (job.isFinished) {
                     viewerDownloadJob = null
                 }
-                viewerViewModel.updateStats(job.progressBarValue ?: 0, "switching to viewer")
+                viewerViewModel.updateProgress(job.progressBarValue ?: 0)
             })
             if (rc == Pak.Error.CANCELLED) {
                 onCancel()
@@ -640,7 +647,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                         viewerViewModel.setError("Cancelling...")
                         viewerDownloadJob = null
                     }
-                    viewerViewModel.updateStats(job.progressBarValue ?: 0, "download speed")
+                    viewerViewModel.updateProgress(job.progressBarValue ?: 0)
                 }, file)
                 if (rc == Pak.Error.CANCELLED) {
                     onCancel()

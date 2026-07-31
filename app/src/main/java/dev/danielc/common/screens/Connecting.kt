@@ -37,10 +37,6 @@ import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.errorButtonColors
 import kotlinx.coroutines.launch
 
-data class UserInstruction(
-    val instruction: String,
-)
-
 enum class ConnectingRequiredAction {
     NONE,
     TURN_ON_WIFI,
@@ -73,7 +69,7 @@ fun ModuleErrorScreen(back: () -> Unit = {}, state: ConsoleState = ConsoleState(
                             }
                         }) {
                             Icon(
-                                painter = painterResource(R.drawable.baseline_content_copy_24),
+                                painter = painterResource(R.drawable.outline_content_copy_24),
                                 contentDescription = "Copy"
                             )
                         }
@@ -91,33 +87,32 @@ fun ModuleErrorScreen(back: () -> Unit = {}, state: ConsoleState = ConsoleState(
     }
 }
 
+data class ConnectingScreenState(
+    val consoleState: ConsoleState = ConsoleState(),
+    val progress: Int? = 50,
+    val action: ConnectingRequiredAction = ConnectingRequiredAction.NONE,
+    val target: ModuleManifest.Target = dummyManifestList[0].targets[0],
+    val transport: ModuleManifest.Transport = ModuleManifest.Transport.WIFI_AP,
+    val disableTryAgain: Boolean = false,
+    val userInstruction: String? = null, // TODO
+)
+
 @Preview(showBackground = true, device = "id:pixel_9a", uiMode = 32)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: ConsoleState = ConsoleState(), progress: Int? = 50,
-                     action: ConnectingRequiredAction = ConnectingRequiredAction.NONE,
-                     target: ModuleManifest.Target = dummyManifestList[0].targets[0],
-                     transport: ModuleManifest.Transport = ModuleManifest.Transport.WIFI_AP) {
+fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: ConnectingScreenState = ConnectingScreenState()) {
     val clipboardManager = LocalClipboard.current
     val scope = rememberCoroutineScope()
     @Composable
-    fun ActionMessage(icon: Painter, text: String, buttonText: String? = null) {
+    fun ActionMessage(icon: Painter, text: String) {
         Column(Modifier.fillMaxSize().padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(200.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
             Text(text, textAlign = TextAlign.Center)
-            if (buttonText != null) {
-                Button({
-
-                }) {
-                    Text(buttonText)
-                }
-            }
-            // TODO: Disable button during connecting
             Button({
                 tryAgain()
-            }) {
+            }, enabled = !state.disableTryAgain) {
                 Text("Try Again")
             }
         }
@@ -149,7 +144,7 @@ fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: Co
                             }
                         }) {
                             Icon(
-                                painter = painterResource(R.drawable.baseline_content_copy_24),
+                                painter = painterResource(R.drawable.outline_content_copy_24),
                                 contentDescription = "Copy"
                             )
                         }
@@ -158,29 +153,29 @@ fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: Co
             },
         ) { innerPadding ->
             Column(Modifier.fillMaxSize().padding(innerPadding)) {
-                if (action == ConnectingRequiredAction.TURN_ON_WIFI) {
+                if (state.action == ConnectingRequiredAction.TURN_ON_WIFI) {
                     ActionMessage(painterResource(R.drawable.outline_wifi_24), "Please turn on WiFi")
-                } else if (action == ConnectingRequiredAction.TURN_ON_BLUETOOTH) {
+                } else if (state.action == ConnectingRequiredAction.TURN_ON_BLUETOOTH) {
                     ActionMessage(painterResource(R.drawable.outline_bluetooth_24), "Please turn on Bluetooth")
-                } else if (action == ConnectingRequiredAction.ACCEPT_PERMISSION) {
+                } else if (state.action == ConnectingRequiredAction.ACCEPT_PERMISSION) {
                     ActionMessage(painterResource(R.drawable.outline_bluetooth_24), "Permission required to connect to a device")
                 } else {
                     Column(Modifier.padding(10.dp)) {
                         Row(Modifier.fillMaxWidth().padding(10.dp)) {
-                            Icon(painterResource(target.deviceId.getIcon()), contentDescription = null, modifier = Modifier.size(60.dp), tint = MaterialTheme.colorScheme.primary)
+                            Icon(painterResource(state.target.deviceId.getIcon()), contentDescription = null, modifier = Modifier.size(60.dp), tint = MaterialTheme.colorScheme.primary)
                             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                                if (transport == ModuleManifest.Transport.LOCAL_NETWORK_UDP) {
+                                if (state.transport == ModuleManifest.Transport.LOCAL_NETWORK_UDP) {
                                     Text(
-                                        "Looking for a ${target.company} ${target.deviceId.getReadableName()}...",
+                                        "Looking for a ${state.target.company} ${state.target.deviceId.getReadableName()}...",
                                         textAlign = TextAlign.Center
                                     )
                                 } else {
                                     Text(
-                                        "Connecting to a ${target.company} ${target.deviceId.getReadableName()}...",
+                                        "Connecting to a ${state.target.company} ${state.target.deviceId.getReadableName()}...",
                                         textAlign = TextAlign.Center
                                     )
                                 }
-                                if (progress != null) Text("${progress}%", textAlign = TextAlign.Center)
+                                if (state.progress != null) Text("${state.progress}%", textAlign = TextAlign.Center)
                             }
                         }
                         Button(onClick = tryAgain, Modifier.fillMaxWidth()) {
@@ -189,22 +184,22 @@ fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: Co
                         Button(onClick = back, Modifier.fillMaxWidth(), colors = errorButtonColors()) {
                             Text("Cancel")
                         }
-                        if (transport == ModuleManifest.Transport.LOCAL_NETWORK_UDP) {
+                        if (state.transport == ModuleManifest.Transport.LOCAL_NETWORK_UDP) {
                             Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.Center) {
                                 CircularProgressIndicator()
                             }
                         } else {
-                            if (progress != null ) {
+                            if (state.progress != null ) {
                                 LinearProgressIndicator(
                                     modifier = Modifier.fillMaxWidth(),
                                     color = MaterialTheme.colorScheme.primary,
-                                    progress = { progress.toFloat() / 100 }
+                                    progress = { state.progress.toFloat() / 100 }
                                 )
                             }
                         }
                     }
-                    Console(Modifier.fillMaxSize(), state)
+                    Console(Modifier.fillMaxSize(), state.consoleState)
                 }
             }
         }
