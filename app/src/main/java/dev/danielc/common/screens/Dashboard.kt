@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -28,6 +30,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -63,6 +66,9 @@ import dev.danielc.common.ui.IntGridGraph
 import dev.danielc.common.ui.PreviewPixel9ProDark
 import dev.danielc.common.ui.theme.FudgeRippleConfig
 import dev.danielc.common.ui.theme.FudgeTheme
+import dev.danielc.common.ui.theme.errorButtonColors
+import dev.danielc.common.ui.theme.primaryIconButtonColors
+import dev.danielc.common.ui.theme.secondaryIconButtonColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -81,6 +87,7 @@ data class DashboardState(
     val humidity: Int? = null,
     val firmwareVersion: String? = null,
     val connectionType: ModuleManifest.Transport? = null,
+    val saved: Boolean = false,
 )
 
 open class DashboardModel(val manifest: ModuleManifest, initialState: DashboardState? = null): BackgroundViewModel() {
@@ -89,6 +96,7 @@ open class DashboardModel(val manifest: ModuleManifest, initialState: DashboardS
     open fun propChanged(pane: DashboardPane) {}
     open fun disconnect() {}
     open fun runCommand(line: String) {}
+    open fun save() {}
 
     fun updateNumFiles(files: Int?) {
         _state.update { it.copy(filesOnStorage = files) }
@@ -361,7 +369,7 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
         Box(modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
             Column(Modifier.padding(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     state.nameOfDevice?.let { name ->
@@ -406,16 +414,33 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
                         Text("Firmware version: ${state.firmwareVersion}")
                     }
                 }
+                Spacer(Modifier.height(5.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    IconButton(onClick = { showSettings = true }) {
+                        Icon(painterResource(R.drawable.baseline_settings_24), contentDescription = null)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Button(onClick = { model.save() }, modifier = Modifier, enabled = !state.saved) {
+                        Icon(painterResource(R.drawable.outline_save_24), contentDescription = null)
+                        Spacer(Modifier.width(2.dp))
+                        Text(if (state.saved) "Saved" else "Save")
+                    }
+                    Button(onClick = { model.disconnect() }, modifier = Modifier, colors = errorButtonColors()) {
+                        Icon(painterResource(R.drawable.outline_close_24), contentDescription = null)
+                        Spacer(Modifier.width(2.dp))
+                        Text("Disconnect")
+                    }
+                }
             }
         }
 
-        val panes = mutableListOf(
-            PaneState(PaneState.Color.SECONDARY, "Settings", R.drawable.baseline_settings_24, onClick = {
-                showSettings = true
-            }),
-            PaneState(PaneState.Color.ERROR, "Disconnect", R.drawable.outline_close_24, onClick = {
-                model.disconnect()
-            }),
+        val panes = mutableListOf<PaneState>(
+//            PaneState(PaneState.Color.SECONDARY, "Settings", R.drawable.baseline_settings_24, onClick = {
+//                showSettings = true
+//            }),
+//            PaneState(PaneState.Color.ERROR, "Disconnect", R.drawable.outline_close_24, onClick = {
+//                model.disconnect()
+//            }),
         )
 
         val batteries = mutableListOf<PaneBatteryStatus>()
@@ -458,7 +483,7 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
                     })
                 }
                 is DashboardPane.Button -> {
-                    PaneState(PaneState.Color.PRIMARY, text = pane.args.title, onClick = {
+                    PaneState(PaneState.Color.PRIMARY, icon = R.drawable.outline_lightbulb_2_24, text = pane.args.title, onClick = {
                         model.updateSettingPane(pane)
                     })
                 }

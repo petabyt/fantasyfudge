@@ -187,6 +187,20 @@ data class ModuleInstanceRequest(
     }
 }
 
+class ModuleDashboardModel(val module: ModuleInstance) : DashboardModel(module.manifest) {
+    override fun disconnect() {
+        scope.launch {
+            module.homeModelView.showDisconnectDialog(true)
+        }
+    }
+    override fun propChanged(pane: DashboardPane) {
+        module.propChanged(pane)
+    }
+    override fun runCommand(line: String) {
+        module.runCommand(line)
+    }
+}
+
 /**
  * Instance of a module with a single connection
  */
@@ -195,19 +209,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     val viewerViewModel = ViewerModel()
     val intervalometerModel = ModuleIntervalometerModel(this)
     val debugLogModel = ConsoleModel()
-    val dashboardModel = object: DashboardModel(manifest) {
-        override fun disconnect() {
-            scope.launch {
-                homeModelView.showDisconnectDialog(true)
-            }
-        }
-        override fun propChanged(pane: DashboardPane) {
-            propChanged(pane)
-        }
-        override fun runCommand(line: String) {
-            runCommand(line)
-        }
-    }
+    val dashboardModel = ModuleDashboardModel(this)
     val target = manifest.targets[request.targetIndex]
     var viewerDownloadJob: ModuleJob? = null
     val companionName = "${target.company} ${target.deviceId.getReadableName()}"
