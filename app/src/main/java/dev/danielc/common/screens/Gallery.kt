@@ -63,12 +63,10 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
+import dev.danielc.common.BackgroundViewModel
 import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
 import dev.danielc.common.ui.theme.FudgeRippleConfig
@@ -187,7 +185,7 @@ data class FilesystemState(
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
 )
 
-abstract class GalleryViewModel : ViewModel() {
+abstract class GalleryViewModel : BackgroundViewModel() {
     private val _uiState = MutableStateFlow(FilesystemState())
     val uiState = _uiState.asStateFlow()
     private var thread: Job? = null
@@ -195,7 +193,7 @@ abstract class GalleryViewModel : ViewModel() {
     private var isThumbnailPriority: Boolean = true
     private val queueMutex = Mutex()
 
-    override fun onCleared() {
+    override fun onShutdown() {
         stop()
     }
 
@@ -296,7 +294,7 @@ abstract class GalleryViewModel : ViewModel() {
     }
 
     fun reset() {
-        viewModelScope.launch(Dispatchers.IO) {
+        CoroutineScope(Dispatchers.IO).launch {
             _uiState.update { currentState ->
                 currentState.copy(objects = mutableListOf())
             }
@@ -304,7 +302,7 @@ abstract class GalleryViewModel : ViewModel() {
     }
 
     fun setProperties(nItems: Int, name: String, sortBy: SortBy) {
-        viewModelScope.launch(Dispatchers.IO) {
+        CoroutineScope(Dispatchers.IO).launch {
             _uiState.update { currentState ->
                 val list = currentState.objects.toMutableList()
                 while (list.size < nItems) list.add(null)
@@ -318,7 +316,7 @@ abstract class GalleryViewModel : ViewModel() {
     }
 
     private fun updateObject(i: Int, block: (GalleryObject) -> GalleryObject) {
-        viewModelScope.launch(Dispatchers.IO) {
+        CoroutineScope(Dispatchers.IO).launch {
             _uiState.update { currentState ->
                 val list = currentState.objects.toMutableList()
                 while (list.size <= i) list.add(null)
@@ -354,7 +352,7 @@ abstract class GalleryViewModel : ViewModel() {
         }
     }
     fun enqueueObjects(indexes: List<Int>) {
-        viewModelScope.launch(Dispatchers.IO) {
+        CoroutineScope(Dispatchers.IO).launch {
             queueMutex.withLock {
                 println("enqueueing ${indexes.size}")
                 for (i in indexes) {
@@ -364,8 +362,9 @@ abstract class GalleryViewModel : ViewModel() {
             }
         }
     }
-    fun trimMemory(nObjectsToFree: Int = 10) {
-        viewModelScope.launch(Dispatchers.IO) {
+    override fun onTrimMemory() {
+        val nObjectsToFree = 10
+        CoroutineScope(Dispatchers.IO).launch {
             _uiState.update { currentState ->
                 val list = currentState.objects.toMutableList()
                 val oldest = _uiState.value.objects.sortedByDescending { it?.lastChecked }
@@ -507,7 +506,7 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
                     Text(state.storageName, color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(6.dp))
                 }
             }
-            Spacer(Modifier.weight(1f))
+            Spacer(Modifier.weight(0.5f))
             val interactionSource = remember { MutableInteractionSource() }
             Slider(modifier = Modifier.weight(1f), value = rows.toFloat(), valueRange = 2f..5f , steps = 3, onValueChange = {
                 rows = it.toInt()
@@ -622,7 +621,7 @@ fun PreviewGalleryScreen(navController: NavHostController = rememberNavControlle
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Green)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Blue)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Cyan)),
-    ))
+    ), storageName = "SDCARD")
 
     return FudgeTheme {
         Scaffold(

@@ -38,6 +38,9 @@ open class BackgroundViewModel {
     open fun onShutdown() {
         println("TODO: Shut down")
     }
+    open fun onResume() {
+        println("TODO: Unpaused")
+    }
 }
 
 @Suppress("ArrayInDataClass")

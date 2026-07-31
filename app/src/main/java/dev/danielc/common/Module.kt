@@ -40,24 +40,19 @@ data class ModuleJob(
     var isFinished: Boolean = false,
 )
 
-class ModuleGalleryViewModel: GalleryViewModel() {
-    var module: ModuleInstance? = null
+class ModuleGalleryViewModel(val module: ModuleInstance): GalleryViewModel() {
     override fun fulfillThumbnail(file: GalleryObjectReference) {
-        if (module!!.getFileThumbnail(file = FileHandle(file.index, null)) != 0) {
+        if (module.getFileThumbnail(file = FileHandle(file.index, null)) != 0) {
             updateThumbnail(file.index, thumbData = null)
         }
     }
 
     override fun fulfillMetadata(file: GalleryObjectReference) {
-        if (module!!.getFileMetadata(file = FileHandle(file.index, null)) != 0) {
+        if (module.getFileMetadata(file = FileHandle(file.index, null)) != 0) {
             updateMetadata(file.index, null)
         }
     }
 }
-
-data class ViewModelReferences(
-    val galleryViewModel: ModuleGalleryViewModel,
-)
 
 abstract class ModuleBase: NativeModule() {
     private var jobs = mutableMapOf<Int, ModuleJob>()
@@ -194,8 +189,8 @@ data class ModuleInstanceRequest(
 /**
  * Instance of a module with a single connection
  */
-class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRequest, val homeModelView: ModuleInstanceModel, viewModels: ViewModelReferences): ModuleBase() {
-    val galleryViewModel: ModuleGalleryViewModel = viewModels.galleryViewModel
+class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRequest, val homeModelView: ModuleInstanceModel): ModuleBase() {
+    val galleryViewModel = ModuleGalleryViewModel(this)
     val viewerViewModel = ViewerModel()
     val intervalometerModel = ModuleIntervalometerModel(this)
     val debugLogModel = ConsoleModel()
@@ -204,7 +199,6 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     val companionName = "${target.company} ${target.deviceId.getReadableName()}"
     init {
         Runtime.addModuleInstance(this)
-        galleryViewModel.module = this
     }
     var currentTickIntervalUs: Int = (100 * 1000)
     private var mainLoopJob: kotlinx.coroutines.Job? = null
@@ -218,7 +212,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     private var connectedWiFiAdapter: WiFi.Adapter? = null
 
     fun trimMemory() {
-        galleryViewModel.trimMemory()
+        galleryViewModel.onTrimMemory()
     }
 
     @CalledFromNative

@@ -28,7 +28,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.NavHost
@@ -43,7 +42,6 @@ import dev.danielc.common.ModuleManifest
 import dev.danielc.common.ModuleProperty
 import dev.danielc.common.Runtime
 import dev.danielc.common.Screen
-import dev.danielc.common.ViewModelReferences
 import dev.danielc.common.ui.DefaultNavHost
 import dev.danielc.common.ui.DisconnectDialog
 import dev.danielc.common.ui.theme.FudgeTheme
@@ -75,7 +73,7 @@ data class UiEvent(
     }
 }
 
-class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceRequest, viewModels: ViewModelReferences) : ViewModel() {
+class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceRequest) : ViewModel() {
     override fun onCleared() {
         runBlocking {
             module.deregister()
@@ -92,7 +90,7 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
     val connectRequiredAction = MutableStateFlow(ConnectingRequiredAction.NONE)
     val initializationError = MutableStateFlow(false)
 
-    var module: ModuleInstance = ModuleInstance(manifest, request, this, viewModels)
+    var module: ModuleInstance = ModuleInstance(manifest, request, this)
     init {
         module.initThread()
     }

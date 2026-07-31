@@ -11,9 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-class LocalGalleryViewModel(
-    //val directory: String
-) : GalleryViewModel() {
+class LocalGalleryViewModel: GalleryViewModel() {
     val viewer = ViewerModel(showSaveButton = false, showLoadDialog = false)
     var files = emptyList<FileLayer.MediaStoreFile>()
 
@@ -22,11 +20,6 @@ class LocalGalleryViewModel(
             refresh()
             start()
         }
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        stop()
     }
 
     fun refresh() {

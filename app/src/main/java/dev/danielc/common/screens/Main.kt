@@ -33,7 +33,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,7 +48,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
@@ -60,19 +58,16 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.danielc.R
 import dev.danielc.common.ConnectableDevice
-import dev.danielc.common.ModuleGalleryViewModel
 import dev.danielc.common.ModuleInstanceRequest
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Runtime
 import dev.danielc.common.SavedDeviceEntity
-import dev.danielc.common.ViewModelReferences
 import dev.danielc.common.ui.DefaultNavHost
 import dev.danielc.common.ui.ModuleList
 import dev.danielc.common.ui.ModuleListScreen
 import dev.danielc.common.ui.TargetCard
 import dev.danielc.common.ui.dummyManifestList
 import dev.danielc.common.ui.theme.FudgeTheme
-import dev.danielc.fudge.FileLayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -351,7 +346,6 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
                                     CircleShape
                                 )
                             )
-                            //Icon(painterResource( R.drawable.outline_construction_24), contentDescription = null, modifier = Modifier.padding(5.dp))
                         },
                         actions = {
                             IconButton(onClick = {
@@ -443,7 +437,7 @@ fun PreviewMainScreen() {
 fun MainNav(navController: NavHostController) {
     LaunchedEffect(Unit) {
         Runtime.trimMemorySignal.collect {
-            Runtime.localGalleryViewModel.trimMemory()
+            Runtime.localGalleryViewModel.onTrimMemory()
         }
     }
 
@@ -483,10 +477,7 @@ fun MainNav(navController: NavHostController) {
                     navController.navigateUp()
                 })
             } else {
-                val models = ViewModelReferences(
-                    viewModel(initializer = { ModuleGalleryViewModel() })
-                )
-                val model = viewModel(initializer = { ModuleInstanceModel(manifest, request, models) })
+                val model = viewModel(initializer = { ModuleInstanceModel(manifest, request) })
                 ModuleInstanceNav(model.module, backToMainScreen = {
                     navController.popBackStack(route = "home", inclusive = false)
                 })
