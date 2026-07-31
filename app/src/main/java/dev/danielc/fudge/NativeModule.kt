@@ -1,0 +1,75 @@
+package dev.danielc.fudge
+
+import dev.danielc.common.DashboardPane
+import dev.danielc.common.FileHandle
+import dev.danielc.common.SavedDeviceInfo
+import dev.danielc.libpak.Bluetooth
+import dev.danielc.libpak.Pak
+import dev.danielc.libpak.WiFi
+
+open class NativeModule {
+    var struct: ByteArray? = null
+
+    private var takenAssociationId: Boolean = false
+    private var connectedBluetoothDevice: Bluetooth.Device? = null
+    private var connectedWiFiAdapter: WiFi.Adapter? = null
+
+    fun setBluetoothDevice(dev: Bluetooth.Device?) { connectedBluetoothDevice = dev }
+    fun setWiFiDevice(dev: WiFi.Adapter?) { connectedWiFiAdapter = dev }
+    fun takeAndroidAssocationId(): Int? {
+        takenAssociationId = true
+        connectedBluetoothDevice?.let {
+            return it.associationId
+        }
+        connectedWiFiAdapter?.let {
+            return it.associationId
+        }
+        return -1
+    }
+    fun getConnectedMacAddress(): String? {
+        connectedBluetoothDevice?.let {
+            return it.address
+        }
+        connectedWiFiAdapter?.let {
+            return it.macAddress
+        }
+        return null
+    }
+    fun close() {
+//        if (!takenAssociationId) {
+//            connectedBluetoothDevice?.let {
+//                Pak.disassociate(it.address)
+//            }
+//            connectedWiFiAdapter?.let {
+//                Pak.disassociate(it.macAddress)
+//            }
+//        }
+    }
+
+    @Synchronized
+    external fun onFindConnection(job: Int): Int
+    @Synchronized
+    external fun onTryConnectWiFi(adapter: WiFi.Adapter, job: Int): Int
+    @Synchronized
+    external fun onTryConnectBluetooth(adapter: Bluetooth.Device, saved: SavedDeviceInfo?, job: Int): Int
+    @Synchronized
+    external fun onIdleTick(usSinceLastTick: Int): Int
+    @Synchronized
+    external fun onDisconnect(): Int
+    @Synchronized
+    external fun onSwitchScreen(oldScreen: Int, newScreen: Int, job: Int): Int
+    @Synchronized
+    external fun onRequestFileContents(job: Int, file: FileHandle): Int
+    @Synchronized
+    external fun onRequestFileThumbnail(job: Int, file: FileHandle): Int
+    @Synchronized
+    external fun onRequestFileMetadata(job: Int, file: FileHandle): Int
+    @Synchronized
+    external fun onRunCommand(job: Int, arg0: String?, arg1: String?, arg2: String?, arg3: String?): Int
+    @Synchronized
+    external fun onPropChanged(job: Int, pane: DashboardPane): Int
+    @Synchronized
+    external fun free()
+    @Synchronized
+    external fun setSetupOptionName(name: String)
+}

@@ -7,6 +7,7 @@ import dev.danielc.fudge.AndroidRuntime.getDatabase
 import dev.danielc.fudge.FileLayer
 import dev.danielc.libpak.Bluetooth
 import dev.danielc.libpak.Pak
+import dev.danielc.libpak.WiFi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -54,6 +55,7 @@ object Runtime {
     private val _trimMemorySignal = MutableSharedFlow<Unit>()
     val trimMemorySignal = _trimMemorySignal.asSharedFlow()
     suspend fun emitMemoryTrimSignal() { _trimMemorySignal.emit(Unit) }
+    var nearbyDevices = MutableStateFlow(mutableSetOf<String>())
     val mainLog = ConsoleModel()
     val localGalleryViewModel = LocalGalleryViewModel()
     var connectableDevices = listOf<ConnectableDevice>()
@@ -61,6 +63,17 @@ object Runtime {
     var savedDevices: Flow<List<SavedDeviceEntity>> = MutableStateFlow(emptyList())
     var moduleInstances = mutableMapOf<Int, ModuleInstance>()
     private var moduleCounter = 0
+
+    val callbacks = object : Pak.Callbacks() {
+        override fun onDeviceAppearance(address: String?, isNearby: Boolean) {
+            if (address != null) {
+                if (isNearby) nearbyDevices.value += address else nearbyDevices.value -= address
+            }
+        }
+        init {
+            Pak.callbacks = this
+        }
+    }
 
     fun findSavedDeviceEntity(id: String): SavedDeviceEntity? {
         val list = getDatabase().deviceDao().getAllDevicesList()
@@ -93,7 +106,7 @@ object Runtime {
         }
     }
 
-    // This doesn't work well in practice since per-app bonds are not available system wide
+    // This doesn't work well in practice since per-app bonds are not available system-wide
     fun refreshAgainstBondedDevices() {
         // Match installed manifests with bonded bluetooth devices
         val devices = Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())
@@ -135,15 +148,12 @@ object Runtime {
     }
 
     fun refreshConnectableDevices() {
-        // Sense nearby devices in database
         savedDevices = getDatabase().deviceDao().getAllDevices()
-        val savedDevices = getDatabase().deviceDao().getAllDevicesList()
-        for (d in savedDevices) {
-//            if (d.associationId != null)
-//                Bluetooth.senseNearbyDevice(d.associationId)
-            if (d.bluetoothMacAddress != null)
-                Bluetooth.startListeningToDevicePresence(d.bluetoothMacAddress)
-        }
+        // Detect nearby devices in database
+    //        val savedDevices = getDatabase().deviceDao().getAllDevicesList()
+//        for (d in savedDevices) {
+//            if (d.bluetoothMacAddress != null) Pak.startListeningToDevicePresence(d.bluetoothMacAddress)
+//        }
     }
 
     fun getManifestFromName(name: String): ModuleManifest? {
@@ -172,7 +182,7 @@ object Runtime {
             targets = listOf(
                 ModuleManifest.Target(
                     company = "Dummy",
-                    summary = "Fake session that can be used to test this app",
+                    summary = "Fake target that can be used to test this app",
                     deviceId = Device.GAME_CONTROLLER
                 )
             ),

@@ -237,3 +237,10 @@ enum class ModuleProperty(val id: String) {
         }
     }
 }
+
+enum class ModulePermission(val id: String) {
+    WIFI("wifi"),
+    BLUETOOTH("bluetooth"),
+    SOCKETS("sockets"),
+    INTERNET("internet"),
+}

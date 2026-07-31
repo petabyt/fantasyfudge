@@ -132,9 +132,7 @@ fun ModuleCard(manifest: ModuleManifest, info: () -> Unit, delete: () -> Unit) {
 
                     Spacer(modifier = Modifier.width(12.dp))
 
-                    Column(
-                        modifier = Modifier.weight(1f)
-                    ) {
+                    Column(Modifier.weight(1f)) {
                         Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text(
                                 text = manifest.name,

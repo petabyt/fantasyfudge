@@ -52,21 +52,25 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.navigation.NavHostController
-import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.danielc.R
+import dev.danielc.common.BackgroundViewModel
 import dev.danielc.common.DashboardPane
 import dev.danielc.common.Device
 import dev.danielc.common.ModuleManifest
+import dev.danielc.common.ModuleProperty
 import dev.danielc.common.ui.IntGridGraph
 import dev.danielc.common.ui.PreviewPixel9ProDark
 import dev.danielc.common.ui.theme.FudgeRippleConfig
 import dev.danielc.common.ui.theme.FudgeTheme
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class DashboardState(
-    val manifest: ModuleManifest?,
     val panes: List<DashboardPane> = emptyList(),
     val batteryLevelMain: Int? = null,
     val batteryLevelLeft: Int? = null,
@@ -79,11 +83,68 @@ data class DashboardState(
     val connectionType: ModuleManifest.Transport? = null,
 )
 
-data class DashboardCallbacks(
-    val updatePaneValue: (DashboardPane) -> Unit = { },
-    val disconnect: () -> Unit = { },
-    val runCommand: (String) -> Unit = { },
-)
+open class DashboardModel(val manifest: ModuleManifest, initialState: DashboardState? = null): BackgroundViewModel() {
+    private val _state = MutableStateFlow(initialState ?: DashboardState())
+    val state = _state.asStateFlow()
+    open fun propChanged(pane: DashboardPane) {}
+    open fun disconnect() {}
+    open fun runCommand(line: String) {}
+
+    fun updateNumFiles(files: Int?) {
+        _state.update { it.copy(filesOnStorage = files) }
+    }
+    fun setProperty(type: ModuleProperty, value: String) {
+        scope.launch(Dispatchers.IO) {
+            _state.update { currentState ->
+                when (type) {
+                    ModuleProperty.NAME_OF_DEVICE -> currentState.copy(nameOfDevice = value)
+                    ModuleProperty.FIRMWARE_VERSION -> currentState.copy(firmwareVersion = value)
+                    else -> currentState
+                }
+            }
+        }
+    }
+    fun setProperty(type: ModuleProperty, value: Int) {
+        scope.launch(Dispatchers.IO) {
+            _state.update { currentState ->
+                when (type) {
+                    ModuleProperty.TEMPERATURE -> currentState.copy(temperature = value)
+                    ModuleProperty.HUMIDITY -> currentState.copy(humidity = value)
+                    ModuleProperty.BATTERY_LEFT -> currentState.copy(batteryLevelLeft = value)
+                    ModuleProperty.BATTERY_MAIN -> currentState.copy(batteryLevelMain = value)
+                    ModuleProperty.BATTERY_RIGHT -> currentState.copy(batteryLevelRight = value)
+                    else -> currentState
+                }
+            }
+        }
+    }
+    fun setDashboardPane(pane: DashboardPane) {
+        scope.launch(Dispatchers.IO) {
+            _state.update { currentState ->
+                if (currentState.panes.find { it.args.name == pane.args.name } == null) {
+                    currentState.copy(panes = currentState.panes + pane)
+                } else {
+                    currentState
+                }
+            }
+        }
+    }
+    fun updateSettingPane(pane: DashboardPane) {
+        scope.launch(Dispatchers.IO) {
+            _state.update { currentState ->
+                val index = currentState.panes.find { it.args.name == pane.args.name }
+                val list = currentState.panes.toMutableList()
+                if (index != null) {
+                    list[currentState.panes.indexOf(index)] = pane
+                    currentState.copy(panes = list)
+                } else {
+                    currentState
+                }
+            }
+            propChanged(pane)
+        }
+    }
+}
 
 data class PaneState(
     val color: PaneState.Color = PaneState.Color.SECONDARY,
@@ -102,32 +163,30 @@ data class PaneState(
     }
 }
 
-fun cameraState(): DashboardState {
+private fun cameraState(): DashboardModel {
     val manifest = ModuleManifest(name = "Fujifilm", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA)))
-    return DashboardState(
-        manifest = manifest,
+    return DashboardModel(manifest, DashboardState(
         nameOfDevice = "Fujifilm X100VI",
         filesOnStorage = 321,
         batteryLevelMain = 78,
         firmwareVersion = "0.1.0",
-    )
+    ))
 }
 
 //@PreviewPixel9ProDark
 @Composable
-fun PreviewDashboardCamera() {
+private fun PreviewDashboardCamera() {
     var state by remember { mutableStateOf(cameraState()) }
     return FudgeTheme {
         Scaffold { innerPadding ->
-            Dashboard(Modifier.padding(innerPadding), state = state, callbacks = DashboardCallbacks())
+            Dashboard(Modifier.padding(innerPadding), state)
         }
     }
 }
 
-fun budsState(): DashboardState {
+private fun budsState(): DashboardModel {
     val manifest = ModuleManifest(name = "CMF Nothing", description = "Supports", targets = listOf(ModuleManifest.Target(deviceId = Device.EARBUDS)))
-    val state = DashboardState(
-        manifest = manifest,
+    return DashboardModel(manifest, DashboardState(
         nameOfDevice = "CMF Buds Pro 2",
         firmwareVersion = "5.0",
         panes = listOf(
@@ -153,18 +212,17 @@ fun budsState(): DashboardState {
                 points = intArrayOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 5, 7, 8, 5)
             ),
         )
-    )
-    return state
+    ))
 }
 
 @PreviewPixel9ProDark
 @Composable
-fun PreviewDashboardBuds() {
+private fun PreviewDashboardBuds() {
     var state by remember { mutableStateOf(budsState()) }
     return FudgeTheme {
         Scaffold(
             content = { innerPadding ->
-                Dashboard(Modifier.padding(innerPadding), state = state, callbacks = DashboardCallbacks())
+                Dashboard(Modifier.padding(innerPadding), state)
             }
         )
     }
@@ -172,7 +230,7 @@ fun PreviewDashboardBuds() {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun DashboardPane(modifier: Modifier = Modifier, bg: Color, fg: Color, content: @Composable () -> Unit, onClick: () -> Unit) {
+private fun DashboardPane(modifier: Modifier = Modifier, bg: Color, fg: Color, content: @Composable () -> Unit, onClick: () -> Unit) {
     CompositionLocalProvider(LocalRippleConfiguration provides FudgeRippleConfig(fg)) {
         Box(modifier = modifier
             .clip(RoundedCornerShape(12.dp))
@@ -188,7 +246,7 @@ fun DashboardPane(modifier: Modifier = Modifier, bg: Color, fg: Color, content: 
     }
 }
 
-fun getBatteryStatusIcon(percent: Int): Int {
+private fun getBatteryStatusIcon(percent: Int): Int {
     return when (percent) {
         0 -> R.drawable.outline_battery_android_0_24
         in 1..13 -> R.drawable.outline_battery_android_frame_1_24
@@ -223,7 +281,7 @@ fun BatteryListPane(batteries: List<PaneBatteryStatus>): PaneState {
 }
 
 @Composable
-fun SettingsDialog(dashboardCallbacks: DashboardCallbacks, close: () -> Unit = {}) {
+fun SettingsDialog(model: DashboardModel, close: () -> Unit = {}) {
     Dialog(onDismissRequest = {
         close()
     }) {
@@ -243,7 +301,7 @@ fun SettingsDialog(dashboardCallbacks: DashboardCallbacks, close: () -> Unit = {
                     onValueChange = { terminalCommand = it },
                     label = { Text("Terminal command") }
                 )
-                Button(onClick = {dashboardCallbacks.runCommand(terminalCommand)}) {
+                Button(onClick = {model.runCommand(terminalCommand)}) {
                     Text("Execute")
                 }
             }
@@ -275,12 +333,13 @@ fun DropdownDialog(close: () -> Unit = {}, dropdownSetting: DashboardPane.Dropdo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = rememberNavController(), state: DashboardState, callbacks: DashboardCallbacks) {
+fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
+    val state by model.state.collectAsStateWithLifecycle()
     var showSettings by remember { mutableStateOf(false) }
     var selectedDropdown by remember { mutableStateOf<DashboardPane.DropdownSetting?>(null) }
     val coroutineScope = rememberCoroutineScope()
     if (showSettings) {
-        SettingsDialog(callbacks, close = {
+        SettingsDialog(model, close = {
             showSettings = false
         })
     }
@@ -288,7 +347,7 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
         DropdownDialog({
             selectedDropdown = null
         }, setting, { i ->
-            callbacks.updatePaneValue(setting.copy(index = i))
+            model.updateSettingPane(setting.copy(index = i))
             coroutineScope.launch {
                 delay(200)
                 selectedDropdown = null
@@ -305,22 +364,22 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
             Column(Modifier.padding(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (state.nameOfDevice != null) {
-                        if (state.manifest != null && !state.manifest.targets.isEmpty())
+                    state.nameOfDevice?.let { name ->
+                        if (!model.manifest.targets.isEmpty())
                             Icon(
-                                painter = painterResource(state.manifest.targets[0].deviceId.getIcon()),
+                                painter = painterResource(model.manifest.targets[0].deviceId.getIcon()),
                                 contentDescription = null
                             )
                         Text(
-                            state.nameOfDevice,
+                            name,
                             fontSize = 25.sp,
                             modifier = Modifier.padding(5.dp)
                         )
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, alignment = Alignment.End)) {
-                        if (state.batteryLevelMain != null) {
+                        state.batteryLevelMain?.let {
                             Icon(
-                                painter = painterResource(getBatteryStatusIcon(state.batteryLevelMain)),
+                                painter = painterResource(getBatteryStatusIcon(it)),
                                 contentDescription = null,
                             )
                         }
@@ -355,34 +414,34 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                 showSettings = true
             }),
             PaneState(PaneState.Color.ERROR, "Disconnect", R.drawable.outline_close_24, onClick = {
-                callbacks.disconnect()
+                model.disconnect()
             }),
         )
 
         val batteries = mutableListOf<PaneBatteryStatus>()
-        if (state.batteryLevelLeft != null) batteries.add(PaneBatteryStatus("Left", state.batteryLevelLeft))
-        if (state.batteryLevelMain != null) batteries.add(PaneBatteryStatus("Base", state.batteryLevelMain))
-        if (state.batteryLevelRight != null) batteries.add(PaneBatteryStatus("Right", state.batteryLevelRight))
+        state.batteryLevelLeft?.let { level -> batteries.add(PaneBatteryStatus("Left", level)) }
+        state.batteryLevelMain?.let { level -> batteries.add(PaneBatteryStatus("Base", level)) }
+        state.batteryLevelRight?.let { level ->  batteries.add(PaneBatteryStatus("Right", level)) }
         if (batteries.size > 1) panes += BatteryListPane(batteries)
 
-        if (state.temperature != null) {
+        state.temperature?.let { temp ->
             panes += PaneState(PaneState.Color.NEUTRAL, content = {
                 Row(Modifier.fillMaxWidth()) {
                     Icon(painterResource(R.drawable.outline_device_thermostat_24), contentDescription = null)
                     Text("Temperature", color = MaterialTheme.colorScheme.onSurface)
                 }
-                val c = state.temperature.toFloat() / 100
+                val c = temp.toFloat() / 100
                 Text("%.2f C / %.2f F".format(c, c * 1.8 + 32))
             })
         }
 
-        if (state.humidity != null) {
+        state.humidity?.let { humid ->
             panes += PaneState(PaneState.Color.NEUTRAL, content = {
                 Row(Modifier.fillMaxWidth()) {
                     Icon(painterResource(R.drawable.outline_humidity_percentage_24), contentDescription = null)
                     Text("Humidity", color = MaterialTheme.colorScheme.onSurface)
                 }
-                Text("%.2f%%".format(state.humidity.toFloat() / 100))
+                Text("%.2f%%".format(humid.toFloat() / 100))
             })
         }
 
@@ -393,14 +452,14 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                         Text(pane.args.title, style = MaterialTheme.typography.titleSmall)
                         Switch(pane.value,
                             onCheckedChange = {
-                                callbacks.updatePaneValue(pane.copy(value = !pane.value))
+                                model.updateSettingPane(pane.copy(value = !pane.value))
                             }
                         )
                     })
                 }
                 is DashboardPane.Button -> {
                     PaneState(PaneState.Color.PRIMARY, text = pane.args.title, onClick = {
-                        callbacks.updatePaneValue(pane)
+                        model.updateSettingPane(pane)
                     })
                 }
                 is DashboardPane.Graph -> {
@@ -435,7 +494,7 @@ fun Dashboard(modifier: Modifier = Modifier, navController: NavHostController = 
                                 keyboardType = KeyboardType.Decimal
                             ),
                             value = pane.value.toString(),
-                            onValueChange = { callbacks.updatePaneValue(pane.copy(value = it.toInt())) },
+                            onValueChange = { model.updateSettingPane(pane.copy(value = it.toInt())) },
                             label = { Text(pane.args.title) }
                         )
                     })

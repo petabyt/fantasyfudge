@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -42,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
@@ -187,7 +189,7 @@ fun ConnectableDeviceCard(dev: ConnectableDevice, clicked: (String?) -> Unit = {
 }
 
 @Composable
-fun SavedDeviceCard(manifest: ModuleManifest, target: ModuleManifest.Target, dev: SavedDeviceEntity, clicked: () -> Unit = {}) {
+fun SavedDeviceCard(manifest: ModuleManifest, target: ModuleManifest.Target, dev: SavedDeviceEntity, isNearby: Boolean, clicked: () -> Unit = {}) {
     Box(modifier = Modifier
         .fillMaxWidth()
         .clip(RoundedCornerShape(12.dp))
@@ -219,13 +221,15 @@ fun SavedDeviceCard(manifest: ModuleManifest, target: ModuleManifest.Target, dev
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                     )
-//                    Spacer(Modifier.weight(1f))
-//                    Box(Modifier.size(7.dp).clip(CircleShape).background(Color.Green))
-//                    Text(
-//                        text = "Nearby",
-//                        style = MaterialTheme.typography.titleMedium,
-//                        maxLines = 1,
-//                    )
+                    if (isNearby) {
+                        Spacer(Modifier.weight(1f))
+                        Box(Modifier.size(7.dp).clip(CircleShape).background(Color.Green))
+                        Text(
+                            text = "Nearby",
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                        )
+                    }
                 }
                 val diff = System.currentTimeMillis().milliseconds.toLong(DurationUnit.MILLISECONDS) - dev.lastSeenTimestamp
                 Text("Last connected ${diff / 1000 / 60 / 60} hours ago")
@@ -240,6 +244,7 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
     var isRefreshing by remember { mutableStateOf(false) }
     var mutManifestList by remember { mutableStateOf(manifestList) }
     var mutDevList by remember { mutableStateOf(deviceList) }
+    val nearbyList by Runtime.nearbyDevices.collectAsStateWithLifecycle()
     PullToRefreshBox(
         state = rememberPullToRefreshState(),
         isRefreshing = isRefreshing,
@@ -280,8 +285,9 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
                 items(savedDevicesList) { dev ->
                     val manifest = Runtime.getManifestFromName(dev.manifestName)
                     val target = manifest?.targets?.getOrNull(dev.targetIndex)
+                    val isNearby = nearbyList.contains(dev.bluetoothMacAddress)
                     if (manifest != null && target != null) {
-                        SavedDeviceCard(manifest, target, dev, clicked = {
+                        SavedDeviceCard(manifest, target, dev, isNearby, clicked = {
                             clicked(ModuleInstanceRequest(
                                 manifest.name,
                                 dev.targetIndex,

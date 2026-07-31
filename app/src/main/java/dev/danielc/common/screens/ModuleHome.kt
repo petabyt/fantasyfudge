@@ -80,8 +80,6 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
         }
     }
 
-    private val _dashboardState = MutableStateFlow(DashboardState(manifest, connectionType = request.getSetupOption()?.transport))
-    val dashboardState = _dashboardState.asStateFlow()
     private val _homeState = MutableStateFlow(HomeState())
     val homeState = _homeState.asStateFlow()
     private val _uiEvents = MutableSharedFlow<UiEvent>(replay = 1)
@@ -93,14 +91,6 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
     var module: ModuleInstance = ModuleInstance(manifest, request, this)
     init {
         module.initThread()
-    }
-
-    fun updateNumFiles(files: Int?) {
-        _dashboardState.update { state ->
-            state.copy(
-                filesOnStorage = files
-            )
-        }
     }
 
     fun showDisconnectDialog(v: Boolean) {
@@ -132,32 +122,6 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
         sendUiEvent(if (isInNavBar) UiEvent.UiEventType.GO_BACK_NAV else UiEvent.UiEventType.GO_BACK_SCREEN, Screen.NONE)
     }
 
-    fun setProperty(type: ModuleProperty, value: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _dashboardState.update { currentState ->
-                when (type) {
-                    ModuleProperty.NAME_OF_DEVICE -> currentState.copy(nameOfDevice = value)
-                    ModuleProperty.FIRMWARE_VERSION -> currentState.copy(firmwareVersion = value)
-                    else -> currentState
-                }
-            }
-        }
-    }
-    fun setProperty(type: ModuleProperty, value: Int) {
-        viewModelScope.launch(Dispatchers.IO) {
-            _dashboardState.update { currentState ->
-                when (type) {
-                    ModuleProperty.TEMPERATURE -> currentState.copy(temperature = value)
-                    ModuleProperty.HUMIDITY -> currentState.copy(humidity = value)
-                    ModuleProperty.BATTERY_LEFT -> currentState.copy(batteryLevelLeft = value)
-                    ModuleProperty.BATTERY_MAIN -> currentState.copy(batteryLevelMain = value)
-                    ModuleProperty.BATTERY_RIGHT -> currentState.copy(batteryLevelRight = value)
-                    else -> currentState
-                }
-            }
-        }
-    }
-
     fun setSupportedScreen(s: Screen, v: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             _homeState.update { currentState ->
@@ -182,36 +146,6 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
             }
         }
     }
-
-    fun setDashboardPane(pane: DashboardPane) {
-        viewModelScope.launch(Dispatchers.Default) {
-            _dashboardState.update { currentState ->
-                if (currentState.panes.find { it.args.name == pane.args.name } == null) {
-                    currentState.copy(panes = currentState.panes + pane)
-                } else {
-                    currentState
-                }
-            }
-        }
-    }
-
-    fun updateSettingPane(pane: DashboardPane) {
-        viewModelScope.launch(Dispatchers.Default) {
-            _dashboardState.update { currentState ->
-                val index = currentState.panes.find { it.args.name == pane.args.name }
-                val list = currentState.panes.toMutableList()
-                if (index != null) {
-                    list[currentState.panes.indexOf(index)] = pane
-                    currentState.copy(panes = list)
-                } else {
-                    currentState
-                }
-            }
-            CoroutineScope(Dispatchers.IO).launch {
-                module.setProp(pane)
-            }
-        }
-    }
 }
 
 /// Contains main instance navigation bar
@@ -220,8 +154,7 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
     val model = module.homeModelView
     val navController = rememberNavController()
     val homeState by model.homeState.collectAsStateWithLifecycle()
-    val dashboardState by model.dashboardState.collectAsStateWithLifecycle()
-    val galleryState by module.galleryViewModel.uiState.collectAsStateWithLifecycle()
+    val dashboardState by module.dashboardModel.state.collectAsStateWithLifecycle()
     val navScreens = homeState.supportedNavBarScreenList.sortedBy { when (it) {
         Screen.DASHBOARD -> 0 // ensure dashboard is always first
         Screen.FILE_GALLERY -> 1
@@ -305,23 +238,10 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                 navController = navController, startDestination = Screen.DASHBOARD.strId) {
                 composable(Screen.DASHBOARD.strId) {
                     BackHandler { goBack() }
-                    Dashboard(Modifier.padding(innerPadding), navController, state = dashboardState, callbacks =
-                        DashboardCallbacks(
-                            updatePaneValue = { pane ->
-                                model.updateSettingPane(pane)
-                            },
-                            disconnect = {
-                                model.showDisconnectDialog(true)
-                            },
-                            runCommand = { cmd ->
-                                CoroutineScope(Dispatchers.IO).launch {
-                                    module.runCommand(cmd)
-                                }
-                            }
-                        )
-                    )
+                    Dashboard(Modifier.padding(innerPadding), module.dashboardModel)
                 }
                 composable(Screen.FILE_GALLERY.strId) {
+                    val galleryState by module.galleryViewModel.uiState.collectAsStateWithLifecycle()
                     BackHandler { goBack() }
                     Gallery(Modifier.padding(innerPadding), galleryState, requestLoad = { items ->
                         module.galleryViewModel.enqueueObjects(items)

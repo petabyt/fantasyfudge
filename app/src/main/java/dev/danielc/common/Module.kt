@@ -1,6 +1,7 @@
 package dev.danielc.common
 import dev.danielc.common.screens.ConnectingRequiredAction
 import dev.danielc.common.screens.ConsoleModel
+import dev.danielc.common.screens.DashboardModel
 import dev.danielc.common.screens.GalleryObjectReference
 import dev.danielc.common.screens.GalleryViewModel
 import dev.danielc.common.screens.ModuleInstanceModel
@@ -149,7 +150,7 @@ abstract class ModuleBase: NativeModule() {
             ), job.id)
         }
     }
-    fun setProp(pane: DashboardPane): Int {
+    fun propChanged(pane: DashboardPane): Int {
         return withJob({}) { job ->
             onPropChanged(job.id, pane)
         }
@@ -194,6 +195,19 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     val viewerViewModel = ViewerModel()
     val intervalometerModel = ModuleIntervalometerModel(this)
     val debugLogModel = ConsoleModel()
+    val dashboardModel = object: DashboardModel(manifest) {
+        override fun disconnect() {
+            scope.launch {
+                homeModelView.showDisconnectDialog(true)
+            }
+        }
+        override fun propChanged(pane: DashboardPane) {
+            propChanged(pane)
+        }
+        override fun runCommand(line: String) {
+            runCommand(line)
+        }
+    }
     val target = manifest.targets[request.targetIndex]
     var viewerDownloadJob: ModuleJob? = null
     val companionName = "${target.company} ${target.deviceId.getReadableName()}"
@@ -208,8 +222,6 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     var disconnectReason: String? = null
     var disconnectedErrorCode: Int? = null
     private var isNavigating = false
-    private var connectedBluetoothDevice: Bluetooth.Device? = null
-    private var connectedWiFiAdapter: WiFi.Adapter? = null
 
     fun trimMemory() {
         galleryViewModel.onTrimMemory()
@@ -225,8 +237,8 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                 manifestName = manifest.name,
                 targetIndex = request.targetIndex,
                 setupOption = request.chosenSetupOption,
-                bluetoothMacAddress = connectedBluetoothDevice?.address,
-                associationId = connectedBluetoothDevice?.associationId
+                bluetoothMacAddress = getConnectedMacAddress(),
+                associationId = takeAndroidAssocationId(),
             ))
         }
     }
@@ -250,7 +262,10 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         stopAllThreads()
         println("Deregistering module")
         Runtime.removeModuleInstance(this)
-        if (!homeModelView.initializationError.value) free()
+        if (!homeModelView.initializationError.value) {
+            close()
+            free()
+        }
     }
     @CalledFromNative
     fun getMetadata(file: FileHandle): FileMetadata? {
@@ -258,11 +273,11 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     }
     @CalledFromNative
     fun setProperty(type: String, value: String) {
-        homeModelView.setProperty(ModuleProperty.fromId(type) ?: return, value)
+        dashboardModel.setProperty(ModuleProperty.fromId(type) ?: return, value)
     }
     @CalledFromNative
     fun setProperty(type: String, value: Int) {
-        homeModelView.setProperty(ModuleProperty.fromId(type) ?: return, value)
+        dashboardModel.setProperty(ModuleProperty.fromId(type) ?: return, value)
     }
     @CalledFromNative
     fun setScreenSupported(id: Int, v: Boolean) {
@@ -270,7 +285,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     }
     @CalledFromNative
     fun setDashboardPane(pane: DashboardPane) {
-        homeModelView.setDashboardPane(pane)
+        dashboardModel.setDashboardPane(pane)
     }
     @CalledFromNative
     fun setProgressBar(job: Int, v: Int) {
@@ -320,7 +335,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         // TODO: Manage multiple storage devices
         galleryViewModel.setProperties(nItems, name, SortBy.fromId(sortBy)!!)
         // TODO: Count total files if needed
-        homeModelView.updateNumFiles(nItems)
+        dashboardModel.updateNumFiles(nItems)
     }
     @CalledFromNative
     private fun setIsConnected() {
@@ -379,7 +394,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
 
             override fun onConnected(net: WiFi.Adapter) {
                 if (tryConnectWiFi(net) == 0) {
-                    connectedWiFiAdapter = net
+                    setWiFiDevice(net)
                     setIsConnected()
                 }
             }
@@ -411,12 +426,12 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         } else {
             fun doConnect(dev: Bluetooth.Device) {
                 debugLog("Connecting to '${dev.name}'...")
-                connectedBluetoothDevice = dev
+                setBluetoothDevice(dev)
                 val rc = tryConnectBluetooth(dev, saved, {job -> connectCallback(job)})
                 if (rc == 0) {
                     setIsConnected()
                 } else {
-                    connectedBluetoothDevice = null
+                    setBluetoothDevice(null)
                     disconnect("Failed to connect", rc)
                 }
             }
@@ -488,7 +503,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             homeModelView.initializationError.value = true
             return true
         }
-        setSetupOptionName(request.chosenSetupOption)
+        request.chosenSetupOption?.let { setSetupOptionName(it) }
         return false
     }
 
