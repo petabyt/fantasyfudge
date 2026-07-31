@@ -24,8 +24,6 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
@@ -38,7 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
-import dev.danielc.common.AppSettingEntity
+import dev.danielc.common.Runtime
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
 import dev.danielc.fudge.FileLayer
@@ -61,13 +59,7 @@ fun ClickableCard(text: String, icon: Painter, onClick: () -> Unit = {}) {
 @Composable
 fun SettingsScreen(navController: NavController = rememberNavController()) {
     val uriHandler = LocalUriHandler.current
-    // A bit of weird logic here to make it work with @Preview
-    val settings by AndroidRuntime.getDatabaseNullable().let {
-        it?.settingsDao()?.getFlow()?.collectAsStateWithLifecycle(null) ?: remember { mutableStateOf(AppSettingEntity(
-            downloadsLocation = "/home/daniel/Pictures/"
-        )) }
-    }
-    val settingsValue = settings ?: AppSettingEntity()
+    val settingsValue by Runtime.appSettings.collectAsStateWithLifecycle()
     return FudgeTheme {
         Scaffold(
             topBar = {

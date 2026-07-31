@@ -52,9 +52,9 @@ interface SettingsDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun save(config: AppSettingEntity)
     @Query("SELECT * FROM app_settings WHERE id = 1")
-    suspend fun get(): AppSettingEntity?
+    suspend fun get(): AppSettingEntity
     @Query("SELECT * FROM app_settings WHERE id = 1")
-    fun getFlow(): Flow<AppSettingEntity?>
+    fun getFlow(): Flow<AppSettingEntity>
 }
 
 @Database(entities = [SavedDeviceEntity::class, AppSettingEntity::class], version = 4, exportSchema = false)

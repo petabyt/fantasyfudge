@@ -240,10 +240,11 @@ fun SavedDeviceCard(manifest: ModuleManifest, target: ModuleManifest.Target, dev
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<ConnectableDevice>, manifestList: List<ModuleManifest>, savedDevicesList: List<SavedDeviceEntity>, clicked: (ModuleInstanceRequest) -> Unit) {
+fun ModuleDeviceList(modifier: Modifier = Modifier, clicked: (ModuleInstanceRequest) -> Unit) {
     var isRefreshing by remember { mutableStateOf(false) }
-    var mutManifestList by remember { mutableStateOf(manifestList) }
-    var mutDevList by remember { mutableStateOf(deviceList) }
+    val savedDevices by Runtime.savedDevices.collectAsStateWithLifecycle()
+    val deviceList by Runtime.connectableDevices.collectAsStateWithLifecycle()
+    val manifestList by Runtime.moduleManifests.collectAsStateWithLifecycle()
     val nearbyList by Runtime.nearbyDevices.collectAsStateWithLifecycle()
     PullToRefreshBox(
         state = rememberPullToRefreshState(),
@@ -252,23 +253,19 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
             CoroutineScope(Dispatchers.IO).launch {
                 isRefreshing = true
                 Runtime.refreshManifests()
-                mutManifestList = Runtime.moduleManifests
-                Runtime.refreshConnectableDevices()
-                mutDevList = Runtime.connectableDevices
                 isRefreshing = false
             }
         },
         modifier = modifier
     ) {
-
         Column(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (mutDevList.isNotEmpty()) {
+                if (deviceList.isNotEmpty()) {
                     item {
                         Text("Bonded devices:")
                     }
                 }
-                items(mutDevList) { dev ->
+                items(deviceList, key = { isRefreshing }) { dev ->
                     ConnectableDeviceCard(dev, clicked = {
                         clicked(ModuleInstanceRequest(
                             dev.manifest.name,
@@ -277,12 +274,12 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
                         ))
                     })
                 }
-                if (savedDevicesList.isNotEmpty()) {
+                if (savedDevices.isNotEmpty()) {
                     item {
                         Text("Connect again:")
                     }
                 }
-                items(savedDevicesList) { dev ->
+                items(savedDevices) { dev ->
                     val manifest = Runtime.getManifestFromName(dev.manifestName)
                     val target = manifest?.targets?.getOrNull(dev.targetIndex)
                     val isNearby = nearbyList.contains(dev.bluetoothMacAddress)
@@ -301,7 +298,7 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, deviceList: List<Connectable
                     Text("Select a type of device to connect to:")
                 }
                 val targets = mutableListOf<Pair<ModuleManifest.Target, ModuleManifest>>()
-                for (manifest in mutManifestList) {
+                for (manifest in manifestList) {
                     for (target in manifest.targets) {
                         targets += Pair(target, manifest)
                     }
@@ -322,7 +319,6 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
     val subNavController = rememberNavController()
     val haptic = LocalHapticFeedback.current
     val navBackStackEntry by subNavController.currentBackStackEntryAsState()
-    val savedDevices by Runtime.savedDevices.collectAsStateWithLifecycle(emptyList())
 
     data class NavItem(
         val icon: Int,
@@ -400,16 +396,14 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
             ) {
                 composable("connect") {
                     ModuleDeviceList(
-                        savedDevicesList = savedDevices,
-                        deviceList = Runtime.connectableDevices,
-                        manifestList = Runtime.moduleManifests,
                         clicked = { request ->
                             navController.navigate(request)
                         }
                     )
                 }
                 composable("modules") {
-                    ModuleList(manifestList = Runtime.moduleManifests)
+                    val manifestList by Runtime.moduleManifests.collectAsStateWithLifecycle()
+                    ModuleList(manifestList = manifestList)
                 }
                 composable("local-gallery") {
                     LocalGallery(onItemClick = { i ->
@@ -435,7 +429,7 @@ fun PreviewMainScreen() {
         setupOption = "bluetooth",
         privateData = null,
     )))
-    Runtime.moduleManifests = dummyManifestList as MutableList<ModuleManifest>
+    Runtime.moduleManifests = MutableStateFlow(dummyManifestList)
     MainScreen()
 }
 

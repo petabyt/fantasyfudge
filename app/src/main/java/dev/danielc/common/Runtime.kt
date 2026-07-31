@@ -7,21 +7,14 @@ import dev.danielc.fudge.AndroidRuntime.getDatabase
 import dev.danielc.fudge.FileLayer
 import dev.danielc.libpak.Bluetooth
 import dev.danielc.libpak.Pak
-import dev.danielc.libpak.WiFi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.decodeFromJsonElement
-import kotlinx.serialization.json.int
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.coroutines.flow.stateIn
 
 /**
  * This is used over ViewModel so that it can be easily stowed away and kept running in the background
@@ -58,9 +51,18 @@ object Runtime {
     var nearbyDevices = MutableStateFlow(mutableSetOf<String>())
     val mainLog = ConsoleModel()
     val localGalleryViewModel = LocalGalleryViewModel()
-    var connectableDevices = listOf<ConnectableDevice>()
-    var moduleManifests = listOf<ModuleManifest>()
-    var savedDevices: Flow<List<SavedDeviceEntity>> = MutableStateFlow(emptyList())
+    var connectableDevices = MutableStateFlow<List<ConnectableDevice>>(emptyList())
+    var moduleManifests = MutableStateFlow(listOf<ModuleManifest>())
+    var savedDevices: StateFlow<List<SavedDeviceEntity>> = AndroidRuntime.getDatabaseNullable()?.deviceDao()?.getAllDevices()?.stateIn(
+        CoroutineScope(Dispatchers.IO),
+        SharingStarted.WhileSubscribed(stopTimeoutMillis = 5000),
+        emptyList()
+    ) ?: MutableStateFlow(listOf()) // Compose preview fallback
+    val appSettings: StateFlow<AppSettingEntity> = AndroidRuntime.getDatabaseNullable()?.settingsDao()?.getFlow()?.stateIn(
+        CoroutineScope(Dispatchers.IO),
+        SharingStarted.WhileSubscribed(stopTimeoutMillis = 5000),
+        AppSettingEntity()
+    ) ?: MutableStateFlow(AppSettingEntity(1, "/home/daniel/Pictures")) // Compose preview fallback
     var moduleInstances = mutableMapOf<Int, ModuleInstance>()
     private var moduleCounter = 0
 
@@ -139,25 +141,19 @@ object Runtime {
         }
         for (d in devices) {
             //d.refreshSdpUuids()
-            for (m in moduleManifests) {
+            for (m in moduleManifests.value) {
                 if (matchAgainstManifest(m, d)) break
             }
             //d.closeAll()
         }
-        connectableDevices = list
+        connectableDevices.value = list
     }
 
     fun refreshConnectableDevices() {
-        savedDevices = getDatabase().deviceDao().getAllDevices()
-        // Detect nearby devices in database
-    //        val savedDevices = getDatabase().deviceDao().getAllDevicesList()
-//        for (d in savedDevices) {
-//            if (d.bluetoothMacAddress != null) Pak.startListeningToDevicePresence(d.bluetoothMacAddress)
-//        }
     }
 
     fun getManifestFromName(name: String): ModuleManifest? {
-        for (m in moduleManifests) {
+        for (m in moduleManifests.value) {
             if (m.name == name) return m
         }
         return null
@@ -275,6 +271,6 @@ object Runtime {
             val manifest = manifestFromJson(String(text), filename) ?: continue
             list += manifest
         }
-        moduleManifests = list
+        moduleManifests.value = list
     }
 }

@@ -49,6 +49,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
@@ -68,7 +69,7 @@ val dummyManifestList: List<ModuleManifest> = listOf(
     ModuleManifest(name = "libroku", description = "Roku TV and media systems", targets = listOf(ModuleManifest.Target(Device.SMART_TV, "Roku", "Roku TV and media systems"))),
 )
 
-@Preview(showBackground = true, device = "id:pixel_9", uiMode = 32)
+//@Preview(showBackground = true, device = "id:pixel_9", uiMode = 32)
 @Composable
 fun ManifestInfoDialog(manifest: ModuleManifest = dummyManifestList[0], close: () -> Unit = {}) {
     Dialog(onDismissRequest = {
@@ -248,6 +249,7 @@ fun PreviewModuleList() {
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ModuleListScreen(navController: NavHostController = rememberNavController()) {
+    val manifestList by Runtime.moduleManifests.collectAsStateWithLifecycle()
     return FudgeTheme {
         Scaffold(
             topBar = {
@@ -269,7 +271,7 @@ fun ModuleListScreen(navController: NavHostController = rememberNavController())
                 )
             },
         ) { innerPadding ->
-            ModuleList(Modifier.padding(innerPadding), Runtime.moduleManifests)
+            ModuleList(Modifier.padding(innerPadding), manifestList)
         }
     }
 }
