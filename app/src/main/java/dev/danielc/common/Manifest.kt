@@ -1,95 +1,14 @@
 package dev.danielc.common
-
-import dev.danielc.R
+import dev.danielc.common.Runtime.logGlobalLine
 import dev.danielc.libpak.Bluetooth
-
-enum class Device(val id: String) {
-    // Photo class
-    PROFESSIONAL_CAMERA("professional-camera"),
-    ACTION_CAMERA("action-camera"),
-    DASHCAM("dashcam"),
-    GENERIC_CAMERA("generic-camera"),
-    WIFI_SD_CARD("wifi-sd-card"),
-    DOORBELL("doorbell"),
-
-    // Home class
-    GENERIC_HOME_DEVICE("generic-home-device"),
-    DESK("desk"),
-    GENERIC_FURNITURE("generic-furniture"),
-    PRINTER_3D("3d-printer"),
-
-    // Accessory class
-    HEADPHONES("headphones"),
-    EARBUDS("earbuds"),
-    SPEAKERS("speakers"),
-    GENERIC_AUDIO("generic-audio"),
-    SMART_GLASSES("smart-glasses"),
-    SMART_TV("smart-tv"),
-    SMARTWATCH("smartwatch"),
-    GENERIC_MEDICAL_WEARABLE("generic-medical-wearable"),
-    GENERIC_EXERCISE_MACHINE("generic-exercise-machine"),
-
-    // Non-photo gadget class
-    POWER_TOOL("power-tool"),
-    GAME_CONTROLLER("game-controller"),
-    DRONE("drone"),
-    GENERIC_REMOTE_CONTROL("generic-remote-control"),
-    SCOOTER("scooter"),
-    BICYCLE("bicycle"),
-    GENERIC_RIDEABLE("generic-rideable"),
-    AUTOMOTIVE_INFOTAINMENT("automotive-infotainment"),
-    AUTOMOTIVE_DIAGNOSTIC("automotive-diagnostic"),
-    GENERIC_AUTOMOTIVE("generic-automotive");
-
-    companion object {
-        fun fromId(id: String?): Device? {
-            return entries.find { it.id == id }
-        }
-    }
-
-    fun getIcon(): Int {
-        return when (this) {
-            PROFESSIONAL_CAMERA -> R.drawable.baseline_photo_camera_24
-            ACTION_CAMERA -> R.drawable.outline_videocam_24
-            DASHCAM -> R.drawable.outline_camera_video_24
-            GENERIC_CAMERA -> R.drawable.baseline_photo_camera_24
-            WIFI_SD_CARD -> R.drawable.outline_sd_card_24
-            DOORBELL -> R.drawable.outline_general_device_24
-            GENERIC_HOME_DEVICE -> R.drawable.outline_general_device_24
-            DESK -> R.drawable.outline_general_device_24
-            GENERIC_FURNITURE -> R.drawable.outline_general_device_24
-            PRINTER_3D -> R.drawable.outline_general_device_24
-            HEADPHONES -> R.drawable.outline_headphones_24
-            EARBUDS -> R.drawable.outline_earbuds_2_24
-            SPEAKERS -> R.drawable.outline_speaker_24
-            GENERIC_AUDIO -> R.drawable.outline_speaker_24
-            SMART_GLASSES -> R.drawable.outline_eyeglasses_2_24
-            SMART_TV -> R.drawable.outline_connected_tv_24
-            SMARTWATCH -> R.drawable.outline_watch_24
-            GENERIC_MEDICAL_WEARABLE -> R.drawable.outline_general_device_24
-            GENERIC_EXERCISE_MACHINE -> R.drawable.outline_general_device_24
-            POWER_TOOL -> R.drawable.outline_tools_power_drill_24
-            GAME_CONTROLLER -> R.drawable.outline_videogame_asset_24
-            DRONE -> R.drawable.outline_general_device_24
-            GENERIC_REMOTE_CONTROL -> R.drawable.outline_general_device_24
-            SCOOTER -> R.drawable.outline_general_device_24
-            BICYCLE -> R.drawable.outline_general_device_24
-            GENERIC_RIDEABLE -> R.drawable.outline_general_device_24
-            AUTOMOTIVE_INFOTAINMENT -> R.drawable.outline_directions_car_24
-            AUTOMOTIVE_DIAGNOSTIC -> R.drawable.outline_car_repair_24
-            GENERIC_AUTOMOTIVE -> R.drawable.outline_directions_car_24
-        }
-    }
-
-    fun getReadableName(): String {
-        return when (this) {
-            PROFESSIONAL_CAMERA -> "Camera"
-            DASHCAM -> "Dashcam"
-            EARBUDS -> "Pair of Earbuds"
-            else -> "Device"
-        }
-    }
-}
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Constructed manually or loaded from JSON in modules folder.
@@ -174,4 +93,58 @@ data class ModuleManifest(
         val vid: Int? = null,
         val usbClass: Int? = null,
     )
+}
+
+fun manifestFromJson(text: String, filename: String): ModuleManifest? {
+    try {
+        val obj: JsonElement = Json.parseToJsonElement(text)
+        val root = obj.jsonObject
+
+        val jsonTarget = root["targets"]?.jsonArray
+
+        val targets = mutableListOf<ModuleManifest.Target>()
+        if (jsonTarget != null) {
+            for (target in jsonTarget) {
+                var t = ModuleManifest.Target(
+                    company = target.jsonObject["company"]?.jsonPrimitive?.content ?: throw Error("Missing company field"),
+                    summary = target.jsonObject["summary"]?.jsonPrimitive?.content,
+                    products = Json.decodeFromJsonElement<List<String>>(target.jsonObject["products"] ?: throw Error("Missing products field")),
+                    deviceId = Device.fromId(target.jsonObject["deviceType"]?.jsonPrimitive?.content) ?: throw Error("Missing deviceType field")
+                )
+
+                val jsonWiFiFilter = target.jsonObject["wifiFilter"]?.jsonObject
+                if (jsonWiFiFilter != null) {
+                    t = t.copy(
+                        wifiDiscovery = ModuleManifest.WiFiDiscovery(
+                            ssidPattern = jsonWiFiFilter.jsonObject["ssidPattern"]?.jsonPrimitive?.content ?: throw Error("Missing ssidPattern field"),
+                            defaultPassword = jsonWiFiFilter.jsonObject["defaultPassword"]?.jsonPrimitive?.content
+                        )
+                    )
+                }
+
+                targets += t
+            }
+        }
+        val manifest = ModuleManifest(
+            name = root["name"]?.jsonPrimitive?.content ?: throw Error("missing name field"),
+            description = root["description"]?.jsonPrimitive?.content,
+            author = root["author"]?.jsonPrimitive?.content,
+            website = root["website"]?.jsonPrimitive?.content,
+            scriptPath = filename.replaceAfterLast("/", root["modulePath"]?.jsonPrimitive?.content ?: throw Error("missing modulePath field")),
+            moduleType = when (root["moduleType"]?.jsonPrimitive?.content ?: throw Error("missing moduleType field")) {
+                "js" -> ModuleManifest.ModuleType.QUICKJS
+                "wasm" -> ModuleManifest.ModuleType.WEBASSEMBLY
+                else -> ModuleManifest.ModuleType.SHARED_LIBRARY
+            },
+            version = root["version"]?.jsonPrimitive?.int ?: throw Error("Missing version field"),
+            isDraft = root["isDraft"]?.jsonPrimitive?.booleanOrNull == true,
+            targets = targets,
+        )
+
+        return manifest
+    } catch (e: Exception) {
+        logGlobalLine("Error parsing manifest $filename")
+        logGlobalLine(e.message ?: "")
+        return null
+    }
 }

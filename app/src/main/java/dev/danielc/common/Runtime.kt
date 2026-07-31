@@ -165,6 +165,7 @@ object Runtime {
     fun loadModulesFromManifests(pathList: List<String>) {
         val list = mutableListOf<ModuleManifest>()
         list += ModuleManifest(
+            isDraft = true,
             name = "dummymod",
             moduleType = ModuleManifest.ModuleType.SHARED_LIBRARY,
             scriptPath = "libdummy.so",
@@ -178,6 +179,7 @@ object Runtime {
         )
 
         list += ModuleManifest(
+            isDraft = true,
             name = "libfuji",
             description = "libfuji port",
             website = "https://github.com/petabyt/libfuji",
@@ -211,6 +213,7 @@ object Runtime {
         )
 
         list += ModuleManifest(
+            isDraft = true,
             name = "cmf-nothing-audio",
             moduleType = ModuleManifest.ModuleType.SHARED_LIBRARY,
             scriptPath = "libcmfnothingaudio.so",
@@ -231,6 +234,7 @@ object Runtime {
         )
 
         list += ModuleManifest(
+            isDraft = true,
             name = "goveelife",
             moduleType = ModuleManifest.ModuleType.SHARED_LIBRARY,
             scriptPath = "libgoveelife.so",
@@ -253,61 +257,13 @@ object Runtime {
         )
 
         for (filename in pathList) {
-            try {
-                val text = FileLayer.readFile(filename)
-                if (text == null) {
-                    logGlobalLine("Failed to read ${filename}")
-                    continue
-                }
-                val obj: JsonElement = Json.parseToJsonElement(String(text))
-                val root = obj.jsonObject
-
-                val jsonTarget = root["targets"]?.jsonArray
-
-                val targets = mutableListOf<ModuleManifest.Target>()
-                if (jsonTarget != null) {
-                    for (target in jsonTarget) {
-                        var t = ModuleManifest.Target(
-                            company = target.jsonObject["company"]?.jsonPrimitive?.content ?: throw Error("Missing company field"),
-                            summary = target.jsonObject["summary"]?.jsonPrimitive?.content,
-                            products = Json.decodeFromJsonElement<List<String>>(target.jsonObject["products"] ?: throw Error("Missing products field")),
-                            deviceId = Device.fromId(target.jsonObject["deviceType"]?.jsonPrimitive?.content) ?: throw Error("Missing deviceType field")
-                        )
-
-                        val jsonWiFiFilter = target.jsonObject["wifiFilter"]?.jsonObject
-                        if (jsonWiFiFilter != null) {
-                            t = t.copy(
-                                wifiDiscovery = ModuleManifest.WiFiDiscovery(
-                                    ssidPattern = jsonWiFiFilter.jsonObject["ssidPattern"]?.jsonPrimitive?.content ?: throw Error("Missing ssidPattern field"),
-                                    defaultPassword = jsonWiFiFilter.jsonObject["defaultPassword"]?.jsonPrimitive?.content
-                                )
-                            )
-                        }
-
-                        targets += t
-                    }
-                }
-                val manifest = ModuleManifest(
-                    name = root["name"]?.jsonPrimitive?.content ?: throw Error("missing name field"),
-                    description = root["description"]?.jsonPrimitive?.content,
-                    author = root["author"]?.jsonPrimitive?.content,
-                    website = root["website"]?.jsonPrimitive?.content,
-                    scriptPath = filename.replaceAfterLast("/", root["modulePath"]?.jsonPrimitive?.content ?: throw Error("missing modulePath field")),
-                    moduleType = when (root["moduleType"]?.jsonPrimitive?.content ?: throw Error("missing moduleType field")) {
-                        "js" -> ModuleManifest.ModuleType.QUICKJS
-                        "wasm" -> ModuleManifest.ModuleType.WEBASSEMBLY
-                        else -> ModuleManifest.ModuleType.SHARED_LIBRARY
-                    },
-                    version = root["version"]?.jsonPrimitive?.int ?: throw Error("Missing version field"),
-                    isDraft = root["isDraft"]?.jsonPrimitive?.booleanOrNull == true,
-                    targets = targets,
-                )
-
-                list += manifest
-            } catch (e: Exception) {
-                logGlobalLine("Error parsing manifest $filename")
-                logGlobalLine(e.message ?: "")
+            val text = FileLayer.readFile(filename)
+            if (text == null) {
+                logGlobalLine("Failed to read ${filename}")
+                continue
             }
+            val manifest = manifestFromJson(String(text), filename) ?: continue
+            list += manifest
         }
         moduleManifests = list
     }

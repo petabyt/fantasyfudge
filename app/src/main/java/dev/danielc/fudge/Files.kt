@@ -32,15 +32,17 @@ import java.io.OutputStream
 
 object FileLayer {
     fun readFile(path: String): ByteArray? {
-        if (path.startsWith("file:///android_asset/")) {
-            val assman = Pak.getActivity().assets
-            val f = assman.open(path.substringAfter("file:///android_asset/"))
-            return f.readBytes()
-        } else {
-            val f = File(path)
-            if (!f.exists()) return null
-            return f.readBytes()
-        }
+        try {
+            if (path.startsWith("file:///android_asset/")) {
+                val assman = Pak.getActivity().assets
+                val f = assman.open(path.substringAfter("file:///android_asset/"))
+                return f.readBytes()
+            } else {
+                val f = File(path)
+                if (!f.exists()) return null
+                return f.readBytes()
+            }
+        } catch (ignored: Exception) { return null }
     }
 
     private fun shareFile(uri: Uri) {

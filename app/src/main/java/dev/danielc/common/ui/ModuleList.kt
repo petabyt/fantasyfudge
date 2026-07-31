@@ -61,8 +61,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 val dummyManifestList: List<ModuleManifest> = listOf(
-    ModuleManifest(name = "libfuji", description = "libfuji", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA, "Fujifilm", "All Fujifilm cameras", listOf("x-t1", "x-t2", "x-t3", "x-t4", "x-t5")))),
-    ModuleManifest(name = "libgphoto2", description = "ptp2 from the libgphoto2 project", targets = listOf(ModuleManifest.Target(Device.PROFESSIONAL_CAMERA, "Canon", "Canon DSLRs and mirrorless cameras", listOf("EOS 5D", "EOS 5D II", "EOS 5D III")))),
+    ModuleManifest(name = "libfuji", description = "libfuji", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA, "Fujifilm", "All Fujifilm cameras", listOf("x-t1", "x-t2", "x-t3", "x-t4", "x-t5"))), isDraft = true),
+    ModuleManifest(name = "libgphoto2", description = "ptp2 from the libgphoto2 project", targets = listOf(ModuleManifest.Target(Device.PROFESSIONAL_CAMERA, "Canon", "Canon DSLRs and mirrorless cameras", listOf("EOS 5D", "EOS 5D II", "EOS 5D III"))), isDraft = true),
     ModuleManifest(name = "veement", description = "Veement/veecar", targets = listOf(ModuleManifest.Target(Device.DASHCAM, "Veement", "Veement dashcams"), ModuleManifest.Target(deviceId = Device.DASHCAM, company = "FITCAMX"))),
     ModuleManifest(name = "toyota", description = "Toyota infotainment system", targets = listOf(ModuleManifest.Target(Device.AUTOMOTIVE_INFOTAINMENT, "Toyota", "Toyota infotainment system"))),
     ModuleManifest(name = "libroku", description = "Roku TV and media systems", targets = listOf(ModuleManifest.Target(Device.SMART_TV, "Roku", "Roku TV and media systems"))),
@@ -135,11 +135,20 @@ fun ModuleCard(manifest: ModuleManifest, info: () -> Unit, delete: () -> Unit) {
                     Column(
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text(
-                            text = manifest.name,
-                            style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1,
-                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(
+                                text = manifest.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                            )
+                            if (manifest.isDraft) {
+                                Text(
+                                    text = "WIP",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
                         if (manifest.description != null) {
                             Text(
                                 text = manifest.description,
@@ -283,12 +292,8 @@ fun TargetCard(target: ModuleManifest.Target, manifest: ModuleManifest, clicked:
         )
         .padding(16.dp),
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Icon(
                         painterResource(target.deviceId.getIcon()),
@@ -300,6 +305,13 @@ fun TargetCard(target: ModuleManifest.Target, manifest: ModuleManifest, clicked:
                         style = MaterialTheme.typography.titleMedium,
                         maxLines = 1,
                     )
+                    if (manifest.isDraft) {
+                        Text(
+                            text = "WIP",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
                 if (target.summary != null) {
                     Text(
