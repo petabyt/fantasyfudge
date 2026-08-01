@@ -190,6 +190,16 @@ int pak_rt_set_progress_bar(struct PakModule *mod, int job, int percent) {
 	return 0;
 }
 
+int pak_rt_set_download_stats(struct PakModule *mod, int job, long time, unsigned int n_bytes) {
+	JNIEnv *env = get_jni_env();
+	(*env)->PushLocalFrame(env, 10);
+	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
+	jmethodID set_progress_bar = (*env)->GetMethodID(env, module_c, "setDownloadStats", "(IJI)V");
+	(*env)->CallVoidMethod(env, mod->rt->obj, set_progress_bar, job, time, (jint)n_bytes);
+	(*env)->PopLocalFrame(env, NULL);
+	return 0;
+}
+
 int pak_rt_set_storage_info(struct PakModule *mod, const char *storage_name, unsigned int n_items, enum PakSortedBy sorted_by) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);

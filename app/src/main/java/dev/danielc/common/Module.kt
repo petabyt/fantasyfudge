@@ -273,6 +273,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         if (request.savedDeviceUniqueId != null) {
             val savedEntry = Runtime.savedDevices.value.find { it.uniqueIdentifier == request.savedDeviceUniqueId }
             if (savedEntry != null) dashboardModel.setSaved()
+            // TODO: Set saved/update timestamp
         }
     }
     var currentTickIntervalUs: Int = (100 * 1000)
@@ -367,6 +368,9 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             jobObj.onUpdate(jobObj)
         }
     }
+    fun setDownloadStats(job: Int, timeMs: Long, nBytes: Int) {
+        viewerViewModel.updateSpeed("${(nBytes * 8) / timeMs}Mbps")
+    }
     @CalledFromNative
     fun isJobCancelled(job: Int): Boolean {
         val jobObj = getJob(job)
@@ -387,9 +391,11 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         }
     }
     private var elapsed = TimeSource.Monotonic.markNow()
+    private var isNotUpdatingDownloadSpeed: Boolean = false
     @CalledFromNative
     fun setFileContents(file: FileHandle, data: ByteArray?, offset: Long, totalSize: Long) {
-        if (offset != 0L && data != null) {
+        if ((offset == 0L || isNotUpdatingDownloadSpeed) && data != null) {
+            if (!isNotUpdatingDownloadSpeed) if (viewerViewModel.viewerState.value?.currentDownloadSpeed == null) isNotUpdatingDownloadSpeed = true
             var ms = elapsed.elapsedNow().toInt(DurationUnit.MILLISECONDS)
             if (ms == 0) ms++
             viewerViewModel.updateSpeed("${(data.size / ms) / 1000.0}MB/s")

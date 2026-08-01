@@ -1,6 +1,7 @@
 package dev.danielc.common.screens
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -119,6 +121,10 @@ fun Liveview(modifier: Modifier = Modifier, navController: NavHostController = r
             painter = painterResource(R.drawable.image),
             contentDescription = null
         )
+
+        Box(Modifier.padding(5.dp).size(150.dp).background(MaterialTheme.colorScheme.surfaceContainer).align(Alignment.Center)) {
+            Text("Liveview not finished yet :(")
+        }
 
         Row(Modifier.align(Alignment.BottomEnd), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             IconButton(onClick = {
