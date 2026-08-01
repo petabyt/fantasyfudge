@@ -24,6 +24,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 object AndroidRuntime {
+    val TAG = "AndroidRuntime"
     var hasInited: Boolean = false
     private var databaseInstance: AppDatabase? = null
     fun setup(ctx: Context) {
@@ -102,8 +103,15 @@ object AndroidRuntime {
     fun decodeImageFile(data: FileLayer.Handle, orientation: Int? = null): ImageBitmap? {
         var options = BitmapFactory.Options()
 
+        val resolver = Pak.getActivity().contentResolver
+        val fd = resolver.openFileDescriptor(data.uri, "r")
+        if (fd == null) {
+            Log.e(TAG, "${data.uri} not found")
+            return null
+        }
+
         options.inJustDecodeBounds = true
-        BitmapFactory.decodeFileDescriptor(data.fd.fileDescriptor, null, options)
+        BitmapFactory.decodeFileDescriptor(fd.fileDescriptor, null, options)
         val scaleX = options.outWidth / GL10.GL_MAX_TEXTURE_SIZE
         val scaleY = options.outHeight / GL10.GL_MAX_TEXTURE_SIZE
         val scale = max(scaleY + 1, scaleX + 1)
@@ -114,7 +122,7 @@ object AndroidRuntime {
             options.inDensity = scale
             options.inTargetDensity = scale
             options.inScaled = true
-            var bitmap = BitmapFactory.decodeFileDescriptor(data.fd.fileDescriptor, null, options) ?: return null
+            var bitmap = BitmapFactory.decodeFileDescriptor(fd.fileDescriptor, null, options) ?: return null
 
             if (orientation != null) {
                 val matrix = Matrix()
@@ -122,8 +130,10 @@ object AndroidRuntime {
                 bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
             }
 
+            fd.close()
             return bitmap.asImageBitmap()
         } catch (ignored: Exception) {
+            fd.close()
             return null
         }
     }

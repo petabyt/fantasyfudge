@@ -118,8 +118,8 @@ object FileLayer {
         val uri: Uri,
         val write: Boolean = true
     ) {
-        val streamIn: InputStream? = if (write) FileInputStream(fd.fileDescriptor) else null
-        val streamOut: OutputStream? = if (!write) FileOutputStream(fd.fileDescriptor) else null
+        val streamIn: InputStream? = if (!write) FileInputStream(fd.fileDescriptor) else null
+        val streamOut: OutputStream? = if (write) FileOutputStream(fd.fileDescriptor) else null
         fun write(byteArray: ByteArray) {
             streamOut?.write(byteArray)
         }

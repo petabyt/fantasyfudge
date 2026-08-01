@@ -109,7 +109,6 @@ data class ViewerState(
     val showSaveButton: Boolean = true,
     val showLoadDialog: Boolean = true,
     val hasSaved: Boolean = false,
-    val fileTooBigAutomaticallySaved: Boolean = false,
 )
 
 class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolean = true) : BackgroundViewModel() {
@@ -122,6 +121,10 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
 
     fun clear() {
         _viewerState.value = null
+        temporaryBuffer = null
+        fileHandle = null
+        rejectTransfers = false
+        fileTotalSize = null
     }
 
     private fun getMetadata(): FileMetadata {
@@ -143,28 +146,9 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
     }
 
     fun update(file: FileHandle, numberOfItems: Int) {
-        temporaryBuffer = null
-        fileHandle = null
-        rejectTransfers = false
-        fileTotalSize = null
-
-        val state = _viewerState.value
-        val tempBitmap = if (state != null) {
-            if (file.index == (state.handle.index - 1)) {
-                listOf(null, state.bitmapLeft, state.bitmap)
-            } else if (file.index == (state.handle.index + 1)) {
-                listOf(state.bitmap, state.bitmapRight, null)
-            } else {
-                listOf(null, null, null)
-            }
-        } else {
-            listOf(null, null, null)
-        }
-
-        _viewerState.value = ViewerState(file, numberOfItems,
-            bitmap = tempBitmap[1],
-            bitmapLeft = tempBitmap[0],
-            bitmapRight = tempBitmap[2],
+        _viewerState.value = ViewerState(
+            handle = file,
+            numberOfItems = numberOfItems,
             showSaveButton = showSaveButton,
             showLoadDialog = showLoadDialog,
         )
@@ -176,9 +160,10 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
             )
         }
     }
-    fun updateSideBitmaps(left: ImageBitmap?, right: ImageBitmap?) {
+    fun updateThumbnails(left: ImageBitmap?, main: ImageBitmap?, right: ImageBitmap?) {
         _viewerState.update { viewerState ->
             viewerState?.copy(
+                bitmap = main,
                 bitmapLeft = left,
                 bitmapRight = right,
             )
@@ -201,6 +186,7 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
     }
     fun loadImageFileHandle(handle: FileLayer.Handle) {
         _viewerState.update { it?.copy(isDecoding = true) }
+        handle.close()
         val bitmap = AndroidRuntime.decodeImageFile(handle, _viewerState.value?.metadata?.orientation)
         if (bitmap == null) {
             setError("Failed to decode image contents")
@@ -212,11 +198,12 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
                 isLoading = false,
             )
         }
-        handle.close()
     }
     fun setFileContents(data: ByteArray?, offset: Long, totalSize: Long) {
         println("${data?.size}, ${offset}, ${totalSize}")
-        if (rejectTransfers) return
+        if (rejectTransfers) {
+            return
+        }
         val temporaryBufferRef = temporaryBuffer
         if (temporaryBufferRef == null) {
             if (totalSize != 0L) fileTotalSize = totalSize
@@ -241,11 +228,12 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
             val md = getMetadata()
             fileHandle = FileLayer.openFileForWriting(md.filename ?: "unknown", md)
             if (fileHandle == null) {
+                println("Rejecting transfers")
                 rejectTransfers = true
                 // TODO: set isLoading to false
                 return
             } else {
-                _viewerState.update { it?.copy(fileTooBigAutomaticallySaved = true) }
+                _viewerState.update { it?.copy(currentDownloadStatusMessage = "File too big; saving...") }
                 fileHandle?.write(temporaryBufferRef)
             }
         }
@@ -269,6 +257,9 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
     }
     fun updateSpeed(downloadSpeed: String) {
         _viewerState.update { it?.copy(currentDownloadSpeed = downloadSpeed) }
+    }
+    fun updateStatus(status: String?) {
+        _viewerState.update { it?.copy(currentDownloadStatusMessage = status) }
     }
     fun setError(message: String) {
         _viewerState.update { viewerState ->
@@ -336,8 +327,8 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
                             progress = { state.currentDownloadProgress.toFloat() / 100 }
                         )
                         Row(Modifier.fillMaxWidth()) {
-                            if (state.fileTooBigAutomaticallySaved) {
-                                Text("Saving file - too big", style = MaterialTheme.typography.bodyLarge,
+                            if (state.currentDownloadStatusMessage != null) {
+                                Text(state.currentDownloadStatusMessage, style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.weight(1f))
                             } else { Spacer(Modifier.weight(1f)) }
@@ -484,7 +475,7 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
         currentDownloadProgress = 40,
         numberOfItems = 30,
         isError = false,
-        fileTooBigAutomaticallySaved = true,
+        currentDownloadStatusMessage = "Switching...",
         errorMessage = "BUG: Failed to decode, blah blah blah",
     )) }
     ViewerScreen(state, switchTo = { i ->

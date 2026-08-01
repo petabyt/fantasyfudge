@@ -46,8 +46,10 @@ class LocalGalleryViewModel: GalleryViewModel() {
 
     override fun itemClicked(ref: GalleryObjectReference) {
         val file = files[ref.index]
-        viewer.update(FileHandle(ref.index), files.size)
+        val handle = FileHandle(ref.index)
+        viewer.update(handle, files.size)
         viewer.updateMetadata(file.metadata)
+        viewer.updateThumbnails(getThumbnail(handle, -1), getThumbnail(handle, 0), getThumbnail(handle, 1))
         if (file.metadata.getMimeType().isVideo()) {
             viewer.setError("Video not supported in viewer yet")
         } else {
@@ -57,11 +59,6 @@ class LocalGalleryViewModel: GalleryViewModel() {
             } else {
                 viewer.loadImageFileHandle(handle)
             }
-
-            viewer.updateSideBitmaps(
-                if (files.getOrNull(ref.index - 1) == null) null else FileLayer.getMediaThumbnail(files[ref.index - 1]),
-                if (files.getOrNull(ref.index + 1) == null) null else FileLayer.getMediaThumbnail(files[ref.index + 1])
-            )
         }
     }
 

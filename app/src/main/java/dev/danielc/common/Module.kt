@@ -41,7 +41,7 @@ data class ModuleJob(
     var isFinished: Boolean = false,
 )
 
-class ModuleGalleryViewModel(val module: ModuleInstance): GalleryViewModel() {
+class ModuleGalleryViewModel(val module: ModuleInstance, val viewerViewModel: ViewerModel): GalleryViewModel() {
     override fun fulfillThumbnail(file: GalleryObjectReference) {
         if (module.getFileThumbnail(file = FileHandle(file.index, null)) != 0) {
             updateThumbnail(file.index, thumbData = null)
@@ -52,6 +52,75 @@ class ModuleGalleryViewModel(val module: ModuleInstance): GalleryViewModel() {
         if (module.getFileMetadata(file = FileHandle(file.index, null)) != 0) {
             updateMetadata(file.index, null)
         }
+    }
+
+    fun goToViewer(file: FileHandle) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val galleryState = uiState.value
+            viewerViewModel.clear()
+            viewerViewModel.update(file, galleryState.objects.size)
+            viewerViewModel.updateMetadata(getMetadata(file))
+            viewerViewModel.updateThumbnails(getThumbnail(file, -1), getThumbnail(file, 0), getThumbnail(file, 1))
+
+            fun onCancel() {
+                CoroutineScope(Dispatchers.IO).launch {
+                    module.goBack(Screen.FILE_GALLERY, false)
+                }
+            }
+
+            viewerViewModel.updateStatus("Switching to viewer...")
+            var rc = module.switchScreen(Screen.FILE_VIEWER, false, { job ->
+                module.viewerDownloadJob = job
+                if (job.isFinished) {
+                    module.viewerDownloadJob = null
+                }
+                viewerViewModel.updateProgress(job.progressBarValue ?: 0)
+            })
+            viewerViewModel.updateStatus(null)
+
+            if (rc == Pak.Error.CANCELLED) {
+                onCancel()
+            } else {
+                if (getMetadata(file) == null) {
+                    viewerViewModel.updateStatus("Grabbing metadata...")
+                    module.getFileMetadata(file = file)
+                }
+                viewerViewModel.updateStatus("Downloading...")
+                rc = module.getFileContents({ job ->
+                    module.viewerDownloadJob = job
+                    if (job.isCancelled) {
+                        viewerViewModel.updateStatus("Cancelling...")
+                        module.viewerDownloadJob = null
+                    }
+                    viewerViewModel.updateProgress(job.progressBarValue ?: 0)
+                }, file)
+                if (rc == Pak.Error.CANCELLED) {
+                    onCancel()
+                } else if (rc != 0) {
+                    viewerViewModel.setError("Image download error: ${rc}")
+                } else if (viewerViewModel.viewerState.value?.isLoading == true) {
+                    viewerViewModel.setError("BUG: Image not loaded entirely by module")
+                }
+            }
+        }
+    }
+}
+
+class ModuleDashboardModel(val module: ModuleInstance) : DashboardModel(module.manifest) {
+    override fun disconnect() {
+        scope.launch {
+            module.homeModelView.showDisconnectDialog(true)
+        }
+    }
+    override fun propChanged(pane: DashboardPane) {
+        module.propChanged(pane)
+    }
+    override fun runCommand(line: String) {
+        module.runCommand(line)
+    }
+
+    override fun save() {
+        module.userSave()
     }
 }
 
@@ -187,30 +256,12 @@ data class ModuleInstanceRequest(
     }
 }
 
-class ModuleDashboardModel(val module: ModuleInstance) : DashboardModel(module.manifest) {
-    override fun disconnect() {
-        scope.launch {
-            module.homeModelView.showDisconnectDialog(true)
-        }
-    }
-    override fun propChanged(pane: DashboardPane) {
-        module.propChanged(pane)
-    }
-    override fun runCommand(line: String) {
-        module.runCommand(line)
-    }
-
-    override fun save() {
-        module.userSave()
-    }
-}
-
 /**
  * Instance of a module with a single connection
  */
 class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRequest, val homeModelView: ModuleInstanceModel): ModuleBase() {
-    val galleryViewModel = ModuleGalleryViewModel(this)
     val viewerViewModel = ViewerModel()
+    val galleryViewModel = ModuleGalleryViewModel(this, viewerViewModel)
     val intervalometerModel = ModuleIntervalometerModel(this)
     val debugLogModel = ConsoleModel()
     val dashboardModel = ModuleDashboardModel(this)
@@ -219,6 +270,10 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     val companionName = "${target.company} ${target.deviceId.getReadableName()}"
     init {
         Runtime.addModuleInstance(this)
+        if (request.savedDeviceUniqueId != null) {
+            val savedEntry = Runtime.savedDevices.value.find { it.uniqueIdentifier == request.savedDeviceUniqueId }
+            if (savedEntry != null) dashboardModel.setSaved()
+        }
     }
     var currentTickIntervalUs: Int = (100 * 1000)
     private var mainLoopJob: kotlinx.coroutines.Job? = null
@@ -264,6 +319,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     }
     @CalledFromNative
     fun debugLog(s: String) {
+        println(s)
         debugLogModel.addLine(s)
     }
     suspend fun stopAllThreads() {
@@ -326,7 +382,6 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         val viewerState = viewerViewModel.viewerState.value
         if (viewerState != null) {
             if (viewerState.handle.index == file.index && viewerState.handle.storageName == file.storageName) {
-                viewerViewModel.update(file, galleryViewModel.uiState.value.objects.size)
                 viewerViewModel.updateMetadata(v)
             }
         }
@@ -387,22 +442,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         }
     }
 
-    private fun wifiConnectRoutine(wifi: ModuleManifest.WiFiDiscovery) {
-        val primaryAdapter = WiFi.getPrimaryAdapter()
-        // Try connection over primary adapter in case user connected to access point manually
-        if (primaryAdapter != null) {
-            debugLog("First trying connection over primary adapter...")
-            val rc = tryConnectWiFi(primaryAdapter, {job -> connectCallback(job)})
-            if (rc == Pak.Error.CANCELLED) return
-            if (rc == 0) {
-                setIsConnected()
-                return
-            }
-        }
-
-        val filter = WiFi.ApFilter()
-        filter.ssidPattern = wifi.ssidPattern
-        filter.password = wifi.defaultPassword
+    private fun wifiConnectRoutine(wifi: ModuleManifest.WiFiDiscovery, saved: SavedDeviceEntity?) {
         val callback = object : WiFi.WiFiDiscoveryCallback() {
             override fun failed(reason: String, code: Int) {
                 debugLog("<error>${reason}")
@@ -423,7 +463,27 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                 debugLog("Cancelled")
             }
         }
-        WiFi.connectToAccessPointCompanion(filter, companionName, callback)
+        if (saved == null) {
+            val primaryAdapter = WiFi.getPrimaryAdapter()
+            // Try connection over primary adapter in case user connected to access point manually
+            if (primaryAdapter != null) {
+                debugLog("First trying connection over primary adapter...")
+                val rc = tryConnectWiFi(primaryAdapter, { job -> connectCallback(job) })
+                if (rc == Pak.Error.CANCELLED) return
+                if (rc == 0) {
+                    setIsConnected()
+                    return
+                }
+            }
+
+            val filter = WiFi.ApFilter()
+            filter.ssidPattern = wifi.ssidPattern
+            filter.password = wifi.defaultPassword
+            WiFi.connectToAccessPointCompanion(filter, companionName, callback)
+        } else {
+            debugLog("Connecting to ${saved.bluetoothMacAddress}")
+            WiFi.connectFromBSSID(saved.bluetoothMacAddress, callback)
+        }
     }
 
     private fun connectCallback(job: ModuleJob) {
@@ -538,7 +598,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             else -> null
         }
         if (target.wifiDiscovery != null && transport == ModuleManifest.Transport.WIFI_AP) {
-            wifiConnectRoutine(target.wifiDiscovery)
+            wifiConnectRoutine(target.wifiDiscovery, savedDeviceInfo)
         } else if (target.bluetoothDiscovery.isNotEmpty() && transport == ModuleManifest.Transport.BLUETOOTH) {
             bluetoothConnectRoutine(target.bluetoothDiscovery, savedDeviceInfo)
         } else if (transport == ModuleManifest.Transport.LOCAL_NETWORK_UDP) {
@@ -648,50 +708,6 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             switchScreen(currentScreen, previous, callback)
             currentScreen = previous
             isNavigating = false
-        }
-    }
-
-    fun goToViewer(file: FileHandle) {
-        CoroutineScope(Dispatchers.IO).launch {
-            val galleryState = galleryViewModel.uiState.value
-            viewerViewModel.clear()
-            viewerViewModel.update(file, galleryState.objects.size)
-            viewerViewModel.updateMetadata(galleryViewModel.getMetadata(file))
-            viewerViewModel.updateSideBitmaps(galleryViewModel.getThumbnail(file, -1), galleryViewModel.getThumbnail(file, 1))
-
-            fun onCancel() {
-                CoroutineScope(Dispatchers.IO).launch {
-                    goBack(Screen.FILE_GALLERY, false)
-                }
-            }
-
-            var rc = switchScreen(Screen.FILE_VIEWER, false, { job ->
-                viewerDownloadJob = job
-                if (job.isFinished) {
-                    viewerDownloadJob = null
-                }
-                viewerViewModel.updateProgress(job.progressBarValue ?: 0)
-            })
-            if (rc == Pak.Error.CANCELLED) {
-                onCancel()
-            } else {
-                getFileMetadata(file = file)
-                rc = getFileContents({ job ->
-                    viewerDownloadJob = job
-                    if (job.isCancelled) {
-                        viewerViewModel.setError("Cancelling...")
-                        viewerDownloadJob = null
-                    }
-                    viewerViewModel.updateProgress(job.progressBarValue ?: 0)
-                }, file)
-                if (rc == Pak.Error.CANCELLED) {
-                    onCancel()
-                } else if (rc != 0) {
-                    viewerViewModel.setError("Image download error: ${rc}")
-                } else if (viewerViewModel.viewerState.value?.isLoading == true) {
-                    viewerViewModel.setError("BUG: Image not loaded entirely by module")
-                }
-            }
         }
     }
 }
