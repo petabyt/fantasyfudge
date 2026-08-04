@@ -9,12 +9,16 @@ import androidx.compose.animation.slideOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,6 +34,8 @@ import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -53,6 +59,28 @@ annotation class PreviewPixel9ProDark
 @Preview(showSystemUi = true, device = "id:tv_1080p", uiMode = 32)
 annotation class PreviewTabletDark
 
+@Composable
+fun ClickableCard(color: Color = MaterialTheme.colorScheme.surfaceContainerHigh, click: () -> Unit = {}, longClick: () -> Unit = {}, content: @Composable BoxScope.() -> Unit) {
+    Box(modifier = Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(12.dp))
+        .background(color)
+        .combinedClickable(
+            onClick = {
+                click()
+            },
+            onLongClick = {
+                longClick()
+            }
+        )
+        .padding(16.dp)
+        .alpha(1f),
+    ) {
+        content()
+    }
+}
+
+// useless
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Material3DropDown(expanded: Boolean, current: String, options: List<String>, setExpanded: (Boolean) -> Unit, onSelected: (Int) -> Unit) {

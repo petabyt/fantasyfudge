@@ -9,9 +9,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,6 +22,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,11 +67,13 @@ import dev.danielc.common.ModuleInstanceRequest
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Runtime
 import dev.danielc.common.SavedDeviceEntity
+import dev.danielc.common.ui.ClickableCard
 import dev.danielc.common.ui.DefaultNavHost
 import dev.danielc.common.ui.ManifestList
 import dev.danielc.common.ui.TargetCard
 import dev.danielc.common.ui.dummyManifestList
 import dev.danielc.common.ui.theme.FudgeTheme
+import dev.danielc.fudge.BuildInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -193,7 +198,7 @@ fun SavedDeviceCard(target: ModuleManifest.Target, transport: ModuleManifest.Tra
     Box(modifier = Modifier
         .fillMaxWidth()
         .clip(RoundedCornerShape(12.dp))
-        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
         .combinedClickable(
             onClick = {
                 clicked()
@@ -246,8 +251,9 @@ fun SavedDeviceCard(target: ModuleManifest.Target, transport: ModuleManifest.Tra
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun ModuleDeviceList(modifier: Modifier = Modifier, clicked: (ModuleInstanceRequest) -> Unit) {
+fun MainConnectScreen(modifier: Modifier = Modifier, clicked: (ModuleInstanceRequest) -> Unit) {
     var isRefreshing by remember { mutableStateOf(false) }
+    var showWelcome by remember { mutableStateOf(true) }
     val savedDevices by Runtime.savedDevices.collectAsStateWithLifecycle()
     val deviceList by Runtime.connectableDevices.collectAsStateWithLifecycle()
     val manifestList by Runtime.moduleManifests.collectAsStateWithLifecycle()
@@ -266,6 +272,27 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, clicked: (ModuleInstanceRequ
     ) {
         Column(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (showWelcome) {
+                    item {
+                        ClickableCard(color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column {
+                                    Text("FantasyFudge pre-release", style = MaterialTheme.typography.titleMedium)
+                                    if (BuildInfo.isDebug) Text("Debug Build", color = MaterialTheme.colorScheme.tertiary)
+                                    if (BuildInfo.isNightly) Text("Nightly build - this build is untested and not stable.", color = MaterialTheme.colorScheme.tertiary)
+                                    Text("Build date: ${BuildInfo.time}", color = MaterialTheme.colorScheme.tertiary)
+                                }
+                                Spacer(Modifier.weight(1f))
+                                IconButton(onClick = { showWelcome = false }, modifier = Modifier.fillMaxHeight()) {
+                                    Icon(
+                                        painterResource(R.drawable.outline_close_24),
+                                        contentDescription = null
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
                 if (deviceList.isNotEmpty()) {
                     item {
                         Text("Bonded devices:")
@@ -407,7 +434,7 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
                 navController = subNavController, startDestination = "connect", route = "route"
             ) {
                 composable("connect") {
-                    ModuleDeviceList(
+                    MainConnectScreen(
                         clicked = { request ->
                             navController.navigate(request)
                         }

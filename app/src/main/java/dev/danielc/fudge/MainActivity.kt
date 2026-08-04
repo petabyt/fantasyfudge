@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.compose.rememberNavController
+import dev.danielc.BuildConfig
 import dev.danielc.common.ModuleInstanceRequest
 import dev.danielc.common.Runtime
 import dev.danielc.common.screens.MainNav
@@ -20,6 +21,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private data class Event(
     val name: String,
@@ -32,6 +36,16 @@ fun startModule(name: String, setupOption: String?) {
     CoroutineScope(Dispatchers.IO).launch {
         externalEvents.emit(Event(name, setupOption))
     }
+}
+
+object BuildInfo {
+    val time = SimpleDateFormat("MMMM dd yyyy", Locale.getDefault()).format(
+        Date(
+            BuildConfig.BUILD_TIME
+        )
+    )
+    val isNightly = BuildConfig.FLAVOR == "nightly"
+    val isDebug = BuildConfig.DEBUG
 }
 
 class MainActivity : ComponentActivity(), ComponentCallbacks2 {

@@ -23,6 +23,13 @@ android {
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
+    buildTypes.getByName("debug") {
+        buildConfigField("Long", "BUILD_TIME", "${System.currentTimeMillis()}L")
+    }
+    buildTypes.getByName("release") {
+        buildConfigField("Long", "BUILD_TIME", "${System.currentTimeMillis()}L")
+    }
+
     flavorDimensions += "buildType"
     productFlavors {
         create("stable") {
@@ -67,6 +74,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
