@@ -215,7 +215,7 @@ abstract class ModuleBase: NativeModule() {
             onTryConnectBluetooth(device, if (saved == null) null else SavedDeviceInfo(
                 saved.uniqueIdentifier,
                 saved.name,
-                saved.privateData,
+                saved.auxillaryData,
             ), job.id)
         }
     }
@@ -305,12 +305,13 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             AndroidRuntime.getDatabase().deviceDao().saveDevice(SavedDeviceEntity(
                 uniqueIdentifier = info.uniqueIdentifier,
                 name = info.name,
-                privateData = info.privateData,
+                auxillaryData = info.privateData,
                 manifestName = manifest.name,
                 targetIndex = request.targetIndex,
                 setupOption = request.chosenSetupOption,
                 bluetoothMacAddress = getConnectedMacAddress(),
-                associationId = takeAndroidAssocationId(),
+                androidAssociationId = takeAndroidAssocationId(),
+                wifiInfo = getWiFiInfo(),
             ))
         }
     }
@@ -320,7 +321,6 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     }
     @CalledFromNative
     fun debugLog(s: String) {
-        println(s)
         debugLogModel.addLine(s)
     }
     suspend fun stopAllThreads() {
@@ -443,7 +443,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                     }
                 }
             }
-            WiFi.connectToAccessPointCompanion(filter, "", callback, true)
+            WiFi.connectToAccessPointCompanion(filter, companionName, callback, true)
         }
     }
 
@@ -486,8 +486,13 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             filter.password = wifi.defaultPassword
             WiFi.connectToAccessPointCompanion(filter, companionName, callback)
         } else {
-            debugLog("Connecting to ${saved.bluetoothMacAddress}")
-            WiFi.connectFromBSSID(saved.bluetoothMacAddress, callback)
+            if (saved.wifiInfo != null) {
+                val filter = WiFi.ApFilter()
+                filter.ssidPattern = saved.wifiInfo.ssid
+                filter.password = saved.wifiInfo.password
+                filter.bssid = saved.wifiInfo.bssid
+                WiFi.connectToAccessPointCompanion(filter, companionName, callback)
+            }
         }
     }
 

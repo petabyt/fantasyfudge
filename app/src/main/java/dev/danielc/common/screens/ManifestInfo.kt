@@ -44,7 +44,7 @@ fun ManifestInfoScreen(manifest: ModuleManifest = dummyManifestList[0], close: (
                 TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(),
                     title = {
-                        Text("Manifest")
+                        Text("Manifest Info")
                     },
                     navigationIcon = {
                         IconButton(onClick = {

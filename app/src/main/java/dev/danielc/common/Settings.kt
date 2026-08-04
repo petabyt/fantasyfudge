@@ -1,9 +1,9 @@
 package dev.danielc.common
 
-import androidx.room.AutoMigration
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Delete
+import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -23,9 +23,16 @@ data class SavedDeviceEntity(
     val targetIndex: Int,
     val setupOption: String? = null,
     val bluetoothMacAddress: String? = null,
-    val associationId: Int? = null,
-    val privateData: ByteArray? = null,
-)
+    @Embedded val wifiInfo: WiFiInfo? = null,
+    val androidAssociationId: Int? = null,
+    val auxillaryData: ByteArray? = null,
+) {
+    data class WiFiInfo(
+        val ssid: String? = null,
+        val bssid: String? = null,
+        val password: String? = null,
+    )
+}
 
 @Dao
 interface DeviceDao {
@@ -47,6 +54,8 @@ data class AppSettingEntity(
     @PrimaryKey val id: Int = 1,
     val downloadsLocation: String = FileLayer.getDefaultDownloadDirectory(),
     val perDeviceSubFolder: Boolean = false,
+    val firstTime: Boolean = true,
+    val showWelcomeDialog: Boolean = true,
 )
 
 @Dao
@@ -59,7 +68,7 @@ interface SettingsDao {
     fun getFlow(): Flow<AppSettingEntity?>
 }
 
-@Database(entities = [SavedDeviceEntity::class, AppSettingEntity::class], version = 5,
+@Database(entities = [SavedDeviceEntity::class, AppSettingEntity::class], version = 1,
     autoMigrations = [
         //AutoMigration(from = 1, to = 2)
     ],

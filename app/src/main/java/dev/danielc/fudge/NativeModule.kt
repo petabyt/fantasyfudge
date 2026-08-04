@@ -2,6 +2,7 @@ package dev.danielc.fudge
 
 import dev.danielc.common.DashboardPane
 import dev.danielc.common.FileHandle
+import dev.danielc.common.SavedDeviceEntity.WiFiInfo
 import dev.danielc.common.SavedDeviceInfo
 import dev.danielc.libpak.Bluetooth
 import dev.danielc.libpak.WiFi
@@ -33,6 +34,14 @@ open class NativeModule {
             return it.macAddress
         }
         return null
+    }
+    fun getWiFiInfo(): WiFiInfo? {
+        if (connectedWiFiAdapter == null) return null
+        return WiFiInfo(
+            ssid = connectedWiFiAdapter?.apScanResult?.SSID,
+            bssid = connectedWiFiAdapter?.apScanResult?.BSSID,
+            password = connectedWiFiAdapter?.savedPassword,
+        )
     }
     fun close() {
         // TODO: Auto disassociate if not saved?

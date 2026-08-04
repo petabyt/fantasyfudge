@@ -82,6 +82,18 @@ void pak_debug_log(struct PakModule *mod, const char *fmt, ...) {
 	jmethodID debug_log_m = (*env)->GetMethodID(env, module_c, "debugLog", "(Ljava/lang/String;)V");
 	(*env)->CallVoidMethod(env, mod->rt->obj, debug_log_m, buffer_s);
 	(*env)->PopLocalFrame(env, NULL);
+
+	__android_log_write(ANDROID_LOG_DEBUG, "pak_debug_log", buffer);
+}
+
+void pak_verbose_log(const char *fmt, ...) {
+	char buffer[10000] = {0};
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(buffer, sizeof(buffer), fmt, args);
+	va_end(args);
+
+	__android_log_write(ANDROID_LOG_VERBOSE, "pak_verbose_log", buffer);
 }
 
 void pak_rt_fatal_error(struct PakModule *mod, const char *fmt, ...) {
