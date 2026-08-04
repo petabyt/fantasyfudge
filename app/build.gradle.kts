@@ -29,12 +29,13 @@ android {
             dimension = "buildType"
             applicationId = "dev.danielc.fantasyfudge"
             resValue("string", "app_name", "FantasyFudge")
+            isDefault = true
         }
-//        create("playstore") {
-//            dimension = "buildType"
-//            applicationId = "dev.danielc.fantasyfudge.playstore"
-//            resValue("string", "app_name", "FantasyFudge")
-//        }
+        create("nightly") {
+            dimension = "buildType"
+            applicationId = "dev.danielc.fantasyfudge.nightly"
+            resValue("string", "app_name", "FantasyFudge")
+        }
     }
 
     buildTypes {
