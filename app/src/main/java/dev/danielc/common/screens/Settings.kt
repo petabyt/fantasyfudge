@@ -96,7 +96,11 @@ fun SettingsScreen(navController: NavController = rememberNavController()) {
                     )
                     Row(Modifier, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("Store downloads in per-device subfolders")
-                        Switch(false, onCheckedChange = {})
+                        Switch(settingsValue.perDeviceSubFolder, onCheckedChange = {
+                            CoroutineScope(Dispatchers.IO).launch {
+                                AndroidRuntime.getDatabase().settingsDao().save(settingsValue.copy(perDeviceSubFolder = it))
+                            }
+                        })
                     }
                     HorizontalDivider()
                     ClickableCard("About", painterResource(R.drawable.outline_info_24)) {

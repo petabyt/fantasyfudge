@@ -50,8 +50,7 @@ Java_dev_danielc_fudge_NativeModule_onFindConnection(JNIEnv *env, jobject thiz, 
 }
 
 JNIEXPORT jint JNICALL
-Java_dev_danielc_fudge_NativeModule_onTryConnectWiFi(JNIEnv *env, jobject thiz, jobject adapter_o,
-													  jint job) {
+Java_dev_danielc_fudge_NativeModule_onTryConnectWiFi(JNIEnv *env, jobject thiz, jobject adapter_o, jint job) {
 	struct TempStruct info;
 	struct PakModule *mod = get_mod(env, thiz, &info);
 

@@ -443,8 +443,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                     }
                 }
             }
-            filter.hidden = false
-            WiFi.connectToAccessPointCompanion(filter, companionName,callback)
+            WiFi.connectToAccessPointCompanion(filter, "", callback, true)
         }
     }
 

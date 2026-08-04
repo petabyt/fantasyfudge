@@ -147,6 +147,8 @@ object FileLayer {
         } catch (ignored: Exception) { return null }
     }
 
+    // TODO: Check if file exists
+
     fun openFileForWriting(filename: String, metadata: FileMetadata, subdirectory: String = "fudge"): Handle? {
         val resolver = Pak.getActivity().contentResolver
 

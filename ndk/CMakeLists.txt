@@ -78,6 +78,7 @@ target_link_libraries(pakrt INTERFACE ${CMAKE_PROJECT_NAME})
 
 # libfuji static module
 option(LIBFUJI_SHARED "Build using shared libraries" ON)
+option(LIBFUJI_MODULE "Compile as libpak module" ON)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/libfuji ${CMAKE_CURRENT_BINARY_DIR}/libfuji)
 # dummy static module
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/dummy ${CMAKE_CURRENT_BINARY_DIR}/dummy)

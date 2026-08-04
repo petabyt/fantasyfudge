@@ -385,7 +385,7 @@ abstract class GalleryViewModel : BackgroundViewModel() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
+private fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
     val boxModifier = Modifier.aspectRatio(1f).background(MaterialTheme.colorScheme.surfaceContainer)
     CompositionLocalProvider(LocalRippleConfiguration provides FudgeRippleConfig(Color.White)) {
         Box(
@@ -447,7 +447,7 @@ private fun longToFileSize(bytes: Long): String {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GalleryFile(obj: GalleryObject?, onClick: () -> Unit = {}) {
+private fun GalleryFile(obj: GalleryObject?, onClick: () -> Unit = {}) {
     if (obj == null) return
     CompositionLocalProvider(LocalRippleConfiguration provides FudgeRippleConfig(Color.White)) {
         Box(
@@ -544,6 +544,7 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
         ) {
             val rows = if (displayType == DisplayType.THUMBNAILS) rows else 1
             LazyVerticalGrid(
+                modifier = Modifier.fillMaxSize(),
                 state = listState,
                 columns = GridCells.Fixed(rows)
             ) {

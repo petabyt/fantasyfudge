@@ -11,6 +11,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.nio.file.Files
 
 @RunWith(AndroidJUnit4::class)
 class InstrumentedTest {
@@ -25,8 +26,6 @@ class InstrumentedTest {
             assertEquals("dev.danielc.fantasyfudge", ctx.packageName)
             AndroidRuntime.logGlobalLine("Hello")
             AndroidRuntime.getDeviceFriendlyName()
-            AndroidRuntime.getDownloadDirectory()
-            AndroidRuntime.getFiles()
 
             testBluetooth()
             testWiFi(ctx)

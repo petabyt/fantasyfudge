@@ -32,8 +32,8 @@ fun errorButtonColors(): ButtonColors {
     return ButtonColors(
         containerColor = MaterialTheme.colorScheme.errorContainer,
         contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
-        disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        disabledContainerColor = MaterialTheme.colorScheme.errorContainer.copy(0.5f),
+        disabledContentColor = MaterialTheme.colorScheme.onErrorContainer.copy(0.5f)
     )
 }
 @Composable

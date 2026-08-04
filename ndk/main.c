@@ -211,7 +211,7 @@ int pak_rt_set_storage_info(struct PakModule *mod, const char *storage_name, uns
 	return 0;
 }
 
-int pak_rt_add_file_contents(struct PakModule *mod, struct PakFileHandle *file, void *image_data, unsigned int length, unsigned int offset, unsigned int total_size) {
+int pak_rt_add_file_contents(struct PakModule *mod, struct PakFileHandle *file, void *image_data, unsigned int length, uint64_t offset, uint64_t total_size) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
 	jobject handle_o = create_filehandle(env, file);

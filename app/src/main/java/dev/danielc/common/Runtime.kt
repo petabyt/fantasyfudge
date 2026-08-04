@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 /**
@@ -58,11 +59,14 @@ object Runtime {
         SharingStarted.WhileSubscribed(stopTimeoutMillis = 5000),
         emptyList()
     ) ?: MutableStateFlow(listOf()) // Compose preview fallback
-    val appSettings: StateFlow<AppSettingEntity> = AndroidRuntime.getDatabaseNullable()?.settingsDao()?.getFlow()?.stateIn(
+    val appSettings: StateFlow<AppSettingEntity> = AndroidRuntime.getDatabaseNullable()?.settingsDao()?.getFlow()
+    ?.map { it ?: AppSettingEntity() }
+    ?.stateIn(
         CoroutineScope(Dispatchers.IO),
         SharingStarted.WhileSubscribed(stopTimeoutMillis = 5000),
         AppSettingEntity()
     ) ?: MutableStateFlow(AppSettingEntity(1, "/home/daniel/Pictures")) // Compose preview fallback
+
     var moduleInstances = mutableMapOf<Int, ModuleInstance>()
     private var moduleCounter = 0
 

@@ -15,7 +15,7 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     permissions:
-      contents: read
+      contents: write
       packages: read
     steps:
     - uses: actions/checkout@v4
@@ -26,3 +26,16 @@ jobs:
         git submodule update --init --recursive --recommend-shallow
     - name: Build with Gradle
       run: bash gradlew build
+    - name: Upload Latest Pre-release
+      if: github.event_name != 'pull_request'
+      uses: ncipollo/release-action@v1
+      with:
+        artifacts: "app/build/outputs/apk/stable/release/*.apk"
+        tag: "latest"
+        name: "Latest Pre-Release"
+        body: "Automated build generated from the latest commit on master."
+        prerelease: true
+        allowUpdates: true
+        replacesArtifacts: true
+        commit: ${{ github.sha }}
+        token: ${{ secrets.GITHUB_TOKEN }}

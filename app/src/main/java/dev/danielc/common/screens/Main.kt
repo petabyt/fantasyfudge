@@ -65,8 +65,7 @@ import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Runtime
 import dev.danielc.common.SavedDeviceEntity
 import dev.danielc.common.ui.DefaultNavHost
-import dev.danielc.common.ui.ModuleList
-import dev.danielc.common.ui.ModuleListScreen
+import dev.danielc.common.ui.ManifestList
 import dev.danielc.common.ui.TargetCard
 import dev.danielc.common.ui.dummyManifestList
 import dev.danielc.common.ui.theme.FudgeTheme
@@ -74,6 +73,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.DurationUnit
 
@@ -320,6 +320,11 @@ fun ModuleDeviceList(modifier: Modifier = Modifier, clicked: (ModuleInstanceRequ
     }
 }
 
+@Serializable
+private data class ManifestInfo(
+    val name: String,
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun MainScreen(navController: NavHostController = rememberNavController()) {
@@ -410,7 +415,9 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
                 }
                 composable("modules") {
                     val manifestList by Runtime.moduleManifests.collectAsStateWithLifecycle()
-                    ModuleList(manifestList = manifestList)
+                    ManifestList(manifestList = manifestList, itemClicked = { manifest ->
+                        navController.navigate(ManifestInfo(manifest.name))
+                    })
                 }
                 composable("local-gallery") {
                     LocalGallery(onItemClick = { i ->
@@ -467,8 +474,12 @@ fun MainNav(navController: NavHostController) {
         composable("settings") {
             SettingsScreen(navController)
         }
-        composable("modules-list") {
-            ModuleListScreen(navController)
+        composable<ManifestInfo> { backStackEntry ->
+            val info = backStackEntry.toRoute<ManifestInfo>()
+            val manifest = Runtime.getManifestFromName(info.name)!!
+            ManifestInfoScreen(manifest, close = {
+                navController.navigateUp()
+            })
         }
         composable<ModuleInstanceRequest> { backStackEntry ->
             val request = backStackEntry.toRoute<ModuleInstanceRequest>()

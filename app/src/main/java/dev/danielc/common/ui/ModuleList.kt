@@ -27,8 +27,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
@@ -49,15 +47,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavHostController
-import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
 import dev.danielc.common.Device
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Runtime
 import dev.danielc.common.ui.theme.FudgeTheme
-import dev.danielc.common.ui.theme.errorIconButtonColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -69,53 +63,14 @@ val dummyManifestList: List<ModuleManifest> = listOf(
     ModuleManifest(name = "libroku", description = "Roku TV and media systems", targets = listOf(ModuleManifest.Target(Device.SMART_TV, "Roku", "Roku TV and media systems"))),
 )
 
-//@Preview(showBackground = true, device = "id:pixel_9", uiMode = 32)
 @Composable
-fun ManifestInfoDialog(manifest: ModuleManifest = dummyManifestList[0], close: () -> Unit = {}) {
-    Dialog(onDismissRequest = {
-        close()
-    }) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.5f),
-            shape = RoundedCornerShape(16.dp),
-        ) {
-            Column(Modifier.fillMaxSize().padding(10.dp)) {
-                Text(
-                    text = manifest.name,
-                    modifier = Modifier,
-                    style = TextStyle(
-                        fontSize = 20.sp
-                    ),
-                )
-                if (manifest.author != null) Text("Author: ${manifest.author}")
-                if (manifest.description != null) Text("Description: ${manifest.description}")
-                if (manifest.targets.isNotEmpty()) {
-                    Text("Targets:")
-                    Column(Modifier.padding(horizontal = 5.dp)) {
-                        for (e in manifest.targets) {
-                            Text("Company: ${e.company}")
-                            Text("Type: ${e.deviceId.id}")
-                            if (e.products.isNotEmpty()) {
-                                Text("Products: " + e.products.joinToString(", "), overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun ModuleCard(manifest: ModuleManifest, info: () -> Unit, delete: () -> Unit) {
+fun ManifestCard(manifest: ModuleManifest, click: () -> Unit) {
     Box(modifier = Modifier
         .fillMaxWidth()
         .clip(RoundedCornerShape(12.dp))
         .background(MaterialTheme.colorScheme.surfaceContainer)
         .clickable(onClick = {
-            info()
+            click()
         })
         .padding(16.dp)
     ) {
@@ -172,31 +127,17 @@ fun ModuleCard(manifest: ModuleManifest, info: () -> Unit, delete: () -> Unit) {
                     )
                 }
             }
-            Column() {
-                IconButton(onClick = {
-                    delete()
-                }, colors = errorIconButtonColors()) {
-                    Icon(painterResource(R.drawable.outline_delete_24), contentDescription = null)
-                }
-            }
+            Icon(painterResource(R.drawable.outline_arrow_forward_24), contentDescription = null)
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun ModuleList(modifier: Modifier = Modifier, manifestList: List<ModuleManifest>) {
+fun ManifestList(modifier: Modifier = Modifier, manifestList: List<ModuleManifest>, itemClicked: (ModuleManifest) -> Unit = {}) {
     var isRefreshing by remember { mutableStateOf(false) }
-    var selectedManifest by remember { mutableStateOf<ModuleManifest?>(null) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
-
-    val manifest = selectedManifest
-    if (manifest != null) {
-        ManifestInfoDialog(manifest, {
-            selectedManifest = null
-        })
-    }
 
     PullToRefreshBox(
         state = rememberPullToRefreshState(),
@@ -220,14 +161,9 @@ fun ModuleList(modifier: Modifier = Modifier, manifestList: List<ModuleManifest>
                     .padding(10.dp)
             ) {
                 items(manifestList) { manifest ->
-                    ModuleCard(manifest,
-                        info = {
-                            selectedManifest = manifest
-                        },
-                        delete = {
-
-                        }
-                    )
+                    ManifestCard(manifest, click = {
+                        itemClicked(manifest)
+                    })
                 }
             }
         }
@@ -236,42 +172,12 @@ fun ModuleList(modifier: Modifier = Modifier, manifestList: List<ModuleManifest>
 
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
 @Composable
-fun PreviewModuleList() {
+fun PreviewManifestList() {
     FudgeTheme {
         Scaffold { innerPadding ->
-            ModuleList(Modifier
+            ManifestList(Modifier
                 .fillMaxSize()
                 .consumeWindowInsets(innerPadding), dummyManifestList)
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-@Composable
-fun ModuleListScreen(navController: NavHostController = rememberNavController()) {
-    val manifestList by Runtime.moduleManifests.collectAsStateWithLifecycle()
-    return FudgeTheme {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(),
-                    title = {
-                        Text("Modules")
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = {
-                            navController.navigateUp()
-                        }) {
-                            Icon(
-                                painter = painterResource(R.drawable.outline_arrow_back_24),
-                                contentDescription = "Back"
-                            )
-                        }
-                    },
-                )
-            },
-        ) { innerPadding ->
-            ModuleList(Modifier.padding(innerPadding), manifestList)
         }
     }
 }
