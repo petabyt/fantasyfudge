@@ -24,9 +24,11 @@ android {
     }
 
     buildTypes.getByName("debug") {
+        buildConfigField("boolean", "DEBUG", "true")
         buildConfigField("Long", "BUILD_TIME", "${System.currentTimeMillis()}L")
     }
     buildTypes.getByName("release") {
+        buildConfigField("boolean", "DEBUG", "false")
         buildConfigField("Long", "BUILD_TIME", "${System.currentTimeMillis()}L")
     }
 
@@ -47,11 +49,11 @@ android {
 
     buildTypes {
         release {
-            isDebuggable = true
-            isJniDebuggable = true
-            ndk {
-                debugSymbolLevel = "FULL"
-            }
+//            isDebuggable = true
+//            isJniDebuggable = true
+//            ndk {
+//                debugSymbolLevel = "FULL"
+//            }
 //            isMinifyEnabled = false
 //            proguardFiles(
 //                getDefaultProguardFile("proguard-android-optimize.txt"),
