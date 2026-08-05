@@ -9,6 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    environment: secrets
     container:
       image: ghcr.io/petabyt/fudge:latest
       credentials:
