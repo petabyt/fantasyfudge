@@ -428,6 +428,7 @@ private fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
                         obj.metadata.filename!!, modifier = Modifier.align(Alignment.BottomCenter)
                             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)),
                         color = MaterialTheme.colorScheme.onSurface,
+                        
                         fontSize = 10.sp,
                         style = MaterialTheme.typography.labelSmall
                     )
@@ -437,7 +438,7 @@ private fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
     }
 }
 
-private fun longToFileSize(bytes: Long): String {
+fun longToFileSize(bytes: Long): String {
     if (bytes <= 0) return "0b"
 
     val units = arrayOf("b", "kb", "mb", "gb", "tb", "pb", "eb")

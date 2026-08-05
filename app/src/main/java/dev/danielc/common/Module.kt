@@ -90,9 +90,11 @@ class ModuleGalleryViewModel(val module: ModuleInstance, val viewerViewModel: Vi
                     module.viewerDownloadJob = job
                     if (job.isCancelled) {
                         viewerViewModel.updateStatus("Cancelling...")
-                        module.viewerDownloadJob = null
                     }
                     viewerViewModel.updateProgress(job.progressBarValue ?: 0)
+                    if (job.isFinished) {
+                        module.viewerDownloadJob = null
+                    }
                 }, file)
                 if (rc == Pak.Error.CANCELLED) {
                     onCancel()
@@ -167,7 +169,7 @@ abstract class ModuleBase: NativeModule() {
         val job = createJob(callback)
         var rc = block(job)
         if (job.isCancelled) rc = Pak.Error.CANCELLED
-        job.progressBarValue = null
+        //;job.progressBarValue = null
         job.isFinished = true
         callback(job)
         closeJob(job)

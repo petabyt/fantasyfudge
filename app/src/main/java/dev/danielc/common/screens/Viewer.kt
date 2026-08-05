@@ -8,9 +8,12 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +23,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,11 +31,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberBottomSheetScaffoldState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Canvas
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
 import androidx.compose.ui.graphics.graphicsLayer
@@ -63,6 +73,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
@@ -79,6 +90,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import net.engawapg.lib.zoomable.rememberZoomState
 import net.engawapg.lib.zoomable.zoomable
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private const val MAX_BUFFER_SIZE = 10 * 1000000
@@ -278,12 +290,14 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) -> Unit, close: () -> Unit, cancel: () -> Unit) {
     val filename = state.metadata?.filename ?: "File"
 
     if (state.isError) {
         AlertDialog(
+            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
             containerColor = MaterialTheme.colorScheme.errorContainer,
             title = {
                 Text(text = "Error", color = MaterialTheme.colorScheme.onErrorContainer)
@@ -320,7 +334,7 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
             else -> "file"
         }
 
-        Dialog(onDismissRequest = {}) {
+        Dialog(onDismissRequest = { close() } ) {
             Card(modifier = Modifier
                 .padding(16.dp),
                 shape = RoundedCornerShape(16.dp),
@@ -355,24 +369,26 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
         }
     }
 
+    var showingInfoModal by remember { mutableStateOf(false) }
     val scaleFactor = remember { Animatable(1f) }
     val imageYOffset = remember { Animatable(0.dp, Dp.VectorConverter) }
     val imageXOffset = remember { Animatable(0.dp, Dp.VectorConverter) }
 
     // Swipe image box down to exit the viewer screen
     val scope = rememberCoroutineScope()
-    val screenHeightDp = LocalWindowInfo.current.containerSize.height.dp
+    val screenHeightDp = LocalWindowInfo.current.containerDpSize.height
     val minOffsetToClose = screenHeightDp / 14
     val swipeToCloseGesture = Modifier.pointerInput(Unit) {
         detectDragGestures(
             onDrag = { change, dragAmount ->
                 change.consume()
                 scope.launch {
+                    launch {
+                        imageYOffset.snapTo(imageYOffset.value + dragAmount.y.toDp())
+                    }
                     if ((imageYOffset.value.toPx() + dragAmount.y) >= 0) {
                         launch {
-                            imageYOffset.snapTo(imageYOffset.value + dragAmount.y.toDp())
                             imageXOffset.snapTo(imageXOffset.value + dragAmount.x.toDp())
-                            scaleFactor.animateTo((1f - (imageYOffset.value / 500.dp)).coerceIn(0.5f, 1f))
                         }
                         launch {
                             scaleFactor.animateTo((1f - (imageYOffset.value / 500.dp)).coerceIn(0.5f, 1f))
@@ -381,9 +397,18 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
                 }
             },
             onDragEnd = {
-                if (imageYOffset.value >= minOffsetToClose) {
+                if (imageYOffset.value > 0.dp && imageYOffset.value >= minOffsetToClose) {
                     close()
+                    showingInfoModal = false
+                } else if (!showingInfoModal && imageYOffset.value < 0.dp && imageYOffset.value <= -minOffsetToClose) {
+                    showingInfoModal = true
+                    scope.launch {
+                        launch {
+                            imageYOffset.animateTo(-(screenHeightDp / 4))
+                        }
+                    }
                 } else {
+                    showingInfoModal = false
                     scope.launch {
                         launch {
                             scaleFactor.animateTo(1f)
@@ -400,15 +425,23 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
         )
     }
 
+    // Render the bottom sheet independently, bring it up with the image
+    val scaffoldState = rememberBottomSheetScaffoldState()
+    if (imageYOffset.value < 0.dp) {
+        BottomSheetScaffold(
+            scaffoldState = scaffoldState, sheetContent = {
+                Column(Modifier.padding(15.dp)) {
+                    Text("${state.metadata?.filename}")
+                    Text("${state.metadata?.height}x${state.metadata?.height}")
+                    Text(longToFileSize(state.metadata?.filesize?.toLong() ?: 0L))
+                }
+            }, modifier = modifier,
+            sheetPeekHeight = if (imageYOffset.value < 0.dp) -imageYOffset.value else 0.dp
+        ) {}
+    }
+
     Box(modifier = modifier
         .fillMaxSize()
-        .graphicsLayer {
-            scaleX = scaleFactor.value
-            scaleY = scaleFactor.value
-        }
-        .offset {
-            IntOffset(imageXOffset.value.toPx().roundToInt(), imageYOffset.value.toPx().roundToInt())
-        }
         .then(swipeToCloseGesture)
     ) {
         val pagerState = rememberPagerState(initialPage = state.handle.index, pageCount = {
@@ -421,36 +454,35 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
                 }
             }
         }
-        HorizontalPager(
-            state = pagerState, modifier = Modifier
-                .fillMaxSize()
-                .align(Alignment.Center)) { page ->
+
+        val imgModifier = Modifier.fillMaxSize().graphicsLayer {
+            scaleX = scaleFactor.value
+            scaleY = scaleFactor.value
+        }
+        .offset {
+            IntOffset(imageXOffset.value.toPx().roundToInt(), imageYOffset.value.toPx().roundToInt())
+        }
+
+        HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
             if (page == state.handle.index) {
                 if (state.bitmap != null) {
                     val zoomState = rememberZoomState(contentSize = Size(state.bitmap.width.toFloat(), state.bitmap.height.toFloat()))
                     Image(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .align(Alignment.Center)
-                            .zoomable(zoomState),
+                        modifier = imgModifier.zoomable(zoomState),
                         bitmap = state.bitmap,
                         contentDescription = filename,
                     )
                 }
             } else if (page == state.handle.index - 1 && state.bitmapLeft != null) {
                 Image(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .fillMaxWidth(),
+                    modifier = imgModifier,
                     bitmap = state.bitmapLeft,
                     contentScale = ContentScale.FillWidth,
                     contentDescription = filename,
                 )
             } else if (page == state.handle.index + 1 && state.bitmapRight != null) {
                 Image(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .fillMaxWidth(),
+                    modifier = imgModifier,
                     bitmap = state.bitmapRight,
                     contentScale = ContentScale.FillWidth,
                     contentDescription = filename,
@@ -477,7 +509,7 @@ fun PreviewViewer(navController: NavController = rememberNavController()) {
         bitmap = painterToImageBitmap(painter),
         bitmapLeft = painterToImageBitmap(painter),
         bitmapRight = painterToImageBitmap(painter),
-        isLoading = true,
+        isLoading = false,
         currentDownloadSpeed = "5 mbps",
         currentDownloadProgress = 40,
         numberOfItems = 30,
