@@ -19,7 +19,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Nobody uses 32bit x86 anymore, disabling 32bit arm for now
+        // Nobody uses 32bit anymore, disabling 32bit arm/x86 for now
         ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
@@ -47,6 +47,14 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getenv("KEYSTORE_FILE") ?: "release-key.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("KEY_ALIAS")
+            keyPassword = System.getenv("KEY_PASSWORD")
+        }
+    }
     buildTypes {
         release {
 //            isDebuggable = true
@@ -59,7 +67,7 @@ android {
 //                getDefaultProguardFile("proguard-android-optimize.txt"),
 //                "proguard-rules.pro"
 //            )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     externalNativeBuild {

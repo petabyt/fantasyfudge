@@ -28,7 +28,9 @@ jobs:
       run: |
         cd modules/libfuji && git pull origin master
     - name: Build with Gradle
-      run: bash gradlew assembleRelease
+      run: |
+        echo "${{ secrets.KEYSTORE_B64 }}" | base64 --decode > app/release-key.jks
+        bash gradlew assembleRelease
     - name: Upload Latest Pre-release
       if: github.event_name != 'pull_request'
       uses: ncipollo/release-action@v1
