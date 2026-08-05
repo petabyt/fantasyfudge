@@ -36,7 +36,7 @@ jobs:
         artifacts: "app/build/outputs/apk/nightly/release/*.apk"
         tag: "latest"
         name: "Nightly Build"
-        bodyFile: "nightly.txt"
+        bodyFile: ".github/workflows/nightly.txt"
         prerelease: true
         allowUpdates: true
         replacesArtifacts: true

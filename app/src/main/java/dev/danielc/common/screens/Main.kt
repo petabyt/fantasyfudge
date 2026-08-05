@@ -274,13 +274,11 @@ fun MainConnectScreen(modifier: Modifier = Modifier, clicked: (ModuleInstanceReq
                     item {
                         ClickableCard(color = MaterialTheme.colorScheme.surfaceContainerHighest) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column {
+                                Column(Modifier.weight(1f)) {
                                     Text("FantasyFudge pre-release", style = MaterialTheme.typography.titleMedium)
-                                    if (BuildInfo.isDebug) Text("Debug Build", color = MaterialTheme.colorScheme.tertiary)
-                                    if (BuildInfo.isNightly) Text("Nightly build - this build is untested and not stable.", color = MaterialTheme.colorScheme.tertiary)
-                                    Text("Build date: ${BuildInfo.time}", color = MaterialTheme.colorScheme.tertiary)
+                                    if (BuildInfo.isDebug) Text("Debug Build (unoptimized)", color = MaterialTheme.colorScheme.tertiary)
+                                    if (BuildInfo.isNightly) Text("Nightly build (unstable)", color = MaterialTheme.colorScheme.error)
                                 }
-                                Spacer(Modifier.weight(1f))
                                 IconButton(onClick = { showWelcome = false }, modifier = Modifier.fillMaxHeight()) {
                                     Icon(
                                         painterResource(R.drawable.outline_close_24),
