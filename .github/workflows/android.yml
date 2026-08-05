@@ -28,7 +28,12 @@ jobs:
     - name: Update to latest module versions
       run: |
         cd modules/libfuji && git pull origin master
-    - name: Build with Gradle
+    - name: Build and sign with Gradle
+      env:
+        KEYSTORE_FILE: release-key.jks
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: |
         echo "${{ secrets.KEYSTORE_B64 }}" | base64 --decode > app/release-key.jks
         bash gradlew assembleRelease
