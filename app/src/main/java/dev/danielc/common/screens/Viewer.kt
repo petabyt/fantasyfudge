@@ -1,7 +1,9 @@
 package dev.danielc.common.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Animatable
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.ImageBitmap
@@ -48,11 +51,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -73,6 +79,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import net.engawapg.lib.zoomable.rememberZoomState
 import net.engawapg.lib.zoomable.zoomable
+import kotlin.math.roundToInt
 
 private const val MAX_BUFFER_SIZE = 10 * 1000000
 
@@ -348,32 +355,27 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
         }
     }
 
-    val imageYOffset = remember {
-        Animatable(0f)
-    }
-    val scaleFactor = remember {
-        Animatable(1f)
-    }
+    val scaleFactor = remember { Animatable(1f) }
+    val imageYOffset = remember { Animatable(0.dp, Dp.VectorConverter) }
+    val imageXOffset = remember { Animatable(0.dp, Dp.VectorConverter) }
 
     // Swipe image box down to exit the viewer screen
     val scope = rememberCoroutineScope()
-    val screenHeightDp = LocalWindowInfo.current.containerSize.height
+    val screenHeightDp = LocalWindowInfo.current.containerSize.height.dp
     val minOffsetToClose = screenHeightDp / 14
     val swipeToCloseGesture = Modifier.pointerInput(Unit) {
         detectDragGestures(
-            onDrag = { _, dragAmount ->
+            onDrag = { change, dragAmount ->
+                change.consume()
                 scope.launch {
-                    if ((imageYOffset.value + dragAmount.y) >= 0) {
+                    if ((imageYOffset.value.toPx() + dragAmount.y) >= 0) {
                         launch {
-                            imageYOffset.animateTo(imageYOffset.value + (dragAmount.y * 1.3f))
+                            imageYOffset.snapTo(imageYOffset.value + dragAmount.y.toDp())
+                            imageXOffset.snapTo(imageXOffset.value + dragAmount.x.toDp())
+                            scaleFactor.animateTo((1f - (imageYOffset.value / 500.dp)).coerceIn(0.5f, 1f))
                         }
                         launch {
-                            scaleFactor.animateTo(
-                                (1f - (imageYOffset.value / 1000f)).coerceIn(
-                                    0.5f,
-                                    1f
-                                )
-                            )
+                            scaleFactor.animateTo((1f - (imageYOffset.value / 500.dp)).coerceIn(0.5f, 1f))
                         }
                     }
                 }
@@ -384,10 +386,13 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
                 } else {
                     scope.launch {
                         launch {
-                            imageYOffset.animateTo(0f)
+                            scaleFactor.animateTo(1f)
                         }
                         launch {
-                            scaleFactor.animateTo(1f)
+                            imageYOffset.animateTo(0.dp)
+                        }
+                        launch {
+                            imageXOffset.animateTo(0.dp)
                         }
                     }
                 }
@@ -401,7 +406,9 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
             scaleX = scaleFactor.value
             scaleY = scaleFactor.value
         }
-        .offset(0.dp, imageYOffset.value.dp)
+        .offset {
+            IntOffset(imageXOffset.value.toPx().roundToInt(), imageYOffset.value.toPx().roundToInt())
+        }
         .then(swipeToCloseGesture)
     ) {
         val pagerState = rememberPagerState(initialPage = state.handle.index, pageCount = {
