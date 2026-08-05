@@ -55,6 +55,7 @@ open class NativeModule {
 //        }
     }
 
+    // TODO: This is a temporary solution for thread safety
     @Synchronized
     external fun onFindConnection(job: Int): Int
     @Synchronized

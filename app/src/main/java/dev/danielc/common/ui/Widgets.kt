@@ -133,7 +133,22 @@ fun Material3DropDown(expanded: Boolean, current: String, options: List<String>,
     }
 }
 
-@Preview(showBackground = true, device = "id:pixel_7", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+fun DeleteDialog(nameOfDevice: String = "FooBar", yes: () -> Unit = {}, no: () -> Unit = {}) {
+    AlertDialog(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        title = { Text(text = "Delete") },
+        text = { Text(text = "Delete ${nameOfDevice}?") },
+        onDismissRequest = { no() },
+        confirmButton = {
+            TextButton(onClick = { yes() }) { Text("Yes") }
+        },
+        dismissButton = {
+            TextButton(onClick = { no() }) { Text("No") }
+        }
+    )
+}
+
 @Composable
 fun DisconnectDialog(nameOfDevice: String = "FooBar", yes: () -> Unit = {}, no: () -> Unit = {}) {
     AlertDialog(

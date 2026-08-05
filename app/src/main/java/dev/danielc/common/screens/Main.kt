@@ -52,6 +52,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -67,6 +68,7 @@ import dev.danielc.common.Runtime
 import dev.danielc.common.SavedDeviceEntity
 import dev.danielc.common.ui.ClickableCard
 import dev.danielc.common.ui.DefaultNavHost
+import dev.danielc.common.ui.DeleteDialog
 import dev.danielc.common.ui.ManifestList
 import dev.danielc.common.ui.TargetCard
 import dev.danielc.common.ui.dummyManifestList
@@ -192,27 +194,19 @@ fun ConnectableDeviceCard(dev: ConnectableDevice, clicked: (String?) -> Unit = {
 }
 
 @Composable
-fun SavedDeviceCard(target: ModuleManifest.Target, transport: ModuleManifest.Transport?, dev: SavedDeviceEntity, isNearby: Boolean, clicked: () -> Unit = {}) {
+fun SavedDeviceCard(target: ModuleManifest.Target, transport: ModuleManifest.Transport?, dev: SavedDeviceEntity, isNearby: Boolean, clicked: () -> Unit = {}, longClick: () -> Unit) {
     Box(modifier = Modifier
         .fillMaxWidth()
         .clip(RoundedCornerShape(12.dp))
         .background(MaterialTheme.colorScheme.surfaceContainerHigh)
         .combinedClickable(
-            onClick = {
-                clicked()
-            },
-            onLongClick = {
-                clicked()
-            }
+            onClick = { clicked() },
+            onLongClick = { longClick() }
         )
         .padding(16.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         painterResource(target.deviceId.getIcon()),
@@ -249,13 +243,20 @@ fun SavedDeviceCard(target: ModuleManifest.Target, transport: ModuleManifest.Tra
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun MainConnectScreen(modifier: Modifier = Modifier, clicked: (ModuleInstanceRequest) -> Unit) {
+fun MainConnectScreen(navController: NavController, modifier: Modifier = Modifier, clicked: (ModuleInstanceRequest) -> Unit) {
     var isRefreshing by remember { mutableStateOf(false) }
     var showWelcome by remember { mutableStateOf(true) }
+    var selectedSavedDevice by remember { mutableStateOf<SavedDeviceEntity?>(null) }
     val savedDevices by Runtime.savedDevices.collectAsStateWithLifecycle()
     val deviceList by Runtime.connectableDevices.collectAsStateWithLifecycle()
     val manifestList by Runtime.moduleManifests.collectAsStateWithLifecycle()
     val nearbyList by Runtime.nearbyDevices.collectAsStateWithLifecycle()
+    selectedSavedDevice?.let {
+        DeleteDialog(it.name, yes = {
+            Runtime.deleteSavedDeviceEntity(it)
+            selectedSavedDevice = null
+        }, no = { selectedSavedDevice = null })
+    }
     PullToRefreshBox(
         state = rememberPullToRefreshState(),
         isRefreshing = isRefreshing,
@@ -272,12 +273,13 @@ fun MainConnectScreen(modifier: Modifier = Modifier, clicked: (ModuleInstanceReq
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (showWelcome) {
                     item {
-                        ClickableCard(color = MaterialTheme.colorScheme.surfaceContainerHighest) {
+                        ClickableCard(color = MaterialTheme.colorScheme.surfaceContainerHighest, click = {
+                            navController.navigate("about")
+                        }) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text("FantasyFudge pre-release", style = MaterialTheme.typography.titleMedium)
-                                    if (BuildInfo.isDebug) Text("Debug Build (unoptimized)", color = MaterialTheme.colorScheme.tertiary)
-                                    if (BuildInfo.isNightly) Text("Nightly build (unstable)", color = MaterialTheme.colorScheme.error)
+                                    Text("Introduction and what this app does")
                                 }
                                 IconButton(onClick = { showWelcome = false }, modifier = Modifier.fillMaxHeight()) {
                                     Icon(
@@ -321,6 +323,8 @@ fun MainConnectScreen(modifier: Modifier = Modifier, clicked: (ModuleInstanceReq
                                 savedDeviceUniqueId = dev.uniqueIdentifier,
                                 chosenSetupOption = dev.setupOption,
                             ))
+                        }, longClick = {
+                            selectedSavedDevice = dev
                         })
                     }
                 }
@@ -373,7 +377,11 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
                     TopAppBar(
                         colors = TopAppBarDefaults.topAppBarColors(),
                         title = {
-                            Text("FantasyFudge")
+                            if (BuildInfo.isDebug) {
+                                Text("FantasyFudge (Debug)")
+                            } else if (BuildInfo.isNightly) {
+                                Text("FantasyFudge (Nightly)")
+                            }
                         },
                         navigationIcon = {
                             Image(
@@ -431,6 +439,7 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
             ) {
                 composable("connect") {
                     MainConnectScreen(
+                        navController,
                         clicked = { request ->
                             navController.navigate(request)
                         }
@@ -493,6 +502,9 @@ fun MainNav(navController: NavHostController) {
         }
         composable("about") {
             AboutScreen(navController)
+        }
+        composable("info") {
+            InfoScreen(navController)
         }
         composable("settings") {
             SettingsScreen(navController)

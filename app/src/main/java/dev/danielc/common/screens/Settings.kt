@@ -103,15 +103,15 @@ fun SettingsScreen(navController: NavController = rememberNavController()) {
                         })
                     }
                     HorizontalDivider()
-                    ClickableCard("About", painterResource(R.drawable.outline_info_24)) {
-                        navController.navigate("about")
+                    ClickableCard("Info", painterResource(R.drawable.outline_info_24)) {
+                        navController.navigate("info")
                     }
-                    ClickableCard("Help", painterResource(R.drawable.baseline_help_24)) {
-                        navController.navigate("help")
-                    }
-                    ClickableCard("Send feedback", painterResource(R.drawable.baseline_bug_report_24)) {
-                        uriHandler.openUri("https://google.com/")
-                    }
+//                    ClickableCard("Help", painterResource(R.drawable.baseline_help_24)) {
+//                        navController.navigate("help")
+//                    }
+//                    ClickableCard("Send feedback", painterResource(R.drawable.baseline_bug_report_24)) {
+//                        uriHandler.openUri("https://google.com/")
+//                    }
                     ClickableCard("Debug Console", painterResource(R.drawable.baseline_terminal_24)) {
                         navController.navigate("console")
                     }

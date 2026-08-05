@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -57,6 +59,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.DpSize
@@ -69,6 +72,10 @@ import dev.danielc.R
 import dev.danielc.common.BackgroundViewModel
 import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
+import dev.danielc.common.screens.MimeType.FOLDER
+import dev.danielc.common.screens.MimeType.JPEG
+import dev.danielc.common.screens.MimeType.MOV
+import dev.danielc.common.screens.MimeType.PNG
 import dev.danielc.common.ui.theme.FudgeRippleConfig
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
@@ -492,6 +499,7 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
     val haptic = LocalHapticFeedback.current
     var isRefreshing by remember { mutableStateOf(false) }
     var displayType by rememberSaveable { mutableStateOf(DisplayType.THUMBNAILS) }
+    var sortBy by rememberSaveable { mutableStateOf(SortBy.NEWEST_FIRST) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
     var rows by rememberSaveable { mutableIntStateOf(4) }
     @Composable
@@ -506,7 +514,7 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
                     Text(state.storageName, color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(6.dp))
                 }
             }
-            Spacer(Modifier.weight(0.5f))
+            //Spacer(Modifier.weight(0.5f))
             val interactionSource = remember { MutableInteractionSource() }
             Slider(modifier = Modifier.weight(1f), value = rows.toFloat(), valueRange = 2f..5f , steps = 3, onValueChange = {
                 rows = it.toInt()
@@ -522,6 +530,14 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
                     modifier = Modifier.size(27.dp),
                     tint = MaterialTheme.colorScheme.onBackground,
                     painter = if (displayType == DisplayType.THUMBNAILS) painterResource(R.drawable.baseline_view_list_24) else painterResource(R.drawable.baseline_grid_view_24),
+                    contentDescription = null
+                )
+            }
+            IconButton(onClick = {}, modifier = Modifier) {
+                Icon(
+                    modifier = Modifier.size(27.dp),
+                    tint = MaterialTheme.colorScheme.onBackground,
+                    painter = painterResource(R.drawable.outline_sort_24),
                     contentDescription = null
                 )
             }
@@ -622,7 +638,7 @@ fun PreviewGalleryScreen(navController: NavHostController = rememberNavControlle
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Green)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Blue)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Cyan)),
-    ), storageName = "SDCARD")
+    ), storageName = "Card 2")
 
     return FudgeTheme {
         Scaffold(

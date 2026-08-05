@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  * This is used over ViewModel so that it can be easily stowed away and kept running in the background
@@ -78,6 +79,12 @@ object Runtime {
         }
         init {
             Pak.callbacks = this
+        }
+    }
+
+    fun deleteSavedDeviceEntity(dev: SavedDeviceEntity) {
+        CoroutineScope(Dispatchers.IO).launch {
+            AndroidRuntime.getDatabaseNullable()?.deviceDao()?.deleteDevice(dev)
         }
     }
 

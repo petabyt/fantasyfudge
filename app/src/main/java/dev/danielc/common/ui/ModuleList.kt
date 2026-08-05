@@ -183,18 +183,13 @@ fun PreviewManifestList() {
 }
 
 @Composable
-fun TargetCard(target: ModuleManifest.Target, manifest: ModuleManifest, clicked: (String?) -> Unit = {}) {
+fun TargetCard(target: ModuleManifest.Target, manifest: ModuleManifest, clicked: () -> Unit) {
     Box(modifier = Modifier
         .fillMaxWidth()
         .clip(RoundedCornerShape(12.dp))
         .background(MaterialTheme.colorScheme.surfaceContainer)
         .combinedClickable(
-            onClick = {
-                clicked(null)
-            },
-            onLongClick = {
-                clicked(null)
-            }
+            onClick = { clicked() }
         )
         .padding(16.dp),
     ) {

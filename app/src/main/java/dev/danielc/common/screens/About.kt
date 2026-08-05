@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,7 +32,7 @@ import dev.danielc.R
 import dev.danielc.common.ui.theme.FudgeTheme
 
 @Composable
-fun About() {
+fun DependencyList() {
     val uriHandler = LocalUriHandler.current
     data class Dep(
         val name: String,
@@ -66,6 +67,39 @@ fun About() {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+//@Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
+@Composable
+fun InfoScreen(navController: NavHostController = rememberNavController()) {
+    return FudgeTheme {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    colors = TopAppBarDefaults.topAppBarColors(),
+                    title = {
+                        Text("Info")
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            navController.navigateUp()
+                        }) {
+                            Icon(painterResource(R.drawable.outline_arrow_back_24), contentDescription = null)
+                        }
+                    },
+                )
+            },
+        ) { innerPadding ->
+            Column(Modifier.padding(innerPadding).padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column {
+                    Text("${stringResource(R.string.app_name)} - based on Fudge (2023-2025)")
+                    Text("Copyright (C) ${stringResource(R.string.app_name)} 2026, license TBD")
+                }
+                DependencyList()
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
 @Composable
 fun AboutScreen(navController: NavHostController = rememberNavController()) {
@@ -87,10 +121,8 @@ fun AboutScreen(navController: NavHostController = rememberNavController()) {
                 )
             },
         ) { innerPadding ->
-            Column(Modifier.padding(innerPadding).padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("${stringResource(R.string.app_name)} - based on Fudge (2023-2025)")
-                Text("Copyright (C) ${stringResource(R.string.app_name)} 2026, license TBD")
-                About()
+            Column(Modifier.padding(innerPadding).padding(10.dp)) {
+                Text("This page is not finished yet")
             }
         }
     }
