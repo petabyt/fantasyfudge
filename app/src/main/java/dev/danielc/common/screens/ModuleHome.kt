@@ -344,16 +344,17 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
                 switchTo = { i ->
                     module.galleryViewModel.goToViewer(FileHandle(i, viewerState?.handle?.storageName))
                 }, close = {
-                    println("${module.viewerDownloadJob}")
                     if (module.viewerDownloadJob == null) {
                         CoroutineScope(Dispatchers.IO).launch {
                             module.goBack(Screen.FILE_GALLERY, false)
                         }
                     } else {
+                        module.viewerViewModel.cleanupAfterCancel()
                         module.viewerDownloadJob?.let { module.cancelJob(it) }
                     }
                 },
                 cancel = {
+                    module.viewerViewModel.cleanupAfterCancel()
                     module.viewerDownloadJob?.let { module.cancelJob(it) }
                 },
                 save = {

@@ -14,6 +14,7 @@ import android.os.Environment
 import android.os.Handler
 import android.os.ParcelFileDescriptor
 import android.provider.MediaStore
+import android.util.Log
 import android.util.Size
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -128,6 +129,12 @@ object FileLayer {
             streamIn?.close()
             fd.close()
         }
+    }
+
+    fun deleteFile(file: Handle) {
+        Log.d("files", "Deleting ${file.uri}")
+        val resolver = Pak.getActivity().contentResolver
+        resolver.delete(file.uri, null, null)
     }
 
     fun readFile(file: MediaStoreFile): ByteArray? {
