@@ -20,12 +20,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlin.time.DurationUnit
 import kotlin.time.TimeSource
 
+/**
+ * Note that a Kotlin function is for use through JNI/C
+ */
 annotation class CalledFromNative
 
 typealias JobUpdateCallback = (ModuleJob) -> Unit
@@ -122,7 +124,6 @@ class ModuleDashboardModel(val module: ModuleInstance) : DashboardModel(module.m
     override fun runCommand(line: String) {
         module.runCommand(line)
     }
-
     override fun save() {
         module.userSave()
     }
@@ -303,10 +304,41 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             if (savedEntry != null) dashboardModel.setSaved()
             // TODO: Set saved/update timestamp
         }
+
+        val rc = when (manifest.moduleType) {
+            ModuleManifest.ModuleType.SHARED_LIBRARY -> {
+                AndroidRuntime.setupSharedLibraryModule(this, manifest.scriptPath!!)
+            }
+            ModuleManifest.ModuleType.QUICKJS -> {
+                val path = manifest.scriptPath
+                if (path == null) {
+                    debugLog("<error>script path not included")
+                    -1
+                } else {
+                    var fileContents = FileLayer.readFile(path)
+                    if (fileContents == null) {
+                        debugLog("Failed to read ${path}")
+                        -1
+                    } else {
+                        fileContents += 0.toByte()
+                        AndroidRuntime.setupJavascriptModule(this, fileContents)
+                    }
+                }
+            }
+            ModuleManifest.ModuleType.WEBASSEMBLY -> {
+                debugLog("<error>Wasm not implemented yet")
+                -1
+            }
+        }
+        if (rc != 0) {
+            homeModelView.initializationError.value = true
+        } else {
+            request.chosenSetupOption?.let { setSetupOptionName(it) }
+        }
     }
     var currentTickIntervalUs: Int = (100 * 1000)
-    private var mainLoopJob: kotlinx.coroutines.Job? = null
-    var initJob: kotlinx.coroutines.Job? = null
+    private var mainLoopJob: Job? = null
+    var initJob: Job? = null
     private var currentScreen: Screen = Screen.CONNECT
     var isConnected = false
     var disconnectReason: String? = null
@@ -489,11 +521,11 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     }
 
     private fun wifiConnectRoutine(wifi: ModuleManifest.WiFiDiscovery, saved: SavedDeviceEntity?) {
+        connectingModel.setTryAgainDisabled(true)
         val callback = object : WiFi.WiFiDiscoveryCallback() {
             override fun failed(reason: String, code: Int) {
                 debugLog("<error>${reason}")
             }
-
             override fun onConnected(net: WiFi.Adapter) {
                 connectingModel.setPopupText(null)
                 if (tryConnectWiFi(net) == 0) {
@@ -501,11 +533,9 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                     setIsConnected()
                 }
             }
-
             override fun onConnecting(ssid: String?) {
                 connectingModel.setPopupText(if (ssid != null) "Connecting to ${ssid}..." else "Connecting to a network...")
             }
-
             override fun onUserCancelled() {
                 debugLog("Cancelled")
             }
@@ -526,7 +556,6 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             val filter = WiFi.ApFilter()
             filter.ssidPattern = wifi.ssidPattern
             filter.password = wifi.defaultPassword
-            connectingModel.setTryAgainDisabled(true)
             WiFi.connectToAccessPointCompanion(filter, companionName, callback)
         } else {
             if (saved.wifiInfo != null) {
@@ -534,7 +563,6 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                 filter.ssidPattern = saved.wifiInfo.ssid
                 filter.password = saved.wifiInfo.password
                 filter.bssid = saved.wifiInfo.bssid
-                connectingModel.setTryAgainDisabled(true)
                 WiFi.connectToAccessPointCompanion(filter, companionName, callback)
             }
         }
@@ -603,48 +631,10 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                 }
             }
             connectingModel.setTryAgainDisabled(true)
-            val rc = Bluetooth.pairWithDeviceCompanion(filters, "FudgeDevice1", null,callback)
-            if (rc != 0) {
-                debugLog("Bluetooth.pairWithDeviceCompanion: ${rc}")
-            }
+            Bluetooth.pairWithDeviceCompanion(filters, companionName, null,callback)
             connectingModel.setTryAgainDisabled(false)
             connectingModel.setPopupText(null)
         }
-    }
-
-    private fun initModule(): Boolean {
-        // TODO: Prevent from being called more than once
-        val rc = when (manifest.moduleType) {
-            ModuleManifest.ModuleType.SHARED_LIBRARY -> {
-                AndroidRuntime.setupSharedLibraryModule(this, manifest.scriptPath!!)
-            }
-            ModuleManifest.ModuleType.QUICKJS -> {
-                val path = manifest.scriptPath
-                if (path == null) {
-                    debugLog("<error>script path not included")
-                    -1
-                } else {
-                    var fileContents = FileLayer.readFile(path)
-                    if (fileContents == null) {
-                        debugLog("Failed to read ${path}")
-                        -1
-                    } else {
-                        fileContents += 0.toByte()
-                        AndroidRuntime.setupJavascriptModule(this, fileContents)
-                    }
-                }
-            }
-            ModuleManifest.ModuleType.WEBASSEMBLY -> {
-                debugLog("<error>Wasm not implemented yet")
-                -1
-            }
-        }
-        if (rc != 0) {
-            homeModelView.initializationError.value = true
-            return true
-        }
-        request.chosenSetupOption?.let { setSetupOptionName(it) }
-        return false
     }
 
     private fun initConnection() {
@@ -688,9 +678,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
 
     fun initThread() {
         initJob = CoroutineScope(Dispatchers.IO).launch {
-            if (!initModule()) {
-                initConnection()
-            }
+            initConnection()
             initJob = null
         }
     }
@@ -734,6 +722,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             onSwitchScreen(prev.id, new.id, job.id)
         }
         if (new != prev) {
+            // This is done in place of ViewModel init/onCleared
             when (new) {
                 Screen.FILE_GALLERY -> galleryViewModel.start()
                 else -> {}

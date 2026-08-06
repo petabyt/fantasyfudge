@@ -303,9 +303,6 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
         }
     }
 
-    val debugLogState by module.debugLogModel.uiState.collectAsStateWithLifecycle()
-    val viewerState by module.viewerViewModel.viewerState.collectAsStateWithLifecycle()
-
     DefaultNavHost(navController = navController, startDestination = "connecting") {
         composable("connecting-secondary") {
             ConnectingScreen(back = {
@@ -313,12 +310,7 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
             }, model = module.connectingModel)
         }
         composable("connecting") {
-//            val connectProgress by module.homeModelView.connectProgress.collectAsStateWithLifecycle()
-//            val action by module.homeModelView.connectRequiredAction.collectAsStateWithLifecycle()
-//, {
-//                    module.tryConnectAgain()
-//                }, ConnectingScreenState(debugLogState, connectProgress, action, module.target,
-//                    transport = module.request.getSetupOption()?.transport ?: ModuleManifest.Transport.WIFI_AP)
+            val debugLogState by module.debugLogModel.uiState.collectAsStateWithLifecycle()
             val isInitError by module.homeModelView.initializationError.collectAsStateWithLifecycle()
             var hasCancelled by remember { mutableStateOf(false) }
             if (isInitError) {
@@ -342,10 +334,12 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
             ModuleHomeScreen(module, navController)
         }
         composable("disconnected") {
+            val debugLogState by module.debugLogModel.uiState.collectAsStateWithLifecycle()
             val reason = "${module.disconnectReason ?: "(no reason)"} - (${Runtime.errorCodeToString(module.disconnectedErrorCode ?: 0)})"
             DisconnectedScreen(reason, backToMainScreen = backToMainScreen, consoleState = debugLogState)
         }
         composable(Screen.FILE_VIEWER.strId) {
+            val viewerState by module.viewerViewModel.viewerState.collectAsStateWithLifecycle()
             ViewerScreen(viewerState,
                 switchTo = { i ->
                     module.galleryViewModel.goToViewer(FileHandle(i, viewerState?.handle?.storageName))

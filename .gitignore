@@ -11,5 +11,8 @@ local.properties
 
 app/src/main/assets/*
 !app/src/main/assets/.gitkeep
+app/nightly/*
 app/src/main/res/drawable/background1.jpg
 up.sh
+push.sh
+android_test_module
