@@ -2,7 +2,9 @@ package dev.danielc.common.screens
 
 import android.content.ClipData
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -20,6 +22,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,11 +33,16 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.danielc.R
+import dev.danielc.common.BackgroundViewModel
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.ui.dummyManifestList
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.errorButtonColors
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 enum class ConnectingRequiredAction {
@@ -55,7 +63,7 @@ fun ModuleErrorScreen(back: () -> Unit = {}, state: ConsoleState = ConsoleState(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("PakModule Failure") },
+                    title = { Text("Module Failure") },
                     navigationIcon = {
                         IconButton(onClick = { back() }) {
                             Icon(painterResource(R.drawable.outline_arrow_back_24), contentDescription = null)
@@ -77,7 +85,9 @@ fun ModuleErrorScreen(back: () -> Unit = {}, state: ConsoleState = ConsoleState(
                 )
             },
         ) { innerPadding ->
-            Column(Modifier.fillMaxSize().padding(innerPadding)) {
+            Column(Modifier
+                .fillMaxSize()
+                .padding(innerPadding)) {
                 Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Module failed to initialize. This is a bug.")
                     Console(Modifier.fillMaxSize(), state)
@@ -88,30 +98,56 @@ fun ModuleErrorScreen(back: () -> Unit = {}, state: ConsoleState = ConsoleState(
 }
 
 data class ConnectingScreenState(
-    val consoleState: ConsoleState = ConsoleState(),
-    val progress: Int? = 50,
+    val progress: Int? = null,
+    val tryAgainDisabled: Boolean = false,
     val action: ConnectingRequiredAction = ConnectingRequiredAction.NONE,
     val target: ModuleManifest.Target = dummyManifestList[0].targets[0],
-    val transport: ModuleManifest.Transport = ModuleManifest.Transport.WIFI_AP,
+    val transport: ModuleManifest.Transport? = null,
     val disableTryAgain: Boolean = false,
-    val userInstruction: String? = null, // TODO
+    val userInstruction: String? = null,
+    val loadingPopupText: String? = null,
 )
+
+open class ConnectingScreenModel(val consoleModel: ConsoleModel): BackgroundViewModel() {
+    private val _state = MutableStateFlow(ConnectingScreenState())
+    val state = _state.asStateFlow()
+    fun reset(target: ModuleManifest.Target, transport: ModuleManifest.Transport?) {
+        _state.update {
+            ConnectingScreenState(
+                target = target,
+                transport = transport
+            )
+        }
+    }
+    fun setTryAgainDisabled(v: Boolean) { _state.update { it.copy(tryAgainDisabled = v) } }
+    fun setProgress(p: Int?) { _state.update { it.copy(progress = p) } }
+    fun setRequiredAction(a: ConnectingRequiredAction) { _state.update { it.copy(action = a) } }
+    fun setPopupText(s: String?) { _state.update { it.copy(loadingPopupText = s) } }
+    fun setUserInstruction(s: String?) { _state.update { it.copy(userInstruction = s) } }
+
+    open fun onCancel(): Boolean { return false }
+    open fun onTryAgain() {}
+}
 
 @Preview(showBackground = true, device = "id:pixel_9a", uiMode = 32)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: ConnectingScreenState = ConnectingScreenState()) {
+fun ConnectingScreen(back: () -> Unit = {}, model: ConnectingScreenModel = ConnectingScreenModel(ConsoleModel())) {
     val clipboardManager = LocalClipboard.current
     val scope = rememberCoroutineScope()
+    val state by model.state.collectAsStateWithLifecycle()
+    val consoleState by model.consoleModel.uiState.collectAsStateWithLifecycle()
     @Composable
     fun ActionMessage(icon: Painter, text: String) {
-        Column(Modifier.fillMaxSize().padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier
+            .fillMaxSize()
+            .padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(200.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
             Text(text, textAlign = TextAlign.Center)
             Button({
-                tryAgain()
+                model.onTryAgain()
             }, enabled = !state.disableTryAgain) {
                 Text("Try Again")
             }
@@ -139,7 +175,7 @@ fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: Co
                     actions = {
                         IconButton(onClick = {
                             scope.launch {
-                                val clipData = ClipData.newPlainText("label", state.toString())
+                                val clipData = ClipData.newPlainText("debug log", consoleState.toString())
                                 clipboardManager.setClipEntry(clipData.toClipEntry())
                             }
                         }) {
@@ -152,54 +188,85 @@ fun ConnectingScreen(back: () -> Unit = {}, tryAgain: () -> Unit = {}, state: Co
                 )
             },
         ) { innerPadding ->
-            Column(Modifier.fillMaxSize().padding(innerPadding)) {
-                if (state.action == ConnectingRequiredAction.TURN_ON_WIFI) {
-                    ActionMessage(painterResource(R.drawable.outline_wifi_24), "Please turn on WiFi")
-                } else if (state.action == ConnectingRequiredAction.TURN_ON_BLUETOOTH) {
-                    ActionMessage(painterResource(R.drawable.outline_bluetooth_24), "Please turn on Bluetooth")
-                } else if (state.action == ConnectingRequiredAction.ACCEPT_PERMISSION) {
-                    ActionMessage(painterResource(R.drawable.outline_bluetooth_24), "Permission required to connect to a device")
-                } else {
-                    Column(Modifier.padding(10.dp)) {
-                        Row(Modifier.fillMaxWidth().padding(10.dp)) {
-                            Icon(painterResource(state.target.deviceId.getIcon()), contentDescription = null, modifier = Modifier.size(60.dp), tint = MaterialTheme.colorScheme.primary)
-                            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                                if (state.transport == ModuleManifest.Transport.LOCAL_NETWORK_UDP) {
-                                    Text(
-                                        "Looking for a ${state.target.company} ${state.target.deviceId.getReadableName()}...",
-                                        textAlign = TextAlign.Center
-                                    )
-                                } else {
-                                    Text(
-                                        "Connecting to a ${state.target.company} ${state.target.deviceId.getReadableName()}...",
-                                        textAlign = TextAlign.Center
+            Box(Modifier
+                .fillMaxSize()
+                .padding(innerPadding)) {
+                Column(Modifier.fillMaxSize()) {
+                    if (state.action == ConnectingRequiredAction.TURN_ON_WIFI) {
+                        ActionMessage(painterResource(R.drawable.outline_wifi_24), "Please turn on WiFi")
+                    } else if (state.action == ConnectingRequiredAction.TURN_ON_BLUETOOTH) {
+                        ActionMessage(painterResource(R.drawable.outline_bluetooth_24), "Please turn on Bluetooth")
+                    } else if (state.action == ConnectingRequiredAction.ACCEPT_PERMISSION) {
+                        ActionMessage(painterResource(R.drawable.outline_user_attributes_24), "Permission required to connect to this device")
+                    } else {
+                        Column(Modifier.padding(10.dp)) {
+                            Row(Modifier
+                                .fillMaxWidth()
+                                .padding(10.dp)) {
+                                Icon(painterResource(state.target.deviceId.getIcon()), contentDescription = null, modifier = Modifier.size(60.dp), tint = MaterialTheme.colorScheme.primary)
+                                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    if (state.transport == ModuleManifest.Transport.LOCAL_NETWORK_UDP) {
+                                        Text(
+                                            "Looking for a ${state.target.company} ${state.target.deviceId.getReadableName()}...",
+                                            textAlign = TextAlign.Center
+                                        )
+                                    } else {
+                                        Text(
+                                            "Connecting to a ${state.target.company} ${state.target.deviceId.getReadableName()}...",
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                    if (state.progress != null) Text("${state.progress}%", textAlign = TextAlign.Center)
+                                }
+                            }
+                            Button(onClick = {
+                                model.onTryAgain()
+                            }, Modifier.fillMaxWidth(), enabled = !state.tryAgainDisabled) {
+                                Text("Try again")
+                            }
+                            Button(onClick = back, Modifier.fillMaxWidth(), colors = errorButtonColors()) {
+                                Text("Cancel")
+                            }
+                            if (state.transport == ModuleManifest.Transport.LOCAL_NETWORK_UDP) {
+                                Column(Modifier
+                                    .fillMaxWidth()
+                                    .padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.Center) {
+                                    CircularProgressIndicator()
+                                }
+                            } else {
+                                state.progress?.let {
+                                    LinearProgressIndicator(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        progress = { it.toFloat() / 100 }
                                     )
                                 }
-                                if (state.progress != null) Text("${state.progress}%", textAlign = TextAlign.Center)
                             }
                         }
-                        Button(onClick = tryAgain, Modifier.fillMaxWidth()) {
-                            Text("Try again")
-                        }
-                        Button(onClick = back, Modifier.fillMaxWidth(), colors = errorButtonColors()) {
-                            Text("Cancel")
-                        }
-                        if (state.transport == ModuleManifest.Transport.LOCAL_NETWORK_UDP) {
-                            Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center) {
-                                CircularProgressIndicator()
+                        Console(Modifier.fillMaxSize(), consoleState)
+                    }
+                }
+                state.loadingPopupText?.let {
+                    Box(Modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest).align(Alignment.Center)) {
+                        Column(Modifier.padding(20.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(it)
+                                CircularProgressIndicator(Modifier.size(20.dp))
                             }
-                        } else {
-                            if (state.progress != null ) {
-                                LinearProgressIndicator(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    progress = { state.progress.toFloat() / 100 }
-                                )
-                            }
+                            Text("Might take a while", style = MaterialTheme.typography.labelSmall)
                         }
                     }
-                    Console(Modifier.fillMaxSize(), state.consoleState)
+                }
+                state.userInstruction?.let {
+                    Box(Modifier.padding(10.dp).background(MaterialTheme.colorScheme.surfaceContainerHighest).align(Alignment.BottomCenter)) {
+                        Row(Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(painterResource(R.drawable.outline_info_24), contentDescription = null)
+                            Text(it)
+                        }
+                    }
                 }
             }
         }

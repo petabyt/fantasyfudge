@@ -1,5 +1,6 @@
 package dev.danielc.common
 import dev.danielc.common.screens.ConnectingRequiredAction
+import dev.danielc.common.screens.ConnectingScreenModel
 import dev.danielc.common.screens.ConsoleModel
 import dev.danielc.common.screens.DashboardModel
 import dev.danielc.common.screens.GalleryObjectReference
@@ -16,6 +17,7 @@ import dev.danielc.libpak.Pak
 import dev.danielc.libpak.WiFi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
@@ -123,6 +125,24 @@ class ModuleDashboardModel(val module: ModuleInstance) : DashboardModel(module.m
 
     override fun save() {
         module.userSave()
+    }
+}
+
+class ModuleConnectingScreenModel(val module: ModuleInstance) : ConnectingScreenModel(module.debugLogModel) {
+    var lastWiFiApFilter: WiFi.ApFilter? = null
+    var lastWiFiSetupOption: String? = null
+    var isSecondaryConnection = false
+    var secondaryConnectionJob: Job? = null
+    override fun onTryAgain() {
+        if (isSecondaryConnection) {
+            if (secondaryConnectionJob?.isCompleted ?: true) {
+                module.addWiFiConnection(lastWiFiApFilter ?: return, lastWiFiSetupOption ?: return)
+            }
+        } else {
+            if (module.initJob?.isCompleted ?: true) {
+                module.initThread()
+            }
+        }
     }
 }
 
@@ -266,6 +286,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     val galleryViewModel = ModuleGalleryViewModel(this, viewerViewModel)
     val intervalometerModel = ModuleIntervalometerModel(this)
     val debugLogModel = ConsoleModel()
+    val connectingModel = ModuleConnectingScreenModel(this)
     val dashboardModel = ModuleDashboardModel(this)
     val target = manifest.targets[request.targetIndex]
     var viewerDownloadJob: ModuleJob? = null
@@ -280,7 +301,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     }
     var currentTickIntervalUs: Int = (100 * 1000)
     private var mainLoopJob: kotlinx.coroutines.Job? = null
-    private var initJob: kotlinx.coroutines.Job? = null
+    var initJob: kotlinx.coroutines.Job? = null
     private var currentScreen: Screen = Screen.CONNECT
     var isConnected = false
     var disconnectReason: String? = null
@@ -329,6 +350,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         println("Stopping module threads")
         cancelAllJobs()
         Bluetooth.interruptAll()
+        WiFi.interruptAll()
         galleryViewModel.stop()
         initJob?.cancelAndJoin()
         mainLoopJob?.cancelAndJoin()
@@ -341,6 +363,10 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             close()
             free()
         }
+    }
+    @CalledFromNative
+    fun setUserInstruction(s: String?) {
+        connectingModel.setUserInstruction(s)
     }
     @CalledFromNative
     fun getMetadata(file: FileHandle): FileMetadata? {
@@ -365,7 +391,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     @CalledFromNative
     fun setProgressBar(job: Int, v: Int) {
         val jobObj = getJob(job)
-        if (jobObj != null) {
+        if (jobObj != null && jobObj.progressBarValue != v) {
             jobObj.progressBarValue = v
             jobObj.onUpdate(jobObj)
         }
@@ -424,7 +450,10 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     }
     @CalledFromNative
     fun addWiFiConnection(filter: WiFi.ApFilter, setupOption: String) {
-        CoroutineScope(Dispatchers.IO).launch {
+        connectingModel.isSecondaryConnection = true
+        connectingModel.lastWiFiApFilter = filter
+        connectingModel.lastWiFiSetupOption = setupOption
+        connectingModel.secondaryConnectionJob = CoroutineScope(Dispatchers.IO).launch {
             homeModelView.goToScreen(Screen.CONNECT_SECONDARY, false)
             setSetupOptionName(setupOption)
             val callback = object : WiFi.WiFiDiscoveryCallback() {
@@ -445,7 +474,10 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                     }
                 }
             }
+            connectingModel.setTryAgainDisabled(true)
             WiFi.connectToAccessPointCompanion(filter, companionName, callback, true)
+            connectingModel.setTryAgainDisabled(false)
+            connectingModel.setPopupText(null)
         }
     }
 
@@ -456,6 +488,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             }
 
             override fun onConnected(net: WiFi.Adapter) {
+                connectingModel.setPopupText(null)
                 if (tryConnectWiFi(net) == 0) {
                     setWiFiDevice(net)
                     setIsConnected()
@@ -463,7 +496,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             }
 
             override fun onConnecting(ssid: String?) {
-                if (ssid != null) debugLog("Connecting to ${ssid}...") else debugLog("Connecting to the network...")
+                connectingModel.setPopupText(if (ssid != null) "Connecting to ${ssid}..." else "Connecting to a network...")
             }
 
             override fun onUserCancelled() {
@@ -486,6 +519,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             val filter = WiFi.ApFilter()
             filter.ssidPattern = wifi.ssidPattern
             filter.password = wifi.defaultPassword
+            connectingModel.setTryAgainDisabled(true)
             WiFi.connectToAccessPointCompanion(filter, companionName, callback)
         } else {
             if (saved.wifiInfo != null) {
@@ -493,29 +527,37 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                 filter.ssidPattern = saved.wifiInfo.ssid
                 filter.password = saved.wifiInfo.password
                 filter.bssid = saved.wifiInfo.bssid
+                connectingModel.setTryAgainDisabled(true)
                 WiFi.connectToAccessPointCompanion(filter, companionName, callback)
             }
         }
+        connectingModel.setTryAgainDisabled(false)
+        connectingModel.setPopupText(null)
     }
 
     private fun connectCallback(job: ModuleJob) {
-        homeModelView.connectProgress.update {
-            job.progressBarValue
-        }
+        connectingModel.setProgress(job.progressBarValue)
     }
 
     private fun bluetoothConnectRoutine(info: List<ModuleManifest.BluetoothDiscovery>, saved: SavedDeviceEntity?) {
         if (!Bluetooth.checkPermission()) {
-            homeModelView.connectRequiredAction.value = ConnectingRequiredAction.ACCEPT_PERMISSION
+            connectingModel.setRequiredAction(ConnectingRequiredAction.ACCEPT_PERMISSION)
             Bluetooth.requestConnectPermission()
         } else if (!Bluetooth.isBluetoothEnabled()) {
-            homeModelView.connectRequiredAction.value = ConnectingRequiredAction.TURN_ON_BLUETOOTH
+            connectingModel.setRequiredAction(ConnectingRequiredAction.TURN_ON_BLUETOOTH)
             Bluetooth.openEnableBluetoothDialog()
         } else {
             fun doConnect(dev: Bluetooth.Device) {
-                debugLog("Connecting to '${dev.name}'...")
+                connectingModel.setPopupText("Connecting to ${dev.name}")
                 setBluetoothDevice(dev)
-                val rc = tryConnectBluetooth(dev, saved, {job -> connectCallback(job)})
+                connectingModel.setTryAgainDisabled(true)
+                val rc = tryConnectBluetooth(dev, saved) { job ->
+                    connectCallback(job)
+                    if (dev.isConnected) {
+                        connectingModel.setPopupText(null)
+                    }
+                }
+                connectingModel.setTryAgainDisabled(false)
                 if (rc == 0) {
                     setIsConnected()
                 } else {
@@ -546,22 +588,20 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                 }
                 override fun onFailure(reason: String) {
                     debugLog("System error: ${reason}")
+                    connectingModel.setPopupText(null)
                 }
 
                 override fun onCancel() {
                     debugLog("Cancelled")
                 }
             }
+            connectingModel.setTryAgainDisabled(true)
             val rc = Bluetooth.pairWithDeviceCompanion(filters, "FudgeDevice1", null,callback)
             if (rc != 0) {
                 debugLog("Bluetooth.pairWithDeviceCompanion: ${rc}")
             }
-        }
-    }
-
-    fun tryConnectAgain() {
-        if (initJob?.isCompleted ?: true) {
-            initThread()
+            connectingModel.setTryAgainDisabled(false)
+            connectingModel.setPopupText(null)
         }
     }
 
@@ -600,7 +640,6 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     }
 
     private fun initConnection() {
-        homeModelView.connectRequiredAction.value = ConnectingRequiredAction.NONE
         val savedDeviceInfo = request.getSavedDeviceEntity()
         val option = request.getSetupOption()
         val transport = when {
@@ -609,13 +648,14 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             target.bluetoothDiscovery.isNotEmpty() -> ModuleManifest.Transport.BLUETOOTH
             else -> null
         }
+        connectingModel.reset(target, transport)
         if (target.wifiDiscovery != null && transport == ModuleManifest.Transport.WIFI_AP) {
             wifiConnectRoutine(target.wifiDiscovery, savedDeviceInfo)
         } else if (target.bluetoothDiscovery.isNotEmpty() && transport == ModuleManifest.Transport.BLUETOOTH) {
             bluetoothConnectRoutine(target.bluetoothDiscovery, savedDeviceInfo)
         } else if (transport == ModuleManifest.Transport.LOCAL_NETWORK_UDP) {
             if (!WiFi.checkPermission()) {
-                homeModelView.connectRequiredAction.value = ConnectingRequiredAction.ACCEPT_PERMISSION
+                connectingModel.setRequiredAction(ConnectingRequiredAction.ACCEPT_PERMISSION)
                 WiFi.requestConnectPermission()
                 return
             }

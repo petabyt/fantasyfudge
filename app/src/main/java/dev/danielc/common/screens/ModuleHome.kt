@@ -84,8 +84,8 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
     val homeState = _homeState.asStateFlow()
     private val _uiEvents = MutableSharedFlow<UiEvent>(replay = 1)
     val uiEvents = _uiEvents.asSharedFlow()
-    val connectProgress = MutableStateFlow<Int?>(null)
-    val connectRequiredAction = MutableStateFlow(ConnectingRequiredAction.NONE)
+//    val connectProgress = MutableStateFlow<Int?>(null)
+//    val connectRequiredAction = MutableStateFlow(ConnectingRequiredAction.NONE)
     val initializationError = MutableStateFlow(false)
 
     var module: ModuleInstance = ModuleInstance(manifest, request, this)
@@ -308,19 +308,17 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
 
     DefaultNavHost(navController = navController, startDestination = "connecting") {
         composable("connecting-secondary") {
-            val connectProgress by module.homeModelView.connectProgress.collectAsStateWithLifecycle()
-            val action by module.homeModelView.connectRequiredAction.collectAsStateWithLifecycle()
-            ConnectingScreen({
+            ConnectingScreen(back = {
                 module.homeModelView.back(false)
-            }, {
-
-            }, ConnectingScreenState(
-                debugLogState, connectProgress, action, module.target
-            ))
+            }, model = module.connectingModel)
         }
         composable("connecting") {
-            val connectProgress by module.homeModelView.connectProgress.collectAsStateWithLifecycle()
-            val action by module.homeModelView.connectRequiredAction.collectAsStateWithLifecycle()
+//            val connectProgress by module.homeModelView.connectProgress.collectAsStateWithLifecycle()
+//            val action by module.homeModelView.connectRequiredAction.collectAsStateWithLifecycle()
+//, {
+//                    module.tryConnectAgain()
+//                }, ConnectingScreenState(debugLogState, connectProgress, action, module.target,
+//                    transport = module.request.getSetupOption()?.transport ?: ModuleManifest.Transport.WIFI_AP)
             val isInitError by module.homeModelView.initializationError.collectAsStateWithLifecycle()
             var hasCancelled by remember { mutableStateOf(false) }
             if (isInitError) {
@@ -337,11 +335,7 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
                             }
                         }
                     }
-                }, {
-                    module.tryConnectAgain()
-                }, ConnectingScreenState(debugLogState, connectProgress, action, module.target,
-                    transport = module.request.getSetupOption()?.transport ?: ModuleManifest.Transport.WIFI_AP)
-                )
+                }, model = module.connectingModel)
             }
         }
         composable("home") {

@@ -72,7 +72,7 @@ interface SettingsDao {
     autoMigrations = [
         //AutoMigration(from = 1, to = 2)
     ],
-    exportSchema = true
+    exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun deviceDao(): DeviceDao

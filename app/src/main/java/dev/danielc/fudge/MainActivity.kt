@@ -82,9 +82,9 @@ class MainActivity : ComponentActivity(), ComponentCallbacks2 {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Pak.setupAndroidContext(this)
         if (!AndroidRuntime.hasInited) {
             AndroidRuntime.hasInited = true
+            Pak.setupAndroidContext(this)
             System.loadLibrary("fudge")
             AndroidRuntime.setup(this)
             WiFi.startNetworkListeners(this)
