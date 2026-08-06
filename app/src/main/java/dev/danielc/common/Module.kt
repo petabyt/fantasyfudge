@@ -144,6 +144,11 @@ class ModuleConnectingScreenModel(val module: ModuleInstance) : ConnectingScreen
             }
         }
     }
+
+    override fun onCancel(): Boolean {
+        WiFi.interruptAll()
+        return true
+    }
 }
 
 abstract class ModuleBase: NativeModule() {
@@ -463,6 +468,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
 
                 override fun onConnected(net: WiFi.Adapter) {
                     debugLog("Found network")
+                    connectingModel.setPopupText(null)
                     request = request.copy(
                         chosenSetupOption = setupOption
                     )
@@ -474,6 +480,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                     }
                 }
             }
+            connectingModel.setPopupText("Connecting to ${filter.ssidPattern ?: "?"}")
             connectingModel.setTryAgainDisabled(true)
             WiFi.connectToAccessPointCompanion(filter, companionName, callback, true)
             connectingModel.setTryAgainDisabled(false)
@@ -606,6 +613,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     }
 
     private fun initModule(): Boolean {
+        // TODO: Prevent from being called more than once
         val rc = when (manifest.moduleType) {
             ModuleManifest.ModuleType.SHARED_LIBRARY -> {
                 AndroidRuntime.setupSharedLibraryModule(this, manifest.scriptPath!!)

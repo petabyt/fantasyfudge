@@ -224,7 +224,10 @@ fun ConnectingScreen(back: () -> Unit = {}, model: ConnectingScreenModel = Conne
                             }, Modifier.fillMaxWidth(), enabled = !state.tryAgainDisabled) {
                                 Text("Try again")
                             }
-                            Button(onClick = back, Modifier.fillMaxWidth(), colors = errorButtonColors()) {
+                            Button(onClick = {
+                                model.onCancel()
+                                back()
+                            }, Modifier.fillMaxWidth(), colors = errorButtonColors()) {
                                 Text("Cancel")
                             }
                             if (state.transport == ModuleManifest.Transport.LOCAL_NETWORK_UDP) {

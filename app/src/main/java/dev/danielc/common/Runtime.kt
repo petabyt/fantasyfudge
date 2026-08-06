@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -51,6 +52,7 @@ object Runtime {
     val trimMemorySignal = _trimMemorySignal.asSharedFlow()
     suspend fun emitMemoryTrimSignal() { _trimMemorySignal.emit(Unit) }
     var nearbyDevices = MutableStateFlow(mutableSetOf<String>())
+    val nearbyDevicesFlow = nearbyDevices.asStateFlow()
     val mainLog = ConsoleModel()
     val localGalleryViewModel = LocalGalleryViewModel()
     var connectableDevices = MutableStateFlow<List<ConnectableDevice>>(emptyList())
@@ -74,7 +76,7 @@ object Runtime {
     val callbacks = object : Pak.Callbacks() {
         override fun onDeviceAppearance(address: String?, isNearby: Boolean) {
             if (address != null) {
-                if (isNearby) nearbyDevices.value += address else nearbyDevices.value -= address
+                nearbyDevices.value = (if (isNearby) nearbyDevices.value + address else nearbyDevices.value - address).toMutableSet()
             }
         }
         init {

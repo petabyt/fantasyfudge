@@ -56,7 +56,7 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
     module.c
 )
 target_compile_options(${CMAKE_PROJECT_NAME}
-    PRIVATE -Wall -Wshadow -Wcast-qual -Wpedantic -Werror=incompatible-pointer-types -Werror=incompatible-pointer-types -Werror=deprecated-declarations -Wstrict-aliasing=3 -Werror=narrowing
+    PRIVATE -Wall -Wshadow -Wcast-qual -Wpedantic -Werror=incompatible-pointer-types -Werror=incompatible-pointer-types -Werror=deprecated-declarations -Werror=narrowing
 )
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE -Wl,--whole-archive pak -Wl,--no-whole-archive libjpeg-turbo)
 get_target_property(PAK_INCLUDES_TEMP pak INCLUDE_DIRECTORIES)

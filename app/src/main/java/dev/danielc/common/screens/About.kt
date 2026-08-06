@@ -4,8 +4,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
@@ -30,6 +33,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.rememberNavController
 import dev.danielc.R
 import dev.danielc.common.ui.theme.FudgeTheme
+import dev.danielc.fudge.BuildInfo
 
 @Composable
 fun DependencyList() {
@@ -90,8 +94,8 @@ fun InfoScreen(navController: NavHostController = rememberNavController()) {
         ) { innerPadding ->
             Column(Modifier.padding(innerPadding).padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column {
-                    Text("${stringResource(R.string.app_name)} - based on Fudge (2023-2025)")
                     Text("Copyright (C) ${stringResource(R.string.app_name)} 2026, license TBD")
+                    Text("Compile date: ${BuildInfo.time}")
                 }
                 DependencyList()
             }
@@ -122,7 +126,31 @@ fun AboutScreen(navController: NavHostController = rememberNavController()) {
             },
         ) { innerPadding ->
             Column(Modifier.padding(innerPadding).padding(10.dp)) {
-                Text("This page is not finished yet")
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxSize()) {
+                    Text("Connect to cameras, earbuds, and more", style = MaterialTheme.typography.titleMedium)
+                    Row(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Icon(painterResource(R.drawable.baseline_photo_camera_24), contentDescription = null, modifier = Modifier.size(70.dp))
+                        Icon(painterResource(R.drawable.outline_earbuds_2_24), contentDescription = null, modifier = Modifier.size(70.dp))
+                        Icon(painterResource(R.drawable.outline_devices_other_24), contentDescription = null, modifier = Modifier.size(70.dp))
+                    }
+                    Text("""
+                        An alternative to the WiFi/Bluetooth app that came with your device.
+                        """.trimIndent(), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(10.dp))
+                    //Text("Support for more devices coming soon", style = MaterialTheme.typography.labelSmall)
+                    HorizontalDivider(Modifier.padding(10.dp))
+                    Text("Give big brother the middle finger", style = MaterialTheme.typography.titleMedium)
+                    Text("""
+                        Your dashcam doesn't need your email address and full name. Big tech is tracking you and selling your data to advertisers.
+                    """.trimIndent(), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(10.dp))
+                    HorizontalDivider(Modifier.padding(10.dp))
+                    Text("True ownership means zero vendor lock-in", style = MaterialTheme.typography.titleMedium)
+                    Text("""
+                        Stop being locked into big tech's walled garden. You shouldn't be forced to use their app, make an account with them, or sign up to their subscriptions.
+
+                        You own your stuff. It shouldn't feel like you're renting it.
+                    """.trimIndent(), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(10.dp))
+                    HorizontalDivider(Modifier.padding(10.dp))
+                }
             }
         }
     }

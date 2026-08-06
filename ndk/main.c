@@ -155,10 +155,10 @@ static jobject create_filemetadata(JNIEnv *env, const struct PakFileMetadata *me
 		(*env)->NewStringUTF(env, meta->mime_type),
 		meta->image_width,
 		meta->image_height,
-		meta->file_size,
+		(jint)meta->file_size, // narrows
 		NULL,
 		NULL,
-		0
+		meta->orientation
 	);
 	return (*env)->PopLocalFrame(env, handle_o);
 }

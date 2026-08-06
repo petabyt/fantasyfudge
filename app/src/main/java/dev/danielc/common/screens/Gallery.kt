@@ -189,6 +189,7 @@ data class FilesystemState(
     val objectListSortedOrder: SortBy = SortBy.NEWEST_FIRST,
     // object is null if it hasn't been loaded/checked yet
     val objects: List<GalleryObject?> = emptyList(),
+    val objectsSorted: List<GalleryObject?> = emptyList(),
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
 )
 
@@ -229,6 +230,22 @@ abstract class GalleryViewModel : BackgroundViewModel() {
     private fun objectIsFulfilled(obj: GalleryObject?): Boolean {
         if (obj == null) return false
         return ((obj.metadata != null || obj.invalidMetadata) && (obj.thumbnail != null || obj.invalidThumbnail));
+    }
+
+    private fun sortObjectList() {
+        if (_uiState.value.userSortBy != _uiState.value.objectListSortedOrder) {
+            _uiState.update {
+                it.copy(
+                    objectsSorted = it.objects.reversed()
+                )
+            }
+        } else {
+            _uiState.update {
+                it.copy(
+                    objectsSorted = it.objects
+                )
+            }
+        }
     }
 
     private fun checkObject(obj: GalleryObject?, ref: GalleryObjectReference): Boolean {
@@ -319,6 +336,7 @@ abstract class GalleryViewModel : BackgroundViewModel() {
                     objectListSortedOrder = sortBy,
                 )
             }
+            sortObjectList()
         }
     }
 
@@ -331,6 +349,7 @@ abstract class GalleryViewModel : BackgroundViewModel() {
                 list[i] = block(obj)
                 currentState.copy(objects = list)
             }
+            sortObjectList()
         }
     }
 
@@ -568,8 +587,8 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
                 item(span = { GridItemSpan(rows) }) {
                     menu()
                 }
-                if (state.objects.isNotEmpty()) {
-                    itemsIndexed(state.objects) { index, obj ->
+                if (state.objectsSorted.isNotEmpty()) {
+                    itemsIndexed(state.objectsSorted) { index, obj ->
                         if (displayType == DisplayType.THUMBNAILS) {
                             GalleryThumbnail(obj, onClick = {
                                 onItemClick(index)

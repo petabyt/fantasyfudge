@@ -204,7 +204,7 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
         }
     }
     fun setFileContents(data: ByteArray?, offset: Long, totalSize: Long) {
-        println("${data?.size}, ${offset}, ${totalSize}")
+        //println("${data?.size}, ${offset}, ${totalSize}")
         if (rejectTransfers) {
             return
         }

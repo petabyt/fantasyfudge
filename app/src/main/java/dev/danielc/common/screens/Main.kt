@@ -250,7 +250,7 @@ fun MainConnectScreen(navController: NavController, modifier: Modifier = Modifie
     val savedDevices by Runtime.savedDevices.collectAsStateWithLifecycle()
     val deviceList by Runtime.connectableDevices.collectAsStateWithLifecycle()
     val manifestList by Runtime.moduleManifests.collectAsStateWithLifecycle()
-    val nearbyList by Runtime.nearbyDevices.collectAsStateWithLifecycle()
+    val nearbyList by Runtime.nearbyDevicesFlow.collectAsStateWithLifecycle()
     selectedSavedDevice?.let {
         DeleteDialog(it.name, yes = {
             Runtime.deleteSavedDeviceEntity(it)
@@ -387,9 +387,7 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
                             Image(
                                 painterResource(R.drawable.icon),
                                 contentDescription = null,
-                                Modifier.size(40.dp).padding(5.dp).clip(
-                                    CircleShape
-                                )
+                                Modifier.size(40.dp).padding(5.dp).clip(CircleShape)
                             )
                         },
                         actions = {
