@@ -36,7 +36,6 @@ static int free_module(JNIEnv *env, struct PakModule *mod) {
 	if (mod->bt) pak_bt_unref_context(mod->bt);
 	if (mod->net) pak_net_unref_context(mod->net);
 	(*env)->DeleteGlobalRef(env, mod->rt->obj);
-	(*env)->DeleteGlobalRef(env, mod->rt->obj);
 	if (mod->rt->log_buf) free(mod->rt->log_buf);
 	free(mod->rt);
 	free(mod);
