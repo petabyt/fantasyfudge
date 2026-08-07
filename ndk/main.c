@@ -50,8 +50,10 @@ void pak_debug_log(struct PakModule *mod, const char *fmt, ...) {
 	char buffer[4096] = {0};
 	va_list args;
 	va_start(args, fmt);
-	vsnprintf(buffer, sizeof(buffer), fmt, args);
+	int len = vsnprintf(buffer, sizeof(buffer), fmt, args);
 	va_end(args);
+
+	if (buffer[len - 1] == '\n') buffer[len - 1] = '\0';
 
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
@@ -79,7 +81,9 @@ void pak_verbose_log(struct PakModule *mod, const char *fmt, ...) {
 	strcpy(priv->log_buf + priv->log_pos, buffer);
 	priv->log_pos += len;
 
+#ifndef NDEBUG
 	__android_log_write(ANDROID_LOG_DEBUG, "pak_verbose_log", buffer);
+#endif
 }
 
 void pak_rt_fatal_error(struct PakModule *mod, const char *fmt, ...) {
