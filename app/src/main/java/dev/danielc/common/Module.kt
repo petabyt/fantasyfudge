@@ -631,7 +631,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                 }
             }
             connectingModel.setTryAgainDisabled(true)
-            Bluetooth.pairWithDeviceCompanion(filters, companionName, null,callback)
+            Bluetooth.pairWithDeviceCompanion(filters, companionName, null,callback, true)
             connectingModel.setTryAgainDisabled(false)
             connectingModel.setPopupText(null)
         }
