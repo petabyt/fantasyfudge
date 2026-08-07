@@ -11,28 +11,6 @@
 #include "thread.h"
 #include "main.h"
 
-static struct PakModule *create_module(JNIEnv *env, jobject o_mod) {
-	struct PakModule *mod = calloc(1, sizeof(struct PakModule));
-	mod->rt = calloc(sizeof(struct RuntimePriv), 1);
-	mod->rt->obj = (*env)->NewGlobalRef(env, o_mod);
-	return mod;
-}
-static int finalize_module(JNIEnv *env, struct PakModule *mod) {
-	int rc = 0;
-	if (mod->init != NULL) rc = mod->init(mod);
-
-	mod->bt = pak_bt_get_context();
-	mod->net = pak_net_get_context();
-
-	struct ModuleJavaStruct temp = { .ptr = mod, };
-	jbyteArray struct_o = (*env)->NewByteArray(env, sizeof(struct ModuleJavaStruct));
-	(*env)->SetByteArrayRegion(env, struct_o, 0, sizeof(struct ModuleJavaStruct), (const jbyte *)&temp);
-
-	jfieldID struct_field = (*env)->GetFieldID(env, (*env)->FindClass(env, "dev/danielc/fudge/NativeModule"), "struct", "[B");
-	(*env)->SetObjectField(env, mod->rt->obj, struct_field, struct_o);
-	return rc;
-}
-
 JNIEXPORT void JNICALL Java_dev_danielc_fudge_AndroidRuntime_init(JNIEnv *env, jclass clazz) {
 	set_jni_env_ctx(env, clazz);
 	pak_global_log("AndroidRuntime init");
@@ -69,7 +47,7 @@ int pak_rt_set_tick_interval(struct PakModule *mod, unsigned int us) {
 }
 
 void pak_debug_log(struct PakModule *mod, const char *fmt, ...) {
-	char buffer[10000] = {0};
+	char buffer[4096] = {0};
 	va_list args;
 	va_start(args, fmt);
 	vsnprintf(buffer, sizeof(buffer), fmt, args);
@@ -86,14 +64,22 @@ void pak_debug_log(struct PakModule *mod, const char *fmt, ...) {
 	__android_log_write(ANDROID_LOG_DEBUG, "pak_debug_log", buffer);
 }
 
-void pak_verbose_log(const char *fmt, ...) {
-	char buffer[10000] = {0};
+void pak_verbose_log(struct PakModule *mod, const char *fmt, ...) {
+	char buffer[4096] = {0};
 	va_list args;
 	va_start(args, fmt);
-	vsnprintf(buffer, sizeof(buffer), fmt, args);
+	int len = vsnprintf(buffer, sizeof(buffer), fmt, args);
 	va_end(args);
 
-	__android_log_write(ANDROID_LOG_VERBOSE, "pak_verbose_log", buffer);
+	struct RuntimePriv *priv = mod->rt;
+	if (len + priv->log_pos + 1 > priv->log_len) {
+		priv->log_buf = realloc(priv->log_buf, len + priv->log_pos + 1);
+		if (priv->log_buf == NULL) abort();
+	}
+	strcpy(priv->log_buf + priv->log_pos, buffer);
+	priv->log_pos += len;
+
+	__android_log_write(ANDROID_LOG_DEBUG, "pak_verbose_log", buffer);
 }
 
 void pak_rt_fatal_error(struct PakModule *mod, const char *fmt, ...) {
@@ -422,58 +408,6 @@ int pak_rt_add_wifi_connection(struct PakModule *mod, struct PakWiFiApFilter *fi
 
 	(*env)->PopLocalFrame(env, NULL);
 	return 0;
-}
-
-JNIEXPORT int JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupWebassemblyModule(JNIEnv *env, jclass clazz, jobject mod_o, jbyteArray fileContents) {
-	set_jni_env_ctx(env, clazz);
-	struct PakModule *mod = create_module(env, mod_o);
-	jbyte *buf = (*env)->GetByteArrayElements(env, fileContents, NULL);
-	jsize size = (*env)->GetArrayLength(env, fileContents);
-	int rc = setup_wasm_module(mod, (char *)buf, (unsigned int)size);
-	(*env)->ReleaseByteArrayElements(env, fileContents, buf, 0);
-	if (rc) return rc;
-	return finalize_module(env, mod);
-	return -1;
-}
-
-JNIEXPORT int JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupJavascriptModule(JNIEnv *env, jclass clazz, jobject mod_o, jbyteArray fileContents) {
-	set_jni_env_ctx(env, clazz);
-	struct PakModule *mod = create_module(env, mod_o);
-	jbyte *buf = (*env)->GetByteArrayElements(env, fileContents, NULL);
-	jsize size = (*env)->GetArrayLength(env, fileContents);
-	int rc = setup_quickjs_module(mod, (char *)buf, (unsigned int)(size - 1));
-	(*env)->ReleaseByteArrayElements(env, fileContents, buf, 0);
-	if (rc) return rc;
-	return finalize_module(env, mod);
-}
-
-JNIEXPORT jint JNICALL
-Java_dev_danielc_fudge_AndroidRuntime_setupSharedLibraryModule(JNIEnv *env, jclass clazz, jobject mod_o, jstring path) {
-	set_jni_env_ctx(env, clazz);
-	struct PakModule *mod = create_module(env, mod_o);
-	const char *path_s = (*env)->GetStringUTFChars(env, path, NULL);
-
-	void *lib = dlopen(path_s, RTLD_NOW);
-	if (lib == NULL) {
-		pak_debug_log(mod, "Failed to open %s", path_s);
-		return -1; // leak
-	}
-	void *ptr = dlsym(lib, "get_module");
-	if (ptr == NULL) {
-		pak_debug_log(mod, "Failed to get symbol get_module in %s", path_s);
-		return -1; // leak
-	}
-
-	int (*get_module)(struct PakModule *) = (int (*)(struct PakModule *))(uintptr_t)ptr;
-
-	int rc = get_module(mod);
-
-	mod->rt->lib = lib;
-
-	(*env)->ReleaseStringUTFChars(env, path, path_s);
-	return finalize_module(env, mod);
 }
 
 JNIEXPORT jobject JNICALL Java_dev_danielc_fudge_InstrumentedTest_getTestWiFiApFilter(JNIEnv *env, jobject thiz) {

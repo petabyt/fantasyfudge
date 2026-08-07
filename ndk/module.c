@@ -4,8 +4,44 @@
 #include <jni.h>
 #include <pak.h>
 #include <runtime.h>
+#include <runtime_ext.h>
+#include <dlfcn.h>
 #include "thread.h"
 #include "main.h"
+
+static struct PakModule *create_module(JNIEnv *env, jobject o_mod) {
+	struct PakModule *mod = calloc(1, sizeof(struct PakModule));
+	mod->rt = calloc(sizeof(struct RuntimePriv), 1);
+	mod->rt->log_buf = calloc(1, 1000); mod->rt->log_len = 1000;
+	mod->rt->obj = (*env)->NewGlobalRef(env, o_mod);
+	return mod;
+}
+static int init_module(JNIEnv *env, struct PakModule *mod) {
+	int rc = 0;
+	if (mod->init != NULL) rc = mod->init(mod);
+
+	mod->bt = pak_bt_get_context();
+	mod->net = pak_net_get_context();
+
+	struct ModuleJavaStruct temp = { .ptr = mod, };
+	jbyteArray struct_o = (*env)->NewByteArray(env, sizeof(struct ModuleJavaStruct));
+	(*env)->SetByteArrayRegion(env, struct_o, 0, sizeof(struct ModuleJavaStruct), (const jbyte *)&temp);
+
+	jfieldID struct_field = (*env)->GetFieldID(env, (*env)->FindClass(env, "dev/danielc/fudge/NativeModule"), "struct", "[B");
+	(*env)->SetObjectField(env, mod->rt->obj, struct_field, struct_o);
+	return rc;
+}
+static int free_module(JNIEnv *env, struct PakModule *mod) {
+	if (mod->free) mod->free(mod);
+	if (mod->bt) pak_bt_unref_context(mod->bt);
+	if (mod->net) pak_net_unref_context(mod->net);
+	(*env)->DeleteGlobalRef(env, mod->rt->obj);
+	(*env)->DeleteGlobalRef(env, mod->rt->obj);
+	if (mod->rt->log_buf) free(mod->rt->log_buf);
+	free(mod->rt);
+	free(mod);
+	return 0;
+}
 
 struct TempStruct {
 	jobject byte_array;
@@ -29,12 +65,8 @@ JNIEXPORT void JNICALL
 Java_dev_danielc_fudge_NativeModule_free(JNIEnv *env, jobject thiz) {
 	struct TempStruct info;
 	struct PakModule *mod = get_mod(env, thiz, &info);
-	if (mod->free) mod->free(mod);
-	pak_bt_unref_context(mod->bt);
-	pak_net_unref_context(mod->net);
-	free(mod->rt);
+	free_module(env, mod);
 	release_mod(env, &info);
-	free(mod);
 }
 
 JNIEXPORT jint JNICALL
@@ -320,4 +352,56 @@ Java_dev_danielc_fudge_NativeModule_setSetupOptionName(JNIEnv *env, jobject thiz
 	}
 
 	release_mod(env, &info);
+}
+
+JNIEXPORT int JNICALL
+Java_dev_danielc_fudge_AndroidRuntime_setupWebassemblyModule(JNIEnv *env, jclass clazz, jobject mod_o, jbyteArray fileContents) {
+	set_jni_env_ctx(env, clazz);
+	struct PakModule *mod = create_module(env, mod_o);
+	jbyte *buf = (*env)->GetByteArrayElements(env, fileContents, NULL);
+	jsize size = (*env)->GetArrayLength(env, fileContents);
+	int rc = setup_wasm_module(mod, (char *)buf, (unsigned int)size);
+	(*env)->ReleaseByteArrayElements(env, fileContents, buf, 0);
+	if (rc) return rc;
+	return init_module(env, mod);
+	return -1;
+}
+
+JNIEXPORT int JNICALL
+Java_dev_danielc_fudge_AndroidRuntime_setupJavascriptModule(JNIEnv *env, jclass clazz, jobject mod_o, jbyteArray fileContents) {
+	set_jni_env_ctx(env, clazz);
+	struct PakModule *mod = create_module(env, mod_o);
+	jbyte *buf = (*env)->GetByteArrayElements(env, fileContents, NULL);
+	jsize size = (*env)->GetArrayLength(env, fileContents);
+	int rc = setup_quickjs_module(mod, (char *)buf, (unsigned int)(size - 1));
+	(*env)->ReleaseByteArrayElements(env, fileContents, buf, 0);
+	if (rc) return rc;
+	return init_module(env, mod);
+}
+
+JNIEXPORT jint JNICALL
+Java_dev_danielc_fudge_AndroidRuntime_setupSharedLibraryModule(JNIEnv *env, jclass clazz, jobject mod_o, jstring path) {
+	set_jni_env_ctx(env, clazz);
+	struct PakModule *mod = create_module(env, mod_o);
+	const char *path_s = (*env)->GetStringUTFChars(env, path, NULL);
+
+	void *lib = dlopen(path_s, RTLD_NOW);
+	if (lib == NULL) {
+		pak_debug_log(mod, "Failed to open %s", path_s);
+		return -1; // leak
+	}
+	void *ptr = dlsym(lib, "get_module");
+	if (ptr == NULL) {
+		pak_debug_log(mod, "Failed to get symbol get_module in %s", path_s);
+		return -1; // leak
+	}
+
+	int (*get_module)(struct PakModule *) = (int (*)(struct PakModule *))(uintptr_t)ptr;
+
+	int rc = get_module(mod);
+
+	mod->rt->lib = lib;
+
+	(*env)->ReleaseStringUTFChars(env, path, path_s);
+	return init_module(env, mod);
 }

@@ -9,7 +9,9 @@ struct RuntimePriv {
 	// dlopen handle
 	void *lib;
 
-	jbyteArray downloaded_object_temp;
+	unsigned int log_len;
+	unsigned int log_pos;
+	char *log_buf;
 };
 
 struct ModuleJavaStruct {
