@@ -56,7 +56,7 @@ object AndroidRuntime {
 
     @JvmStatic
     fun logGlobalLine(s: String) {
-        Log.d("global-log", s)
+        Log.d("pak_global_log", s)
         Runtime.logGlobalLine(s)
     }
 
