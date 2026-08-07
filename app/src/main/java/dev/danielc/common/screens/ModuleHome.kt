@@ -243,7 +243,7 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                         module.galleryViewModel.enqueueObjects(items)
                     }, onItemClick = { i ->
                         module.galleryViewModel.goToViewer(FileHandle(i))
-                    })
+                    }, setSortBy = { sort -> module.galleryViewModel.setSortBy(sort) })
                 }
                 composable(Screen.LIVEVIEW.strId) {
                     BackHandler { goBack() }

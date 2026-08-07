@@ -191,7 +191,7 @@ data class FilesystemState(
     val objectListSortedOrder: SortBy = SortBy.NEWEST_FIRST,
     // object is null if it hasn't been loaded/checked yet
     val objects: List<GalleryObject?> = emptyList(),
-    val objectsSorted: List<GalleryObject?> = emptyList(),
+    val sortedList: List<Int> = emptyList(),
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
 )
 
@@ -233,17 +233,22 @@ abstract class GalleryViewModel(val checkFileSaved: Boolean = true, var isThumbn
         return ((obj.metadata != null || obj.invalidMetadata) && (obj.thumbnail != null || obj.invalidThumbnail));
     }
 
+    fun setSortBy(sort: SortBy) {
+        _uiState.update { it.copy(userSortBy = sort) }
+        sortObjectList()
+    }
+
     private fun sortObjectList() {
         if (_uiState.value.userSortBy != _uiState.value.objectListSortedOrder) {
             _uiState.update {
                 it.copy(
-                    objectsSorted = it.objects.reversed()
+                    sortedList = (List(it.objects.size) { index -> it.objects.size - 1 - index })
                 )
             }
         } else {
             _uiState.update {
                 it.copy(
-                    objectsSorted = it.objects
+                    sortedList = (List(it.objects.size) { index -> index })
                 )
             }
         }
@@ -386,10 +391,12 @@ abstract class GalleryViewModel(val checkFileSaved: Boolean = true, var isThumbn
     fun enqueueObjects(indexes: List<Int>) {
         CoroutineScope(Dispatchers.IO).launch {
             queueMutex.withLock {
-//                println("enqueueing ${indexes.size}")
                 for (i in indexes) {
                     _uiState.value.queue.removeIf { it.index == i }
-                    _uiState.value.queue.addLast(GalleryObjectReference(i))
+                    val newIndex = _uiState.value.sortedList.getOrNull(i)
+                    if (newIndex != null) {
+                        _uiState.value.queue.addLast(GalleryObjectReference(newIndex))
+                    }
                 }
             }
         }
@@ -398,6 +405,7 @@ abstract class GalleryViewModel(val checkFileSaved: Boolean = true, var isThumbn
         val nObjectsToFree = 10
         CoroutineScope(Dispatchers.IO).launch {
             _uiState.update { currentState ->
+                // Sort objects by oldest and deref the thumbnail
                 val list = currentState.objects.toMutableList()
                 val oldest = _uiState.value.objects.sortedByDescending { it?.lastChecked }
                 var nFreed = 0
@@ -532,11 +540,10 @@ private fun GalleryFile(obj: GalleryObject?, onClick: () -> Unit = {}) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: (List<Int>) -> Unit = {}, onItemClick: (Int) -> Unit = {}, onRefresh: () -> Unit = {}) {
+fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: (List<Int>) -> Unit = {}, onItemClick: (Int) -> Unit = {}, onRefresh: () -> Unit = {}, setSortBy: (SortBy) -> Unit = {}) {
     val haptic = LocalHapticFeedback.current
     var isRefreshing by remember { mutableStateOf(false) }
     var displayType by rememberSaveable { mutableStateOf(DisplayType.THUMBNAILS) }
-    var sortBy by rememberSaveable { mutableStateOf(SortBy.NEWEST_FIRST) }
     var refreshTrigger by remember { mutableIntStateOf(0) }
     var rows by rememberSaveable { mutableIntStateOf(4) }
     @Composable
@@ -563,7 +570,9 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
                     contentDescription = null
                 )
             }
-            IconButton(onClick = {}, modifier = Modifier) {
+            IconButton(onClick = {
+                setSortBy(if (state.userSortBy == SortBy.NEWEST_FIRST) SortBy.OLDEST_FIRST else SortBy.NEWEST_FIRST)
+            }, modifier = Modifier) {
                 Icon(
                     modifier = Modifier.size(27.dp),
                     tint = MaterialTheme.colorScheme.onBackground,
@@ -627,16 +636,18 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
                 item(span = { GridItemSpan(rows) }) {
                     menu()
                 }
-                if (state.objectsSorted.isNotEmpty()) {
-                    itemsIndexed(state.objectsSorted) { index, obj ->
+
+                if (state.objects.isNotEmpty()) {
+                    itemsIndexed(state.sortedList.toList()) { index, entry ->
+                        val obj = state.objects.getOrNull(entry)
                         if (displayType == DisplayType.THUMBNAILS) {
                             GalleryThumbnail(obj, onClick = {
-                                onItemClick(index)
+                                onItemClick(entry)
                                 haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
                             }, scale = scale)
                         } else {
                             GalleryFile(obj, onClick = {
-                                onItemClick(index)
+                                onItemClick(entry)
                                 haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
                             })
                         }
@@ -662,18 +673,6 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
                     }
             }
         }
-        if (false) {
-            Box(
-                Modifier.fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.surfaceContainerHighest).padding(8.dp)
-                    .align(Alignment.BottomCenter)
-            ) {
-                Column {
-                    Text("DSC123.JPG")
-                    Text("123x831")
-                }
-            }
-        }
     }
 }
 
@@ -681,7 +680,7 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
 @Composable
 fun PreviewGalleryScreen(navController: NavHostController = rememberNavController()) {
-    val state = FilesystemState(objectsSorted = mutableListOf(
+    val state = FilesystemState(objects = mutableListOf(
         GalleryObject(FileMetadata("DCIM/", mimeType = MimeType.FOLDER.mediaTypeString), hasSaved = true),
         GalleryObject(FileMetadata("DSC1111.JPG", mimeType = MimeType.JPEG.mediaTypeString), thumbnail = bitmapFromColor(Color.Red)),
         GalleryObject(FileMetadata("DSC1234.MOV", mimeType = MimeType.MOV.mediaTypeString), thumbnail = bitmapFromColor(Color.Green)),
