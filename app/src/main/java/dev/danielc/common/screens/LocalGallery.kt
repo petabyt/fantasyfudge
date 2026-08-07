@@ -11,7 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-class LocalGalleryViewModel: GalleryViewModel() {
+class LocalGalleryViewModel: GalleryViewModel(checkFileSaved = false) {
     val viewer = ViewerModel(showSaveButton = false, showLoadDialog = false)
     var files = emptyList<FileLayer.MediaStoreFile>()
 

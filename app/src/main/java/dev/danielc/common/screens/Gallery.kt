@@ -3,6 +3,9 @@ package dev.danielc.common.screens
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -11,10 +14,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -29,8 +30,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -41,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,15 +55,19 @@ import androidx.compose.ui.graphics.Canvas
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -72,13 +76,10 @@ import dev.danielc.R
 import dev.danielc.common.BackgroundViewModel
 import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
-import dev.danielc.common.screens.MimeType.FOLDER
-import dev.danielc.common.screens.MimeType.JPEG
-import dev.danielc.common.screens.MimeType.MOV
-import dev.danielc.common.screens.MimeType.PNG
 import dev.danielc.common.ui.theme.FudgeRippleConfig
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
+import dev.danielc.fudge.FileLayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -176,6 +177,7 @@ data class GalleryObject(
     var lastChecked: TimeSource.Monotonic.ValueTimeMark = TimeSource.Monotonic.markNow(),
     var invalidMetadata: Boolean = false,
     var invalidThumbnail: Boolean = false,
+    val hasSaved: Boolean = false,
 )
 
 data class GalleryObjectReference(
@@ -193,7 +195,7 @@ data class FilesystemState(
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
 )
 
-abstract class GalleryViewModel : BackgroundViewModel() {
+abstract class GalleryViewModel(val checkFileSaved: Boolean = true) : BackgroundViewModel() {
     private val _uiState = MutableStateFlow(FilesystemState())
     val uiState = _uiState.asStateFlow()
     private var thread: Job? = null
@@ -356,12 +358,17 @@ abstract class GalleryViewModel : BackgroundViewModel() {
     fun updateThumbnail(i: Int, thumbData: ByteArray? = null) {
         updateThumbnail(i, if (thumbData != null) AndroidRuntime.decodeImageContents(thumbData, null) else null)
     }
+    fun setHasSaved(i: Int, v: Boolean) {
+        updateObject(i) { it.copy(hasSaved = v) }
+    }
     fun updateMetadata(i: Int, md: FileMetadata? = null) {
         updateObject(i) { obj ->
             if (md == null) {
                 obj.copy(metadata = null, invalidMetadata = true)
             } else {
-                obj.copy(metadata = md)
+                val filename = md.filename
+                val saved = if (filename != null && checkFileSaved) FileLayer.doesFileExist(filename) else false
+                obj.copy(metadata = md, hasSaved = saved)
             }
         }
     }
@@ -380,7 +387,7 @@ abstract class GalleryViewModel : BackgroundViewModel() {
     fun enqueueObjects(indexes: List<Int>) {
         CoroutineScope(Dispatchers.IO).launch {
             queueMutex.withLock {
-                println("enqueueing ${indexes.size}")
+//                println("enqueueing ${indexes.size}")
                 for (i in indexes) {
                     _uiState.value.queue.removeIf { it.index == i }
                     _uiState.value.queue.addLast(GalleryObjectReference(i))
@@ -411,7 +418,7 @@ abstract class GalleryViewModel : BackgroundViewModel() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
+private fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}, scale: Float = 1f) {
     val boxModifier = Modifier.aspectRatio(1f).background(MaterialTheme.colorScheme.surfaceContainer)
     CompositionLocalProvider(LocalRippleConfiguration provides FudgeRippleConfig(Color.White)) {
         Box(
@@ -428,12 +435,15 @@ private fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
                 indication = ripple(),
                 interactionSource = remember { MutableInteractionSource() }
             )
+            .graphicsLayer(clip = true)
         ) {
             if (obj != null) {
                 val icon = MimeType.getIcon(obj.metadata?.getMimeType())
                 if (obj.thumbnail != null) {
-                    // TODO: Better content scale handling?
-                    Image(modifier = Modifier.fillMaxSize(), bitmap = obj.thumbnail, contentDescription = null, contentScale = ContentScale.FillHeight)
+                    Image(modifier = Modifier.fillMaxSize().graphicsLayer(
+                        scaleX = scale,
+                        scaleY = scale,
+                    ), bitmap = obj.thumbnail, contentDescription = null, contentScale = ContentScale.Crop)
                 }
                 if (obj.thumbnail == null || obj.metadata?.getMimeType()?.isVideo() ?: false) {
                     Icon(
@@ -442,14 +452,22 @@ private fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}) {
                         contentDescription = null,
                     )
                 }
-                if (obj.metadata?.filename != null) {
-                    Text(
-                        obj.metadata.filename!!, modifier = Modifier.align(Alignment.BottomCenter)
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)),
+                val filename = obj.metadata?.filename
+                if (filename != null) {
+                    Text(filename, modifier = Modifier.align(Alignment.BottomCenter)
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f))
+                            .padding(horizontal = 4.dp),
+                        lineHeight = TextUnit(10f, TextUnitType.Sp),
                         color = MaterialTheme.colorScheme.onSurface,
-                        
-                        fontSize = 10.sp,
-                        style = MaterialTheme.typography.labelSmall
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+                if (obj.hasSaved) {
+                    Icon(
+                        painterResource(R.drawable.outline_download_done_24),
+                        contentDescription = null,
+                        modifier = Modifier.align(Alignment.TopEnd).size(15.dp) .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)).padding(2.dp)
                     )
                 }
             }
@@ -534,14 +552,7 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
                     Text(state.storageName, color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(6.dp))
                 }
             }
-            //Spacer(Modifier.weight(0.5f))
-            val interactionSource = remember { MutableInteractionSource() }
-            Slider(modifier = Modifier.weight(1f), value = rows.toFloat(), valueRange = 2f..5f , steps = 3, onValueChange = {
-                rows = it.toInt()
-                haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
-            }, thumb = {
-                SliderDefaults.Thumb(interactionSource, thumbSize = DpSize(25.dp, 25.dp))
-            })
+            Spacer(Modifier.weight(0.5f))
             IconButton(onClick = {
                 displayType = if (displayType == DisplayType.THUMBNAILS) DisplayType.VERTICAL_TABLE else DisplayType.THUMBNAILS
                 haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
@@ -564,19 +575,49 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    // Change
+    var scale by remember { mutableFloatStateOf(1f) }
+    var isZooming by remember { mutableStateOf(false) }
+    val gesture = Modifier.pointerInput(Unit) {
+        awaitEachGesture {
+            awaitFirstDown(pass = PointerEventPass.Initial)
+            do {
+                val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                if (event.changes.count { it.pressed } == 2) {
+                    isZooming = true
+                    scale = (scale * event.calculateZoom()).coerceIn(0f, 2f)
+                    event.changes.forEach { it.consume() }
+                } else if (isZooming) {
+                    event.changes.forEach { it.consume() }
+                }
+            } while (event.changes.any { it.pressed })
+            if (isZooming) {
+                if (scale > 1f) {
+                    if (rows > 1) rows--
+                } else {
+                    rows++
+                }
+                scale = 1f
+                isZooming = false
+            }
+        }
+    }
+
+    Box(modifier = modifier.fillMaxSize().then(gesture)) {
         val listState = rememberLazyGridState()
         PullToRefreshBox(
             state = rememberPullToRefreshState(),
             isRefreshing = isRefreshing,
             onRefresh = {
-                CoroutineScope(Dispatchers.IO).launch {
-                    isRefreshing = true
-                    onRefresh()
-                    refreshTrigger++
-                    isRefreshing = false
+                if (!isZooming) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        isRefreshing = true
+                        onRefresh()
+                        refreshTrigger++
+                        isRefreshing = false
+                    }
                 }
-            }
+            },
         ) {
             val rows = if (displayType == DisplayType.THUMBNAILS) rows else 1
             LazyVerticalGrid(
@@ -593,7 +634,7 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
                             GalleryThumbnail(obj, onClick = {
                                 onItemClick(index)
                                 haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                            })
+                            }, scale = scale)
                         } else {
                             GalleryFile(obj, onClick = {
                                 onItemClick(index)
@@ -641,8 +682,8 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
 @Preview(showBackground = true, device = "id:pixel_7", uiMode = 32)
 @Composable
 fun PreviewGalleryScreen(navController: NavHostController = rememberNavController()) {
-    val state = FilesystemState(objects = mutableListOf(
-        GalleryObject(FileMetadata("DCIM/", mimeType = MimeType.FOLDER.mediaTypeString)),
+    val state = FilesystemState(objectsSorted = mutableListOf(
+        GalleryObject(FileMetadata("DCIM/", mimeType = MimeType.FOLDER.mediaTypeString), hasSaved = true),
         GalleryObject(FileMetadata("DSC1111.JPG", mimeType = MimeType.JPEG.mediaTypeString), thumbnail = bitmapFromColor(Color.Red)),
         GalleryObject(FileMetadata("DSC1234.MOV", mimeType = MimeType.MOV.mediaTypeString), thumbnail = bitmapFromColor(Color.Green)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Cyan)),
@@ -659,7 +700,6 @@ fun PreviewGalleryScreen(navController: NavHostController = rememberNavControlle
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Blue)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Cyan)),
     ), storageName = "Card 2")
-
     return FudgeTheme {
         Scaffold(
             topBar = {

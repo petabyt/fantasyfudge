@@ -115,7 +115,7 @@ data class ViewerState(
     val hasSaved: Boolean = false,
 )
 
-class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolean = true) : BackgroundViewModel() {
+class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolean = true, val fileSavedIcon: Boolean = true) : BackgroundViewModel() {
     private var temporaryBuffer: ByteArray? = null
     private var fileHandle: FileLayer.Handle? = null
     private var fileTotalSize: Long? = null
@@ -158,9 +158,12 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
         )
     }
     fun updateMetadata(metadata: FileMetadata?) {
+        val filename = metadata?.filename
+        val saved = if (filename != null) FileLayer.doesFileExist(filename) else false
         _viewerState.update { viewerState ->
             viewerState?.copy(
-                metadata = metadata
+                metadata = metadata,
+                hasSaved = saved
             )
         }
     }

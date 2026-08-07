@@ -107,6 +107,7 @@ tasks.named("preBuild") {
 dependencies {
     rootProject.extra["noNativeModule"] = true
     implementation(project(":libpak"))
+    implementation(libs.androidx.material3)
 
     // libs
     implementation(libs.zoomable)
@@ -117,7 +118,7 @@ dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation(libs.androidx.compose.material3)
+    //implementation(libs.androidx.compose.material3)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.activity)

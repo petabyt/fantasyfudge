@@ -6,7 +6,6 @@ import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.database.Cursor
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -154,7 +153,17 @@ object FileLayer {
         } catch (ignored: Exception) { return null }
     }
 
-    // TODO: Check if file exists
+    fun doesFileExist(filename: String, subdirectory: String = "fudge"): Boolean {
+        Pak.getActivity().contentResolver.query(
+            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.MediaColumns._ID),
+            "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? AND ${MediaStore.MediaColumns.DISPLAY_NAME} = ?",
+            arrayOf("%${subdirectory}%", filename),
+            null
+        ).use { cursor ->
+            return cursor != null && cursor.count > 0
+        }
+    }
 
     fun openFileForWriting(filename: String, metadata: FileMetadata, subdirectory: String = "fudge"): Handle? {
         val resolver = Pak.getActivity().contentResolver
