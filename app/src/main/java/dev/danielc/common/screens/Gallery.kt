@@ -195,12 +195,11 @@ data class FilesystemState(
     val queue: ArrayDeque<GalleryObjectReference> = ArrayDeque()
 )
 
-abstract class GalleryViewModel(val checkFileSaved: Boolean = true) : BackgroundViewModel() {
+abstract class GalleryViewModel(val checkFileSaved: Boolean = true, var isThumbnailPriority: Boolean = true) : BackgroundViewModel() {
     private val _uiState = MutableStateFlow(FilesystemState())
     val uiState = _uiState.asStateFlow()
     private var thread: Job? = null
     private var threadIsPaused: Boolean = true
-    private var isThumbnailPriority: Boolean = true
     private val queueMutex = Mutex()
 
     override fun onShutdown() {

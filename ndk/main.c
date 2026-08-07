@@ -266,7 +266,7 @@ int pak_rt_set_session_property_int(struct PakModule *mod, const char *key, int 
 	return 0;
 }
 
-int pak_rt_set_dashboard_pane(struct PakModule *mod, const struct PakWidget *s) {
+int pak_rt_set_widget(struct PakModule *mod, const struct PakWidget *s) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
 	jclass properties_c = (*env)->FindClass(env, "dev/danielc/common/DashboardPane$Properties");

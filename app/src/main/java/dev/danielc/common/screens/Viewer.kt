@@ -330,7 +330,7 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
             else -> "file"
         }
 
-        Dialog(onDismissRequest = { close() } ) {
+        Dialog(onDismissRequest = { cancel() }, properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = false) ) {
             Card(modifier = Modifier
                 .padding(16.dp),
                 shape = RoundedCornerShape(16.dp),

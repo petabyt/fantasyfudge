@@ -34,12 +34,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import dev.danielc.common.DashboardPane
 import dev.danielc.common.FileHandle
 import dev.danielc.common.ModuleInstance
 import dev.danielc.common.ModuleInstanceRequest
 import dev.danielc.common.ModuleManifest
-import dev.danielc.common.ModuleProperty
 import dev.danielc.common.Runtime
 import dev.danielc.common.Screen
 import dev.danielc.common.ui.DefaultNavHost
@@ -82,10 +80,8 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
 
     private val _homeState = MutableStateFlow(HomeState())
     val homeState = _homeState.asStateFlow()
-    private val _uiEvents = MutableSharedFlow<UiEvent>(replay = 1)
+    private val _uiEvents = MutableSharedFlow<UiEvent>(replay = 0)
     val uiEvents = _uiEvents.asSharedFlow()
-//    val connectProgress = MutableStateFlow<Int?>(null)
-//    val connectRequiredAction = MutableStateFlow(ConnectingRequiredAction.NONE)
     val initializationError = MutableStateFlow(false)
 
     var module: ModuleInstance = ModuleInstance(manifest, request, this)
