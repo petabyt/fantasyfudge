@@ -490,7 +490,9 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         connectingModel.isSecondaryConnection = true
         connectingModel.lastWiFiApFilter = filter
         connectingModel.lastWiFiSetupOption = setupOption
+        //WiFi.addNetworkToSystem(filter)
         connectingModel.secondaryConnectionJob = CoroutineScope(Dispatchers.IO).launch {
+            // todo: don't switch screen on try again
             homeModelView.goToScreen(Screen.CONNECT_SECONDARY, false)
             setSetupOptionName(setupOption)
             val callback = object : WiFi.WiFiDiscoveryCallback() {
@@ -659,12 +661,14 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             }
 
             val primaryAdapter = WiFi.getPrimaryAdapter()
-            val rc = tryConnectWiFi(primaryAdapter, {job -> connectCallback(job)})
-            if (rc == 0) {
-                setIsConnected()
-                return
-            } else {
-                disconnect("Failed to connect", rc)
+            if (primaryAdapter != null) {
+                val rc = tryConnectWiFi(primaryAdapter, { job -> connectCallback(job) })
+                if (rc == 0) {
+                    setIsConnected()
+                    return
+                } else {
+                    disconnect("Failed to connect", rc)
+                }
             }
         } else {
             val rc = findConnection({ job -> connectCallback(job) })
