@@ -2,7 +2,9 @@ package dev.danielc.common
 import dev.danielc.common.Runtime.logGlobalLine
 import dev.danielc.libpak.Bluetooth
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.int
@@ -108,7 +110,7 @@ fun manifestFromJson(text: String, filename: String): ModuleManifest? {
                 var t = ModuleManifest.Target(
                     company = target.jsonObject["company"]?.jsonPrimitive?.content ?: throw Error("Missing company field"),
                     summary = target.jsonObject["summary"]?.jsonPrimitive?.content,
-                    products = Json.decodeFromJsonElement<List<String>>(target.jsonObject["products"] ?: throw Error("Missing products field")),
+                    products = Json.decodeFromJsonElement<List<String>>(target.jsonObject["products"] ?: JsonArray(emptyList())),
                     deviceId = Device.fromId(target.jsonObject["deviceType"]?.jsonPrimitive?.content) ?: throw Error("Missing deviceType field")
                 )
 
@@ -120,6 +122,35 @@ fun manifestFromJson(text: String, filename: String): ModuleManifest? {
                             defaultPassword = jsonWiFiFilter.jsonObject["defaultPassword"]?.jsonPrimitive?.content
                         )
                     )
+                }
+
+                fun toByteArray(e: JsonElement?): ByteArray? {
+                    if (e == null) return null
+                    var a = ByteArray(0)
+                    if (e is JsonArray) {
+                        for (b in e.jsonArray) {
+                            a += b.jsonPrimitive.int.toByte()
+                        }
+                    } else if (e is JsonPrimitive) {
+                        return e.jsonPrimitive.content.split(",").map { it.replace("0x", "").toInt(16).toByte() }.toByteArray()
+                    }
+                    return a
+                }
+
+                val jsonBtFilters = target.jsonObject["bluetoothFilters"]?.jsonArray
+                if (jsonBtFilters != null) {
+                    for (filter in jsonBtFilters) {
+                        val svcUuids: MutableList<String> = mutableListOf()
+                        for (s in filter.jsonObject["serviceUuids"]?.jsonArray.orEmpty()) {
+                            svcUuids += s.jsonPrimitive.content
+                        }
+                        t = t.copy(
+                            bluetoothDiscovery = t.bluetoothDiscovery + ModuleManifest.BluetoothDiscovery(
+                                mfgData = toByteArray(filter.jsonObject["mfgData"]),
+                                serviceUuids = svcUuids,
+                            ),
+                        )
+                    }
                 }
 
                 targets += t
