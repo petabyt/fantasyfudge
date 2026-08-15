@@ -56,6 +56,7 @@ data class AppSettingEntity(
     val perDeviceSubFolder: Boolean = false,
     val firstTime: Boolean = true,
     val showWelcomeDialog: Boolean = true,
+    val disabledModules: List<String> = emptyList(),
 )
 
 @Dao
