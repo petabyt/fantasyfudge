@@ -1,6 +1,8 @@
 package dev.danielc.fudge
 
-import dev.danielc.common.DashboardPane
+import android.view.Surface
+import android.view.SurfaceHolder
+import dev.danielc.common.Widget
 import dev.danielc.common.FileHandle
 import dev.danielc.common.SavedDeviceEntity.WiFiInfo
 import dev.danielc.common.SavedDeviceInfo
@@ -55,7 +57,7 @@ open class NativeModule {
 //        }
     }
 
-    // TODO: This is a temporary solution for thread safety
+    // TODO: @Synchronized is a temporary solution for thread safety
     @Synchronized
     external fun onFindConnection(job: Int): Int
     @Synchronized
@@ -77,9 +79,11 @@ open class NativeModule {
     @Synchronized
     external fun onRunCommand(job: Int, arg0: String?, arg1: String?, arg2: String?, arg3: String?): Int
     @Synchronized
-    external fun onPropChanged(job: Int, pane: DashboardPane): Int
+    external fun onPropChanged(job: Int, pane: Widget): Int
     @Synchronized
     external fun free()
     @Synchronized
     external fun setSetupOptionName(name: String)
+    external fun updateNativeLiveview(view: Surface?, isPaused: Boolean)
+    external fun nativeLiveviewThread()
 }

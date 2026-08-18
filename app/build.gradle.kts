@@ -88,6 +88,21 @@ android {
     }
 }
 
+// https://developer.android.com/training/data-storage/room/migrating-db-versions
+class RoomSchemaArgProvider(
+  @get:InputDirectory
+  @get:PathSensitive(PathSensitivity.RELATIVE)
+  val schemaDir: File
+) : CommandLineArgumentProvider {
+
+  override fun asArguments(): Iterable<String> {
+    return listOf("room.schemaLocation=${schemaDir.path}")
+  }
+}
+ksp {
+  arg(RoomSchemaArgProvider(File(projectDir, "schemas")))
+}
+
 tasks.register<Exec>("compileModules") {
     group = "verification"
     description = "Compiles and copies modules"
@@ -107,6 +122,7 @@ tasks.named("preBuild") {
 dependencies {
     rootProject.extra["noNativeModule"] = true
     implementation(project(":libpak"))
+    implementation(project(":library-client-rtsp"))
     //implementation(libs.androidx.material3)
 
     // libs
@@ -129,11 +145,9 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
+    //androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    // The core runner engine (matches the string in defaultConfig)
     androidTestImplementation("androidx.test:runner:1.6.2")
-    // The modern JUnit4 extension (provides the new AndroidJUnit4 class)
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)

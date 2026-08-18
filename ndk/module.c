@@ -6,8 +6,14 @@
 #include <runtime.h>
 #include <runtime_ext.h>
 #include <dlfcn.h>
+#include <pthread.h>
+#include <unistd.h>
 #include "thread.h"
 #include "main.h"
+
+struct ModuleJavaStruct {
+	struct PakModule *ptr;
+};
 
 static struct PakModule *create_module(JNIEnv *env, jobject o_mod) {
 	struct PakModule *mod = calloc(1, sizeof(struct PakModule));
@@ -306,22 +312,23 @@ JNIEXPORT jint JNICALL Java_dev_danielc_fudge_NativeModule_onPropChanged(JNIEnv 
 	struct TempStruct info;
 	struct PakModule *mod = get_mod(env, thiz, &info);
 
-	struct PakWidget setting;
-	setting.title = "";
+	struct PakWidget setting = {
+			.title = ""
+	};
 
 	(*env)->PushLocalFrame(env, 10);
 
-	jobject args = (*env)->CallObjectMethod(env, pane, (*env)->GetMethodID(env, (*env)->FindClass(env, "dev/danielc/common/DashboardPane"), "getArgs", "()Ldev/danielc/common/DashboardPane$Properties;"));
+	jobject args = (*env)->CallObjectMethod(env, pane, (*env)->GetMethodID(env, (*env)->FindClass(env, "dev/danielc/common/Widget"), "getArgs", "()Ldev/danielc/common/Widget$Properties;"));
 
-	jclass properties_c = (*env)->FindClass(env, "dev/danielc/common/DashboardPane$Properties");
+	jclass properties_c = (*env)->FindClass(env, "dev/danielc/common/Widget$Properties");
 	jfieldID name_f = (*env)->GetFieldID(env, properties_c, "name", "Ljava/lang/String;");
 	jstring name_s = (*env)->GetObjectField(env, args, name_f);
 	const char *name = (*env)->GetStringUTFChars(env, name_s, NULL);
 	setting.name = name;
 
-	if ((*env)->IsInstanceOf(env, pane, (*env)->FindClass(env, "dev/danielc/common/DashboardPane$Button"))) {
+	if ((*env)->IsInstanceOf(env, pane, (*env)->FindClass(env, "dev/danielc/common/Widget$Button"))) {
 		setting.type = PAK_BUTTON;
-	} else if ((*env)->IsInstanceOf(env, pane, (*env)->FindClass(env, "dev/danielc/common/DashboardPane$BooleanSetting"))) {
+	} else if ((*env)->IsInstanceOf(env, pane, (*env)->FindClass(env, "dev/danielc/common/Widget$BooleanSetting"))) {
 		setting.type = PAK_BOOLEAN;
 	}
 
@@ -387,12 +394,15 @@ Java_dev_danielc_fudge_AndroidRuntime_setupSharedLibraryModule(JNIEnv *env, jcla
 	void *lib = dlopen(path_s, RTLD_NOW);
 	if (lib == NULL) {
 		pak_debug_log(mod, "Failed to open %s", path_s);
-		return -1; // leak
+		(*env)->ReleaseStringUTFChars(env, path, path_s);
+		return -1;
 	}
 	void *ptr = dlsym(lib, "get_module");
 	if (ptr == NULL) {
 		pak_debug_log(mod, "Failed to get symbol get_module in %s", path_s);
-		return -1; // leak
+		(*env)->ReleaseStringUTFChars(env, path, path_s);
+		dlclose(lib);
+		return -1;
 	}
 
 	int (*get_module)(struct PakModule *) = (int (*)(struct PakModule *))(uintptr_t)ptr;
@@ -403,4 +413,31 @@ Java_dev_danielc_fudge_AndroidRuntime_setupSharedLibraryModule(JNIEnv *env, jcla
 
 	(*env)->ReleaseStringUTFChars(env, path, path_s);
 	return init_module(env, mod);
+}
+
+JNIEXPORT void JNICALL
+Java_dev_danielc_fudge_NativeModule_updateNativeLiveview(JNIEnv *env, jobject thiz, jobject view, jboolean is_paused) {
+	struct TempStruct info;
+	struct PakModule *mod = get_mod(env, thiz, &info);
+	if (mod->rt->liveview_surface_handle_obj != NULL) (*env)->DeleteGlobalRef(env, mod->rt->liveview_surface_handle_obj);
+	if (view != NULL) {
+		mod->rt->liveview_surface_handle_obj = (*env)->NewGlobalRef(env, view);
+	} else {
+		mod->rt->liveview_surface_handle_obj = NULL;
+	}
+	atomic_store(&mod->rt->liveview_cancel, is_paused);
+	release_mod(env, &info);
+}
+
+JNIEXPORT void JNICALL
+Java_dev_danielc_fudge_NativeModule_nativeLiveviewThread(JNIEnv *env, jobject thiz) {
+	struct TempStruct info;
+	struct PakModule *mod = get_mod(env, thiz, &info);
+	while (!atomic_load(&mod->rt->liveview_cancel)) {
+		mod->on_request_liveview_frame(mod, -1, &(struct PakFileHandle){
+			.storage_name = "liveview",
+		});
+		usleep(1000000 / 30);
+	}
+	release_mod(env, &info);
 }

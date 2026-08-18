@@ -247,7 +247,7 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                 }
                 composable(Screen.LIVEVIEW.strId) {
                     BackHandler { goBack() }
-                    Liveview(Modifier.padding(innerPadding), navController, LiveviewState())
+                    Liveview(Modifier.padding(innerPadding), module.liveviewWorker)
                 }
                 composable(Screen.INTERVALOMETER.strId) {
                     BackHandler { goBack() }

@@ -58,7 +58,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.danielc.R
 import dev.danielc.common.BackgroundViewModel
-import dev.danielc.common.DashboardPane
+import dev.danielc.common.Widget
 import dev.danielc.common.Device
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.ModuleProperty
@@ -75,7 +75,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class DashboardState(
-    val panes: List<DashboardPane> = emptyList(),
+    val panes: List<Widget> = emptyList(),
     val batteryLevelMain: Int? = null,
     val batteryLevelLeft: Int? = null,
     val batteryLevelRight: Int? = null,
@@ -91,7 +91,7 @@ data class DashboardState(
 open class DashboardModel(val manifest: ModuleManifest, initialState: DashboardState? = null): BackgroundViewModel() {
     private val _state = MutableStateFlow(initialState ?: DashboardState())
     val state = _state.asStateFlow()
-    open fun propChanged(pane: DashboardPane) {}
+    open fun propChanged(pane: Widget) {}
     open fun disconnect() {}
     open fun runCommand(line: String) {}
     open fun save() {}
@@ -125,7 +125,7 @@ open class DashboardModel(val manifest: ModuleManifest, initialState: DashboardS
             }
         }
     }
-    fun setDashboardPane(pane: DashboardPane) {
+    fun setDashboardPane(pane: Widget) {
         scope.launch(Dispatchers.IO) {
             _state.update { currentState ->
                 if (currentState.panes.find { it.args.name == pane.args.name } == null) {
@@ -136,7 +136,7 @@ open class DashboardModel(val manifest: ModuleManifest, initialState: DashboardS
             }
         }
     }
-    fun updateSettingPane(pane: DashboardPane) {
+    fun updateSettingPane(pane: Widget) {
         scope.launch(Dispatchers.IO) {
             _state.update { currentState ->
                 val index = currentState.panes.find { it.args.name == pane.args.name }
@@ -197,25 +197,25 @@ private fun budsState(): DashboardModel {
         nameOfDevice = "CMF Buds Pro 2",
         firmwareVersion = "5.0",
         panes = listOf(
-            DashboardPane.BooleanSetting(
-                DashboardPane.Properties("nc", "Noise cancellation"),
+            Widget.BooleanSetting(
+                Widget.Properties("nc", "Noise cancellation"),
                 value = true
             ),
-            DashboardPane.BooleanSetting(
-                DashboardPane.Properties("be", "Bass enhancement"),
+            Widget.BooleanSetting(
+                Widget.Properties("be", "Bass enhancement"),
                 value = false
             ),
-            DashboardPane.IntSetting(
-               DashboardPane.Properties("st", "Something"),
+            Widget.IntSetting(
+               Widget.Properties("st", "Something"),
                 value = 123
             ),
-            DashboardPane.DropdownSetting(
-                DashboardPane.Properties("temp", "Dropdown"),
+            Widget.DropdownSetting(
+                Widget.Properties("temp", "Dropdown"),
                 index = 2,
                 options = listOf("4.0l I6", "5.6l v8", "7.4l v8", "2.8l tdi")
             ),
-            DashboardPane.Graph(
-                DashboardPane.Properties("temp", "Graph"),
+            Widget.Graph(
+                Widget.Properties("temp", "Graph"),
                 points = intArrayOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 5, 7, 8, 5)
             ),
         )
@@ -317,7 +317,7 @@ fun SettingsDialog(model: DashboardModel, close: () -> Unit = {}) {
 }
 
 @Composable
-fun DropdownDialog(close: () -> Unit = {}, dropdownSetting: DashboardPane.DropdownSetting, onSelect: (Int) -> Unit = {}) {
+fun DropdownDialog(close: () -> Unit = {}, dropdownSetting: Widget.DropdownSetting, onSelect: (Int) -> Unit = {}) {
     Dialog(onDismissRequest = {
         close()
     }) {
@@ -343,7 +343,7 @@ fun DropdownDialog(close: () -> Unit = {}, dropdownSetting: DashboardPane.Dropdo
 fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
     val state by model.state.collectAsStateWithLifecycle()
     var showSettings by remember { mutableStateOf(false) }
-    var selectedDropdown by remember { mutableStateOf<DashboardPane.DropdownSetting?>(null) }
+    var selectedDropdown by remember { mutableStateOf<Widget.DropdownSetting?>(null) }
     val coroutineScope = rememberCoroutineScope()
     if (showSettings) {
         SettingsDialog(model, close = {
@@ -433,14 +433,7 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
             }
         }
 
-        val panes = mutableListOf<PaneState>(
-//            PaneState(PaneState.Color.SECONDARY, "Settings", R.drawable.baseline_settings_24, onClick = {
-//                showSettings = true
-//            }),
-//            PaneState(PaneState.Color.ERROR, "Disconnect", R.drawable.outline_close_24, onClick = {
-//                model.disconnect()
-//            }),
-        )
+        val panes = mutableListOf<PaneState>()
 
         val batteries = mutableListOf<PaneBatteryStatus>()
         state.batteryLevelLeft?.let { level -> batteries.add(PaneBatteryStatus("Left", level)) }
@@ -471,7 +464,7 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
 
         for (pane in state.panes) {
             panes += when (pane) {
-                is DashboardPane.BooleanSetting -> {
+                is Widget.BooleanSetting -> {
                     PaneState(PaneState.Color.NEUTRAL, content = {
                         Text(pane.args.title, style = MaterialTheme.typography.titleSmall)
                         Switch(pane.value,
@@ -481,12 +474,12 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
                         )
                     })
                 }
-                is DashboardPane.Button -> {
+                is Widget.Button -> {
                     PaneState(PaneState.Color.PRIMARY, icon = R.drawable.outline_lightbulb_2_24, text = pane.args.title, onClick = {
                         model.updateSettingPane(pane)
                     })
                 }
-                is DashboardPane.Graph -> {
+                is Widget.Graph -> {
                     PaneState(PaneState.Color.NEUTRAL, content = {
                         val coords = mutableListOf<Pair<Int, Int>>()
                         for (i in pane.points.indices) coords += Pair(i, pane.points[i])
@@ -496,7 +489,7 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
                         }
                     }, fillMaxWidth = true)
                 }
-                is DashboardPane.DropdownSetting -> {
+                is Widget.DropdownSetting -> {
                     PaneState(PaneState.Color.NEUTRAL, content = {
                         Text(pane.args.title, style = MaterialTheme.typography.titleSmall)
                         Row(Modifier.background(MaterialTheme.colorScheme.surface).padding(10.dp).fillMaxWidth()) {
@@ -508,7 +501,7 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
                         selectedDropdown = pane
                     })
                 }
-                is DashboardPane.IntSetting -> {
+                is Widget.IntSetting -> {
                     PaneState(PaneState.Color.NEUTRAL, content = {
                         TextField(
                             leadingIcon = {
@@ -523,7 +516,7 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
                         )
                     })
                 }
-                is DashboardPane.SliderSetting -> {
+                is Widget.SliderSetting -> {
                     PaneState()
                 }
             }

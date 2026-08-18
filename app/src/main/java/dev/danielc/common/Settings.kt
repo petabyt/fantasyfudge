@@ -1,5 +1,6 @@
 package dev.danielc.common
 
+import androidx.room.AutoMigration
 import androidx.room.Dao
 import androidx.room.Database
 import androidx.room.Delete
@@ -38,13 +39,10 @@ data class SavedDeviceEntity(
 interface DeviceDao {
     @Query("SELECT * FROM saved_devices ORDER BY lastSeenTimestamp DESC")
     fun getAllDevices(): Flow<List<SavedDeviceEntity>>
-
     @Query("SELECT * FROM saved_devices ORDER BY lastSeenTimestamp DESC")
     fun getAllDevicesList(): List<SavedDeviceEntity>
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun saveDevice(device: SavedDeviceEntity)
-
     @Delete
     suspend fun deleteDevice(device: SavedDeviceEntity)
 }
@@ -56,7 +54,11 @@ data class AppSettingEntity(
     val perDeviceSubFolder: Boolean = false,
     val firstTime: Boolean = true,
     val showWelcomeDialog: Boolean = true,
-    val disabledModules: List<String> = emptyList(),
+)
+
+@Entity(tableName = "disabled_module")
+data class DisabledModuleEntity(
+    @PrimaryKey val name: String,
 )
 
 @Dao
@@ -67,13 +69,24 @@ interface SettingsDao {
     suspend fun get(): AppSettingEntity?
     @Query("SELECT * FROM app_settings WHERE id = 1")
     fun getFlow(): Flow<AppSettingEntity?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun addDisabledModule(e: DisabledModuleEntity)
+    @Delete
+    suspend fun removeDisabledModule(e: DisabledModuleEntity)
+    @Query("SELECT * FROM disabled_module")
+    fun getDisabledModulesFlow(): Flow<List<DisabledModuleEntity>>
 }
 
-@Database(entities = [SavedDeviceEntity::class, AppSettingEntity::class], version = 1,
+@Database(entities = [
+    DisabledModuleEntity::class,
+    SavedDeviceEntity::class,
+    AppSettingEntity::class
+    ], version = 2,
     autoMigrations = [
-        //AutoMigration(from = 1, to = 2)
+        AutoMigration(from = 1, to = 2)
     ],
-    exportSchema = false
+    exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun deviceDao(): DeviceDao

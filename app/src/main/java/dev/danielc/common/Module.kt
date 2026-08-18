@@ -11,6 +11,7 @@ import dev.danielc.common.screens.SortBy
 import dev.danielc.common.screens.ViewerModel
 import dev.danielc.fudge.AndroidRuntime
 import dev.danielc.fudge.FileLayer
+import dev.danielc.fudge.ModuleLiveviewModel
 import dev.danielc.fudge.NativeModule
 import dev.danielc.libpak.Bluetooth
 import dev.danielc.libpak.Pak
@@ -118,7 +119,7 @@ class ModuleDashboardModel(val module: ModuleInstance) : DashboardModel(module.m
             module.homeModelView.showDisconnectDialog(true)
         }
     }
-    override fun propChanged(pane: DashboardPane) {
+    override fun propChanged(pane: Widget) {
         module.propChanged(pane)
     }
     override fun runCommand(line: String) {
@@ -247,7 +248,7 @@ abstract class ModuleBase: NativeModule() {
             ), job.id)
         }
     }
-    fun propChanged(pane: DashboardPane): Int {
+    fun propChanged(pane: Widget): Int {
         return withJob({}) { job ->
             onPropChanged(job.id, pane)
         }
@@ -294,6 +295,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     val debugLogModel = ConsoleModel()
     val connectingModel = ModuleConnectingScreenModel(this)
     val dashboardModel = ModuleDashboardModel(this)
+    val liveviewWorker = ModuleLiveviewModel(this)
     val target = manifest.targets[request.targetIndex]
     var viewerDownloadJob: ModuleJob? = null
     val companionName = "${target.company} ${target.deviceId.getReadableName()}"
@@ -422,7 +424,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         homeModelView.setSupportedScreen(Screen.fromId(id)!!, v)
     }
     @CalledFromNative
-    fun setDashboardPane(pane: DashboardPane) {
+    fun setDashboardPane(pane: Widget) {
         dashboardModel.setDashboardPane(pane)
     }
     @CalledFromNative
@@ -729,11 +731,13 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             // This is done in place of ViewModel init/onCleared
             when (new) {
                 Screen.FILE_GALLERY -> galleryViewModel.start()
+                Screen.LIVEVIEW -> liveviewWorker.setPaused(false)
                 else -> {}
             }
             when (prev) {
                 Screen.FILE_GALLERY -> galleryViewModel.setPaused(true)
                 Screen.INTERVALOMETER -> intervalometerModel.onShutdown()
+                Screen.LIVEVIEW -> liveviewWorker.setPaused(true)
                 else -> {}
             }
         }

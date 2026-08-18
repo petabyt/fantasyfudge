@@ -215,6 +215,11 @@ int pak_rt_set_storage_info(struct PakModule *mod, const char *storage_name, uns
 
 int pak_rt_add_file_contents(struct PakModule *mod, struct PakFileHandle *file, void *image_data, unsigned int length, uint64_t offset, uint64_t total_size) {
 	JNIEnv *env = get_jni_env();
+	if (!strcmp(file->storage_name, "liveview")) {
+		liveview_render_frame(env, mod->rt->liveview_surface_handle_obj, image_data, length);
+		return 0;
+	}
+
 	(*env)->PushLocalFrame(env, 10);
 	jobject handle_o = create_filehandle(env, file);
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
@@ -273,25 +278,25 @@ int pak_rt_set_session_property_int(struct PakModule *mod, const char *key, int 
 int pak_rt_set_widget(struct PakModule *mod, const struct PakWidget *s) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
-	jclass properties_c = (*env)->FindClass(env, "dev/danielc/common/DashboardPane$Properties");
+	jclass properties_c = (*env)->FindClass(env, "dev/danielc/common/Widget$Properties");
 	jstring name_s = (*env)->NewStringUTF(env, s->name);
 	jstring title_s = (*env)->NewStringUTF(env, s->title);
 	jobject properties_o = (*env)->NewObject(env, properties_c, (*env)->GetMethodID(env, properties_c, "<init>", "(Ljava/lang/String;Ljava/lang/String;)V"), name_s, title_s);
 
 	jobject pane_o = NULL;
 	if (s->type == PAK_BOOLEAN) {
-		jclass booleansetting_c = (*env)->FindClass(env, "dev/danielc/common/DashboardPane$BooleanSetting");
-		pane_o = (*env)->NewObject(env, booleansetting_c, (*env)->GetMethodID(env, booleansetting_c, "<init>", "(Ldev/danielc/common/DashboardPane$Properties;Z)V"), properties_o, (jboolean)s->u.boolv.v);
+		jclass booleansetting_c = (*env)->FindClass(env, "dev/danielc/common/Widget$BooleanSetting");
+		pane_o = (*env)->NewObject(env, booleansetting_c, (*env)->GetMethodID(env, booleansetting_c, "<init>", "(Ldev/danielc/common/Widget$Properties;Z)V"), properties_o, (jboolean)s->u.boolv.v);
 	} else if (s->type == PAK_BUTTON) {
-		jclass booleansetting_c = (*env)->FindClass(env, "dev/danielc/common/DashboardPane$Button");
-		pane_o = (*env)->NewObject(env, booleansetting_c, (*env)->GetMethodID(env, booleansetting_c, "<init>", "(Ldev/danielc/common/DashboardPane$Properties;)V"), properties_o);
+		jclass booleansetting_c = (*env)->FindClass(env, "dev/danielc/common/Widget$Button");
+		pane_o = (*env)->NewObject(env, booleansetting_c, (*env)->GetMethodID(env, booleansetting_c, "<init>", "(Ldev/danielc/common/Widget$Properties;)V"), properties_o);
 	} else if (s->type == PAK_GRAPH) {
-		jclass booleansetting_c = (*env)->FindClass(env, "dev/danielc/common/DashboardPane$Graph");
+		jclass booleansetting_c = (*env)->FindClass(env, "dev/danielc/common/Widget$Graph");
 		jintArray arr = (*env)->NewIntArray(env, (jsize)s->u.graphv.n_points);
 		(*env)->SetIntArrayRegion(env, arr, 0, (jsize)s->u.graphv.n_points, (const jint *)s->u.graphv.points);
-		pane_o = (*env)->NewObject(env, booleansetting_c, (*env)->GetMethodID(env, booleansetting_c, "<init>", "(Ldev/danielc/common/DashboardPane$Properties;[I)V"), properties_o, arr);
+		pane_o = (*env)->NewObject(env, booleansetting_c, (*env)->GetMethodID(env, booleansetting_c, "<init>", "(Ldev/danielc/common/Widget$Properties;[I)V"), properties_o, arr);
 	} else if (s->type == PAK_DROPDOWN) {
-		jclass booleansetting_c = (*env)->FindClass(env, "dev/danielc/common/DashboardPane$DropdownSetting");
+		jclass booleansetting_c = (*env)->FindClass(env, "dev/danielc/common/Widget$DropdownSetting");
 
 		int n;
 		for (n = 0; s->u.dropdownv.list[n] != NULL; n++);
@@ -300,14 +305,14 @@ int pak_rt_set_widget(struct PakModule *mod, const struct PakWidget *s) {
 		for (int i = 0; i < n; i++) {
 			(*env)->SetObjectArrayElement(env, arr, i, (*env)->NewStringUTF(env, s->u.dropdownv.list[i]));
 		}
-		pane_o = (*env)->NewObject(env, booleansetting_c, (*env)->GetMethodID(env, booleansetting_c, "<init>", "(Ldev/danielc/common/DashboardPane$Properties;I[Ljava/lang/String;)V"), properties_o,
+		pane_o = (*env)->NewObject(env, booleansetting_c, (*env)->GetMethodID(env, booleansetting_c, "<init>", "(Ldev/danielc/common/Widget$Properties;I[Ljava/lang/String;)V"), properties_o,
 			(jint)s->u.dropdownv.index_value,
 			arr
 		);
 	}
 	if (pane_o != NULL) {
 		jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
-		jmethodID add_setting = (*env)->GetMethodID(env, module_c, "setDashboardPane", "(Ldev/danielc/common/DashboardPane;)V");
+		jmethodID add_setting = (*env)->GetMethodID(env, module_c, "setDashboardPane", "(Ldev/danielc/common/Widget;)V");
 		(*env)->CallVoidMethod(env, mod->rt->obj, add_setting, pane_o);
 	}
 

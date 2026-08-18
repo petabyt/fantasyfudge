@@ -1,68 +1,112 @@
 package dev.danielc.fudge
 
-import android.annotation.SuppressLint
-import android.app.ActionBar
-import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Rect
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.Surface
-import android.view.SurfaceControl
+import android.net.Uri
+import android.util.Log
 import android.view.SurfaceHolder
 import android.view.SurfaceView
-import android.view.View
-import android.view.ViewGroup
-import android.webkit.WebView
-import android.widget.FrameLayout
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
-import java.nio.ByteBuffer
+import com.alexvas.rtsp.codec.VideoDecoderSurfaceThread
+import com.alexvas.rtsp.widget.RtspProcessor
+import com.limelight.binding.video.MediaCodecHelper
+import dev.danielc.common.BackgroundViewModel
+import dev.danielc.common.ModuleInstance
+import dev.danielc.libpak.Pak
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import androidx.core.net.toUri
+import kotlinx.coroutines.runBlocking
 
-fun renderText(text: String, fg: Int, bg: Int): ByteArray {
-    val bitmap = Bitmap.createBitmap(256, 256, Bitmap.Config.ARGB_8888)
-    val canvas: Canvas = Canvas(bitmap)
-    bitmap.eraseColor(bg or -0x1000000)
-    val textPaint: Paint = Paint()
-    textPaint.setTextSize(32f)
-    textPaint.setAntiAlias(true)
-    textPaint.setColor(fg or -0x1000000)
-    canvas.drawText(text, 10f, 40f, textPaint)
+class ModuleLiveviewModel(val mod: ModuleInstance): BackgroundViewModel() {
+    private var isRtsp: Boolean = false
+    private var rtspProcessor: RtspProcessor? = null
+    private var currentSurfaceHolder: SurfaceHolder? = null // should be WeakReference?
+    private var blockingJob: Job? = null
+    fun updateNative(holder: SurfaceHolder) {
+        currentSurfaceHolder = holder
+        mod.updateNativeLiveview(holder.surface, false)
+        val oldJob = blockingJob
+        blockingJob = CoroutineScope(Dispatchers.IO).launch {
+            oldJob?.join()
+            mod.nativeLiveviewThread()
+        }
+    }
+    fun updateRtsp(url: String) {
+        isRtsp = true
+        rtspProcessor = RtspProcessor(
+            onVideoDecoderCreateRequested = {
+                    videoMimeType,
+                    videoRotation,
+                    videoFrameQueue,
+                    videoDecoderListener,
+                    videoDecoderType,
+                    videoFrameRateStabilization,
+                ->
+                VideoDecoderSurfaceThread(
+                    currentSurfaceHolder!!.surface,
+                    videoMimeType,
+                    1920,
+                    1080,
+                    videoRotation,
+                    videoFrameQueue,
+                    videoDecoderListener,
+                    videoDecoderType,
+                    videoFrameRateStabilization,
+                )
+            }
+        )
+        MediaCodecHelper.initialize(Pak.getActivity(), /*glRenderer*/ "")
 
-    val byteBuffer = ByteBuffer.allocate(bitmap.getByteCount())
-    bitmap.copyPixelsToBuffer(byteBuffer)
-    byteBuffer.rewind()
-    return byteBuffer.array()
+        rtspProcessor?.init(
+            url.toUri(),
+            null,
+            null,
+            null,
+            RtspProcessor.DEFAULT_SOCKET_TIMEOUT
+        )
+
+        rtspProcessor?.start(requestVideo = true, requestAudio = false, requestApplication = false)
+    }
+    fun setPaused(v: Boolean) {
+        mod.updateNativeLiveview(currentSurfaceHolder?.surface, v)
+    }
+    suspend fun stopThread() {
+        blockingJob?.join()
+    }
+    fun update(w: Int, h: Int) {
+        currentSurfaceHolder?.setFixedSize(720, 480)
+    }
+    fun clear() {
+        rtspProcessor?.stopDecoders()
+        rtspProcessor?.stop()
+        isRtsp = false
+    }
 }
 
-class Liveview : SurfaceHolder.Callback {
+class MySurfaceHolderCallback(val model: ModuleLiveviewModel) : SurfaceHolder.Callback {
     override fun surfaceCreated(surfaceHolder: SurfaceHolder) {
-        val surfaceHolder = surfaceHolder.surface
-
-        val canvas: Canvas = surfaceHolder.lockCanvas(Rect(0, 0, 100, 100))
-        val p = Paint()
-        p.setColor(Color.RED)
-        //canvas.drawColor(Color.BLACK);
-        canvas.drawRect(0f, 0f, 100f, 100f, p)
-        surfaceHolder.unlockCanvasAndPost(canvas)
+        model.updateNative(surfaceHolder)
     }
-
     override fun surfaceChanged(holder: SurfaceHolder, i2: Int, width: Int, height: Int) {
+        // ...
     }
-
     override fun surfaceDestroyed(holder: SurfaceHolder) {
+        Log.d("lv", "surfaceDestroyed")
+        model.setPaused(true)
+        runBlocking {
+            model.stopThread()
+        }
     }
 }
 
 @Composable
-fun FramebufferSurface(modifier: Modifier = Modifier, haveHandle: (Any) -> Unit = {}) {
+fun FramebufferSurface(modifier: Modifier = Modifier, model: ModuleLiveviewModel) {
     AndroidView(modifier = modifier, factory = { ctx ->
         val view = SurfaceView(ctx)
-        haveHandle(view.holder as Any)
+        view.holder.addCallback(MySurfaceHolderCallback(model))
         view
     }, update = { view ->
 

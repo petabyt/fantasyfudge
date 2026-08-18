@@ -101,24 +101,24 @@ data class SavedDeviceInfo(
 /**
  * PakModule defined setting or widget that can be updated by the user or the module
   */
-sealed interface DashboardPane {
+sealed interface Widget {
     val args: Properties
     data class Properties(
         val name: String,
         val title: String,
     )
-    data class Button(override val args: Properties): DashboardPane
-    data class BooleanSetting(override val args: Properties, val value: Boolean): DashboardPane
-    data class IntSetting(override val args: Properties, val value: Int): DashboardPane
-    data class SliderSetting(override val args: Properties, val value: Int, val min: Int, val max: Int): DashboardPane
-    data class DropdownSetting(override val args: Properties, val index: Int, val options: List<String>): DashboardPane {
+    data class Button(override val args: Properties): Widget
+    data class BooleanSetting(override val args: Properties, val value: Boolean): Widget
+    data class IntSetting(override val args: Properties, val value: Int): Widget
+    data class SliderSetting(override val args: Properties, val value: Int, val min: Int, val max: Int): Widget
+    data class DropdownSetting(override val args: Properties, val index: Int, val options: List<String>): Widget {
         constructor(args: Properties, index: Int, options: Array<String>) : this(args, index, options.toList())
     }
     @Suppress("ArrayInDataClass")
     data class Graph(
         override val args: Properties,
         val points: IntArray,
-    ): DashboardPane
+    ): Widget
 }
 
 enum class Command(val cmd: String) {
