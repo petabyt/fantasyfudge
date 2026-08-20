@@ -1,6 +1,5 @@
 package dev.danielc.fudge
 
-import android.net.Uri
 import android.util.Log
 import android.view.SurfaceHolder
 import android.view.SurfaceView

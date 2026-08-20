@@ -10,7 +10,6 @@ import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -76,6 +75,9 @@ import dev.danielc.R
 import dev.danielc.common.BackgroundViewModel
 import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
+import dev.danielc.common.MimeType
+import dev.danielc.common.SortBy
+import dev.danielc.common.StorageInfo
 import dev.danielc.common.ui.theme.FudgeRippleConfig
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
@@ -113,62 +115,9 @@ private fun bitmapFromColor(
     return imageBitmap
 }
 
-enum class MimeType(val mediaTypeString: String) {
-    FILE("application/octet-stream"),
-    FOLDER("inode/directory"),
-    JPEG("image/jpeg"),
-    PNG("image/png"),
-    IMAGE("image"),
-    VIDEO("video"),
-    MOV("video/quicktime");
-    fun isImage(): Boolean {
-        return when (this) {
-            JPEG, PNG, IMAGE -> true
-            else -> false
-        }
-    }
-    fun isVideo(): Boolean {
-        return when (this) {
-            MOV, VIDEO -> true
-            else -> false
-        }
-    }
-    companion object {
-        fun getIcon(type: MimeType?): Int {
-            return when (type) {
-                FOLDER -> R.drawable.baseline_folder_open_24
-                JPEG -> R.drawable.baseline_landscape_24
-                PNG -> R.drawable.baseline_landscape_24
-                MOV -> R.drawable.baseline_movie_24
-                else -> R.drawable.outline_files_24
-            }
-        }
-        fun toString(t: MimeType?): String {
-            return (t ?: FILE).mediaTypeString
-        }
-        fun fromString(str: String?): MimeType {
-            return MimeType.entries.find { it.mediaTypeString == str } ?: FILE
-        }
-    }
-}
-
 enum class DisplayType {
     THUMBNAILS,
     VERTICAL_TABLE,
-}
-
-enum class SortBy(val id: Int) {
-    DEFAULT(0),
-    NEWEST_FIRST(1),
-    OLDEST_FIRST(2),
-    LARGEST_FIRST(3),
-    SMALLEST_FIRST(4);
-
-    companion object {
-        fun fromId(id: Int): SortBy? {
-            return entries.find { it.id == id }
-        }
-    }
 }
 
 data class GalleryObject(
@@ -187,8 +136,8 @@ data class GalleryObjectReference(
 data class FilesystemState(
     val storageName: String? = null,
     val userSortBy: SortBy = SortBy.NEWEST_FIRST,
-    val displayType: DisplayType = DisplayType.THUMBNAILS,
     val objectListSortedOrder: SortBy = SortBy.NEWEST_FIRST,
+    val displayType: DisplayType = DisplayType.THUMBNAILS,
     // object is null if it hasn't been loaded/checked yet
     val objects: List<GalleryObject?> = emptyList(),
     val sortedList: List<Int> = emptyList(),
@@ -331,15 +280,15 @@ abstract class GalleryViewModel(val checkFileSaved: Boolean = true, var isThumbn
         }
     }
 
-    fun setProperties(nItems: Int, name: String, sortBy: SortBy) {
+    fun setProperties(info: StorageInfo) {
         CoroutineScope(Dispatchers.IO).launch {
             _uiState.update { currentState ->
                 val list = currentState.objects.toMutableList()
-                while (list.size < nItems) list.add(null)
+                while (list.size < info.nFiles) list.add(null)
                 currentState.copy(
                     objects = list,
-                    storageName = name,
-                    objectListSortedOrder = sortBy,
+                    storageName = info.name,
+                    objectListSortedOrder = info.itemsSortedBy,
                 )
             }
             sortObjectList()
@@ -638,7 +587,7 @@ fun Gallery(modifier: Modifier = Modifier, state: FilesystemState, requestLoad: 
                 }
 
                 if (state.objects.isNotEmpty()) {
-                    itemsIndexed(state.sortedList.toList()) { index, entry ->
+                    itemsIndexed(state.sortedList.toList()) { _, entry ->
                         val obj = state.objects.getOrNull(entry)
                         if (displayType == DisplayType.THUMBNAILS) {
                             GalleryThumbnail(obj, onClick = {
@@ -697,7 +646,7 @@ fun PreviewGalleryScreen(navController: NavHostController = rememberNavControlle
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Green)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Blue)),
         GalleryObject(FileMetadata(), thumbnail = bitmapFromColor(Color.Cyan)),
-    ), storageName = "Card 2")
+    ), sortedList = List(40) { it }, storageName = "Card 2")
     return FudgeTheme {
         Scaffold(
             topBar = {

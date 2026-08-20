@@ -99,7 +99,7 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
 
     fun isScreenInNavBar(s: Screen): Boolean {
         return when (s) {
-            Screen.DASHBOARD, Screen.FILE_GALLERY, Screen.LIVEVIEW, Screen.INTERVALOMETER -> true
+            Screen.DASHBOARD, Screen.FILE_GALLERY, Screen.LIVEVIEW, Screen.INTERVALOMETER, Screen.LIVE_FEED -> true
             else -> false
         }
     }
@@ -144,7 +144,9 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
     }
 }
 
-/// Contains main instance navigation bar
+/**
+ * Secondary Module instance bottom navigation graph (NavigationBar)
+ */
 @Composable
 fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
     val model = module.homeModelView
@@ -253,6 +255,10 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                     BackHandler { goBack() }
                     Intervalometer(Modifier.padding(innerPadding), module.intervalometerModel)
                 }
+                composable(Screen.LIVE_FEED.strId) {
+                    BackHandler { goBack() }
+                    LiveFeed(Modifier.padding(innerPadding), module.liveFeedModel)
+                }
             }
             if (homeState.showDisconnectDialog) {
                 DisconnectDialog(dashboardState.nameOfDevice ?: "Device", yes = {
@@ -345,16 +351,17 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
                             module.goBack(Screen.FILE_GALLERY, false)
                         }
                     } else {
-                        module.viewerViewModel.cleanupAfterCancel()
+                        module.galleryViewModel.downloader?.cleanupAfterCancel()
                         module.viewerDownloadJob?.let { module.cancelJob(it) }
                     }
                 },
                 cancel = {
-                    module.viewerViewModel.cleanupAfterCancel()
+                    module.galleryViewModel.downloader?.cleanupAfterCancel()
                     module.viewerDownloadJob?.let { module.cancelJob(it) }
                 },
                 save = {
-                    module.viewerViewModel.onSave()
+                    module.galleryViewModel.downloader?.save()
+                    module.viewerViewModel.setHasSaved(true)
                 }
             )
         }

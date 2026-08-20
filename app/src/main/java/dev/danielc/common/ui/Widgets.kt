@@ -240,7 +240,7 @@ fun IntGridGraph(
     }
 }
 
-private const val transitionDuration = 300
+private const val transitionDuration = 250
 
 @Composable
 fun DefaultNavHost(

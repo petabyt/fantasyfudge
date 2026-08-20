@@ -81,6 +81,8 @@ open class NativeModule {
     @Synchronized
     external fun onPropChanged(job: Int, pane: Widget): Int
     @Synchronized
+    external fun init(): Int
+    @Synchronized
     external fun free()
     @Synchronized
     external fun setSetupOptionName(name: String)

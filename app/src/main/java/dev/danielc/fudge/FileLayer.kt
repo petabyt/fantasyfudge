@@ -19,7 +19,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.net.toUri
 import dev.danielc.common.FileMetadata
-import dev.danielc.common.screens.MimeType
+import dev.danielc.common.MimeType
 import dev.danielc.fudge.AndroidRuntime.decodeImageContents
 import dev.danielc.libpak.Exif
 import dev.danielc.libpak.Pak
@@ -154,24 +154,26 @@ object FileLayer {
     }
 
     fun doesFileExist(filename: String, subdirectory: String = "fudge"): Boolean {
+        // TODO: Would be better to try to open the file for writing
+        // querying doesn't work for files app doesn't have access to
         Pak.getActivity().contentResolver.query(
-            MediaStore.Downloads.EXTERNAL_CONTENT_URI,
+            MediaStore.Files.getContentUri("external"),
             arrayOf(MediaStore.MediaColumns._ID),
             "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? AND ${MediaStore.MediaColumns.DISPLAY_NAME} = ?",
-            arrayOf("%${subdirectory}%", filename),
+            arrayOf("${Environment.DIRECTORY_DOWNLOADS}/${subdirectory}/%", filename),
             null
         ).use { cursor ->
             return cursor != null && cursor.count > 0
         }
     }
 
-    fun openFileForWriting(filename: String, metadata: FileMetadata, subdirectory: String = "fudge"): Handle? {
+    fun openFileForWriting(filename: String, mimeType: String?, subdirectory: String = "fudge"): Handle? {
         val resolver = Pak.getActivity().contentResolver
 
         val pair = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             Pair(MediaStore.Downloads.EXTERNAL_CONTENT_URI, Environment.DIRECTORY_DOWNLOADS)
         } else {
-            if (MimeType.fromString(metadata.mimeType).isVideo()) {
+            if (MimeType.fromString(mimeType).isVideo()) {
                 Pair(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, Environment.DIRECTORY_PICTURES)
             } else {
                 Pair(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, Environment.DIRECTORY_MOVIES)
@@ -182,7 +184,7 @@ object FileLayer {
 
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-            put(MediaStore.MediaColumns.MIME_TYPE, metadata.mimeType)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
             put(MediaStore.MediaColumns.RELATIVE_PATH, "${directory}/${subdirectory}")
         }
 

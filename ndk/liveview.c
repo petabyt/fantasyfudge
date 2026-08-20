@@ -71,7 +71,7 @@ int liveview_render_frame(JNIEnv *env, jobject surface_handle, void *buffer, uns
 	ANativeWindow *window = ANativeWindow_fromSurface(env, surface_handle);
 	if (window == NULL) {
 		__android_log_write(ANDROID_LOG_ERROR, "liveview", "ANativeWindow_fromSurface");
-		abort();
+		return -1;
 	}
 	ANativeWindow_acquire(window);
 

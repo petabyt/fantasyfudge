@@ -6,6 +6,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.danielc.common.FileHandle
+import dev.danielc.common.SortBy
+import dev.danielc.common.StorageInfo
 import dev.danielc.fudge.FileLayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,7 +28,11 @@ class LocalGalleryViewModel: GalleryViewModel(checkFileSaved = false) {
         try {
             files = FileLayer.getDownloadedMediaFiles()
             reset()
-            setProperties(files.size, "Downloads", SortBy.NEWEST_FIRST)
+            setProperties(StorageInfo(
+                name = "Downloads",
+                nFiles = files.size,
+                itemsSortedBy = SortBy.NEWEST_FIRST
+            ))
             for (i in files.indices) {
                 updateMetadata(i, files[i].metadata)
             }
@@ -57,7 +63,8 @@ class LocalGalleryViewModel: GalleryViewModel(checkFileSaved = false) {
             if (handle == null) {
                 viewer.setError("Failed to decode image")
             } else {
-                viewer.loadImageFileHandle(handle)
+                viewer.loadImage(handle)
+                handle.close()
             }
         }
     }

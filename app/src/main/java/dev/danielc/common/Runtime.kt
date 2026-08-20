@@ -192,7 +192,12 @@ object Runtime {
                 ModuleManifest.Target(
                     company = "Dummy",
                     summary = "Fake target that can be used to test this app",
-                    deviceId = Device.GAME_CONTROLLER
+                    deviceId = Device.GAME_CONTROLLER,
+                    setupOptions = listOf(
+                        ModuleManifest.SetupOption("camera", "Camera", ModuleManifest.Transport.WIFI_AP),
+                        ModuleManifest.SetupOption("slow", "Camera (Slow)", ModuleManifest.Transport.WIFI_AP),
+                        ModuleManifest.SetupOption("tethered", "Camera (tethered)", ModuleManifest.Transport.USB),
+                    ),
                 )
             ),
         )

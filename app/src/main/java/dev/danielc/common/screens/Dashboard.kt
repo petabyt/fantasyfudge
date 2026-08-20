@@ -31,6 +31,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -52,6 +53,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -62,6 +64,7 @@ import dev.danielc.common.Widget
 import dev.danielc.common.Device
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.ModuleProperty
+import dev.danielc.common.StorageInfo
 import dev.danielc.common.ui.IntGridGraph
 import dev.danielc.common.ui.PreviewPixel9ProDark
 import dev.danielc.common.ui.theme.FudgeRippleConfig
@@ -70,6 +73,7 @@ import dev.danielc.common.ui.theme.errorButtonColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -80,7 +84,6 @@ data class DashboardState(
     val batteryLevelLeft: Int? = null,
     val batteryLevelRight: Int? = null,
     val nameOfDevice: String? = null,
-    val filesOnStorage: Int? = null,
     val temperature: Int? = null,
     val humidity: Int? = null,
     val firmwareVersion: String? = null,
@@ -88,17 +91,20 @@ data class DashboardState(
     val isSaved: Boolean = false,
 )
 
-open class DashboardModel(val manifest: ModuleManifest, initialState: DashboardState? = null): BackgroundViewModel() {
+open class DashboardModel(
+    val manifest: ModuleManifest,
+    initialState: DashboardState? = null,
+    val storageDevices: StateFlow<List<StorageInfo>>,
+): BackgroundViewModel() {
     private val _state = MutableStateFlow(initialState ?: DashboardState())
     val state = _state.asStateFlow()
+
     open fun propChanged(pane: Widget) {}
     open fun disconnect() {}
     open fun runCommand(line: String) {}
     open fun save() {}
+    open fun onStorageDeviceClicked(name: String) {}
 
-    fun updateNumFiles(files: Int?) {
-        _state.update { it.copy(filesOnStorage = files) }
-    }
     fun setSaved() { _state.update { it.copy(isSaved = true) } }
     fun setProperty(type: ModuleProperty, value: String) {
         scope.launch(Dispatchers.IO) {
@@ -174,13 +180,22 @@ private fun cameraState(): DashboardModel {
     val manifest = ModuleManifest(name = "Fujifilm", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA)))
     return DashboardModel(manifest, DashboardState(
         nameOfDevice = "Fujifilm X100VI",
-        filesOnStorage = 321,
         batteryLevelMain = 78,
         firmwareVersion = "0.1.0",
-    ))
+    ), storageDevices = MutableStateFlow(listOf(StorageInfo(
+        name = "Card 2",
+        nFiles = 320,
+        sizeBytes = 60000000L,
+        usedBytes = 3000000L
+    ), StorageInfo(
+        name = "Live",
+        nFiles = 10,
+        currentStatus = "Downloading DSC0001.JPG..",
+        isLiveFeedMedium = true,
+    ))).asStateFlow())
 }
 
-//@PreviewPixel9ProDark
+@PreviewPixel9ProDark
 @Composable
 private fun PreviewDashboardCamera() {
     var state by remember { mutableStateOf(cameraState()) }
@@ -219,10 +234,10 @@ private fun budsState(): DashboardModel {
                 points = intArrayOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 5, 7, 8, 5)
             ),
         )
-    ))
+    ), storageDevices = MutableStateFlow(emptyList<StorageInfo>()).asStateFlow())
 }
 
-@PreviewPixel9ProDark
+//@PreviewPixel9ProDark
 @Composable
 private fun PreviewDashboardBuds() {
     var state by remember { mutableStateOf(budsState()) }
@@ -342,6 +357,7 @@ fun DropdownDialog(close: () -> Unit = {}, dropdownSetting: Widget.DropdownSetti
 @Composable
 fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
     val state by model.state.collectAsStateWithLifecycle()
+    val storageDevices by model.storageDevices.collectAsStateWithLifecycle()
     var showSettings by remember { mutableStateOf(false) }
     var selectedDropdown by remember { mutableStateOf<Widget.DropdownSetting?>(null) }
     val coroutineScope = rememberCoroutineScope()
@@ -356,20 +372,20 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
         }, setting, { i ->
             model.updateSettingPane(setting.copy(index = i))
             coroutineScope.launch {
-                delay(200)
+                delay(150)
                 selectedDropdown = null
             }
         })
     }
     Column(
         modifier = modifier.padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Box(modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
-            Column(Modifier.padding(10.dp)) {
+            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     state.nameOfDevice?.let { name ->
                         if (!model.manifest.targets.isEmpty())
@@ -401,19 +417,12 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
                         )
                     }
                 }
-                if (state.filesOnStorage != null) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Icon(painter = painterResource(R.drawable.outline_photo_library_24), contentDescription = null)
-                        Text("${state.filesOnStorage} files")
-                    }
-                }
                 if (state.firmwareVersion != null) {
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Icon(painter = painterResource(R.drawable.outline_developer_board_24), contentDescription = null)
                         Text("Firmware version: ${state.firmwareVersion}")
                     }
                 }
-                Spacer(Modifier.height(5.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     IconButton(onClick = { showSettings = true }) {
                         Icon(painterResource(R.drawable.baseline_settings_24), contentDescription = null)
@@ -429,6 +438,41 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
                         Spacer(Modifier.width(2.dp))
                         Text("Disconnect")
                     }
+                }
+            }
+        }
+
+        for (e in storageDevices) {
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                .clickable(onClick = { model.onStorageDeviceClicked(e.name) })
+            ) {
+                Column(Modifier.padding(10.dp)) {
+                    Row(Modifier.padding(5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (e.isLiveFeedMedium) {
+                            Icon(painterResource(R.drawable.outline_sim_card_download_24), contentDescription = null)
+                        } else {
+                            Icon(painterResource(R.drawable.outline_sd_card_24), contentDescription = null)
+                        }
+                        Text(e.name)
+                        if (e.sizeBytes != null && e.usedBytes != null) {
+                            Spacer(Modifier.weight(1f))
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                LinearProgressIndicator(progress = { e.usedBytes.toFloat() / e.sizeBytes })
+                                Spacer(Modifier.height(4.dp))
+                                val percent = ((e.usedBytes.toFloat() / e.sizeBytes) * 100).toInt()
+                                Text(
+                                    "${percent}% of ${longToFileSize(e.sizeBytes)} used",
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
+                        }
+                        if (e.currentStatus != null) {
+                            Text("${e.currentStatus}", fontStyle = FontStyle.Italic, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                        }
+                    }
+                    Text("${e.nFiles} files")
+                    //Text("7 downloaded")
                 }
             }
         }

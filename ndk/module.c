@@ -23,9 +23,6 @@ static struct PakModule *create_module(JNIEnv *env, jobject o_mod) {
 	return mod;
 }
 static int init_module(JNIEnv *env, struct PakModule *mod) {
-	int rc = 0;
-	if (mod->init != NULL) rc = mod->init(mod);
-
 	mod->bt = pak_bt_get_context();
 	mod->net = pak_net_get_context();
 
@@ -35,7 +32,7 @@ static int init_module(JNIEnv *env, struct PakModule *mod) {
 
 	jfieldID struct_field = (*env)->GetFieldID(env, (*env)->FindClass(env, "dev/danielc/fudge/NativeModule"), "struct", "[B");
 	(*env)->SetObjectField(env, mod->rt->obj, struct_field, struct_o);
-	return rc;
+	return 0;
 }
 static int free_module(JNIEnv *env, struct PakModule *mod) {
 	if (mod->free) mod->free(mod);
@@ -72,6 +69,16 @@ Java_dev_danielc_fudge_NativeModule_free(JNIEnv *env, jobject thiz) {
 	struct PakModule *mod = get_mod(env, thiz, &info);
 	free_module(env, mod);
 	release_mod(env, &info);
+}
+
+JNIEXPORT int JNICALL
+Java_dev_danielc_fudge_NativeModule_init(JNIEnv *env, jobject thiz) {
+	struct TempStruct info;
+	struct PakModule *mod = get_mod(env, thiz, &info);
+	int rc = 0;
+	if (mod->init != NULL) rc = mod->init(mod);
+	release_mod(env, &info);
+	return rc;
 }
 
 JNIEXPORT jint JNICALL
@@ -434,9 +441,9 @@ Java_dev_danielc_fudge_NativeModule_nativeLiveviewThread(JNIEnv *env, jobject th
 	struct TempStruct info;
 	struct PakModule *mod = get_mod(env, thiz, &info);
 	while (!atomic_load(&mod->rt->liveview_cancel)) {
-		mod->on_request_liveview_frame(mod, -1, &(struct PakFileHandle){
+		if (mod->on_request_liveview_frame(mod, -1, &(struct PakFileHandle){
 			.storage_name = "liveview",
-		});
+		})) break;
 		usleep(1000000 / 30);
 	}
 	release_mod(env, &info);

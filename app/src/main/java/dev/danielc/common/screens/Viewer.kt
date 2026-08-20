@@ -66,6 +66,7 @@ import dev.danielc.R
 import dev.danielc.common.BackgroundViewModel
 import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
+import dev.danielc.common.MimeType
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
 import dev.danielc.fudge.FileLayer
@@ -77,6 +78,8 @@ import kotlinx.coroutines.launch
 import net.engawapg.lib.zoomable.rememberZoomState
 import net.engawapg.lib.zoomable.zoomable
 import kotlin.math.roundToInt
+import kotlin.time.DurationUnit
+import kotlin.time.TimeSource
 
 private const val MAX_BUFFER_SIZE = 10 * 1000000
 
@@ -115,37 +118,141 @@ data class ViewerState(
     val hasSaved: Boolean = false,
 )
 
-class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolean = true, val fileSavedIcon: Boolean = true) : BackgroundViewModel() {
+open class FileDownloader(val file: FileHandle, val filename: String, val mimeType: String? = null) {
     private var temporaryBuffer: ByteArray? = null
     private var fileHandle: FileLayer.Handle? = null
     private var fileTotalSize: Long? = null
     private var rejectTransfers = false
-    private val _viewerState = MutableStateFlow<ViewerState?>(null)
-    val viewerState = _viewerState.asStateFlow()
+
+    private var elapsed = TimeSource.Monotonic.markNow()
+
+    open fun onSaving() {}
+    open fun onFinished(buffer: ByteArray) {}
+    open fun onFinished(file: FileLayer.Handle) {}
+    open fun updateSpeed(speed: String) {}
+    open fun updateProgress(percent: Int) {}
 
     fun clear() {
-        _viewerState.value = null
         temporaryBuffer = null
         fileHandle = null
         rejectTransfers = false
         fileTotalSize = null
     }
 
-    private fun getMetadata(): FileMetadata {
-        return viewerState.value?.metadata ?: FileMetadata(
-            filename = null,
-            mimeType = MimeType.JPEG.mediaTypeString,
-        )
-    }
-
-    fun onSave() {
+    fun save() {
         temporaryBuffer?.let {
-            val md = getMetadata()
-            val fd = FileLayer.openFileForWriting(md.filename ?: "unknown.jpg", md)
-            if (fd == null) return
+            val fd = FileLayer.openFileForWriting(filename, mimeType) ?: return
             fd.write(it)
             fd.close()
-            _viewerState.update { state -> state?.copy(hasSaved = true) }
+        }
+    }
+    fun cleanupAfterCancel() {
+        rejectTransfers = true
+        fileHandle?.let {
+            fileHandle = null
+            it.close()
+            FileLayer.deleteFile(it)
+        }
+    }
+    open fun setFileContents(data: ByteArray?, offset: Long, totalSize: Long) {
+        //println("${data?.size}, ${offset}, ${totalSize}")
+        var ms = elapsed.elapsedNow().toInt(DurationUnit.MILLISECONDS)
+        if (ms == 0) ms++
+        updateSpeed("${((data?.size ?: 0) / ms) / 1000.0}MB/s")
+        elapsed = TimeSource.Monotonic.markNow()
+
+        if (totalSize != 0L && data != null) {
+            updateProgress((((data.size + offset).toFloat() / totalSize) * 100).toInt())
+        }
+
+        if (rejectTransfers) return
+        val temporaryBufferRef = temporaryBuffer
+        if (temporaryBufferRef == null) {
+            if (totalSize != 0L) fileTotalSize = totalSize
+            temporaryBuffer = data
+            if (data != null && (data.size.toLong() >= totalSize)) {
+                onFinished(data)
+            }
+            return
+        }
+
+        if (data == null || data.isEmpty()) {
+            if (fileHandle == null) {
+                onFinished(temporaryBufferRef)
+            } else {
+                fileHandle!!.close()
+                onFinished(fileHandle!!)
+            }
+            return
+        }
+
+        // Automatically route to file if too large
+        if (temporaryBufferRef.size + data.size > MAX_BUFFER_SIZE || totalSize > MAX_BUFFER_SIZE && fileHandle == null) {
+            fileHandle = FileLayer.openFileForWriting(filename, mimeType)
+            if (fileHandle == null) {
+                println("Rejecting transfers")
+                rejectTransfers = true
+                // TODO: set isLoading to false
+                return
+            } else {
+                onSaving()
+                fileHandle?.write(temporaryBufferRef)
+            }
+        }
+
+        if (fileHandle != null) {
+            fileHandle?.write(data)
+        } else {
+            temporaryBuffer = temporaryBufferRef + data
+        }
+
+        if (data.size + offset >= totalSize) {
+            if (fileHandle == null) {
+                onFinished(temporaryBuffer!!)
+            } else {
+                fileHandle!!.close()
+                onFinished(fileHandle!!)
+            }
+        }
+    }
+}
+
+class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolean = true) : BackgroundViewModel() {
+    private val _viewerState = MutableStateFlow<ViewerState?>(null)
+    val viewerState = _viewerState.asStateFlow()
+
+    fun clear() {
+        _viewerState.value = null
+    }
+
+    fun loadImage(buffer: ByteArray) {
+        _viewerState.update { it?.copy(isDecoding = true) }
+        val bitmap = AndroidRuntime.decodeImageContents(buffer, _viewerState.value?.metadata?.orientation)
+        if (bitmap == null) {
+            setError("Failed to decode image contents")
+        } else {
+            _viewerState.update { viewerState ->
+                viewerState?.copy(
+                    bitmap = bitmap,
+                    isDecoding = false,
+                    isLoading = false,
+                )
+            }
+        }
+    }
+    fun loadImage(file: FileLayer.Handle) {
+        setHasSaved(true)
+        _viewerState.update { it?.copy(isDecoding = true) }
+        val bitmap = AndroidRuntime.decodeImageFile(file, _viewerState.value?.metadata?.orientation)
+        if (bitmap == null) {
+            setError("Failed to decode image contents")
+        }
+        _viewerState.update { viewerState ->
+            viewerState?.copy(
+                bitmap = bitmap,
+                isDecoding = false,
+                isLoading = false,
+            )
         }
     }
 
@@ -176,97 +283,6 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
             )
         }
     }
-    fun loadImage(data: ByteArray) {
-        _viewerState.update { it?.copy(isDecoding = true) }
-        val bitmap = AndroidRuntime.decodeImageContents(data, _viewerState.value?.metadata?.orientation)
-        if (bitmap == null) {
-            setError("Failed to decode image contents")
-        } else {
-            _viewerState.update { viewerState ->
-                viewerState?.copy(
-                    bitmap = bitmap,
-                    isDecoding = false,
-                    isLoading = false,
-                )
-            }
-        }
-    }
-    fun loadImageFileHandle(handle: FileLayer.Handle) {
-        _viewerState.update { it?.copy(isDecoding = true) }
-        handle.close()
-        val bitmap = AndroidRuntime.decodeImageFile(handle, _viewerState.value?.metadata?.orientation)
-        if (bitmap == null) {
-            setError("Failed to decode image contents")
-        }
-        _viewerState.update { viewerState ->
-            viewerState?.copy(
-                bitmap = bitmap,
-                isDecoding = false,
-                isLoading = false,
-            )
-        }
-    }
-    fun cleanupAfterCancel() {
-        rejectTransfers = true
-        fileHandle?.let {
-            fileHandle = null
-            it.close()
-            FileLayer.deleteFile(it)
-        }
-    }
-    fun setFileContents(data: ByteArray?, offset: Long, totalSize: Long) {
-        //println("${data?.size}, ${offset}, ${totalSize}")
-        if (rejectTransfers) {
-            return
-        }
-        val temporaryBufferRef = temporaryBuffer
-        if (temporaryBufferRef == null) {
-            if (totalSize != 0L) fileTotalSize = totalSize
-            temporaryBuffer = data
-            if (data != null && (data.size.toLong() >= totalSize)) {
-                loadImage(data)
-            }
-            return
-        }
-
-        if (data == null || data.isEmpty()) {
-            if (fileHandle == null) {
-                loadImage(temporaryBufferRef)
-            } else {
-                loadImageFileHandle(fileHandle!!)
-            }
-            return
-        }
-
-        // Automatically route to file if too large
-        if (temporaryBufferRef.size + data.size > MAX_BUFFER_SIZE || totalSize > MAX_BUFFER_SIZE && fileHandle == null) {
-            val md = getMetadata()
-            fileHandle = FileLayer.openFileForWriting(md.filename ?: "unknown", md)
-            if (fileHandle == null) {
-                println("Rejecting transfers")
-                rejectTransfers = true
-                // TODO: set isLoading to false
-                return
-            } else {
-                _viewerState.update { it?.copy(currentDownloadStatusMessage = "File too big; saving...") }
-                fileHandle?.write(temporaryBufferRef)
-            }
-        }
-
-        if (fileHandle != null) {
-            fileHandle?.write(data)
-        } else {
-            temporaryBuffer = temporaryBufferRef + data
-        }
-
-        if (data.size + offset >= totalSize) {
-            if (fileHandle == null) {
-                loadImage(temporaryBuffer!!)
-            } else {
-                loadImageFileHandle(fileHandle!!)
-            }
-        }
-    }
     fun updateProgress(downloadPercent: Int) {
         _viewerState.update { it?.copy(currentDownloadProgress = downloadPercent) }
     }
@@ -277,12 +293,10 @@ class ViewerModel(val showSaveButton: Boolean = true, val showLoadDialog: Boolea
         _viewerState.update { it?.copy(currentDownloadStatusMessage = status) }
     }
     fun setError(message: String) {
-        _viewerState.update { viewerState ->
-            viewerState?.copy(
-                isError = true,
-                errorMessage = message
-            )
-        }
+        _viewerState.update { it?.copy(isError = true, errorMessage = message) }
+    }
+    fun setHasSaved(v: Boolean = true) {
+        _viewerState.update { it?.copy(hasSaved = v) }
     }
 }
 
@@ -401,7 +415,8 @@ fun Viewer(modifier: Modifier = Modifier, state: ViewerState, switchTo: (Int) ->
                     showingInfoModal = true
                     scope.launch {
                         launch {
-                            imageYOffset.animateTo(-(screenHeightDp / 4)) // TODO: this is a completely arbitrary offset
+                            // TODO: this is a completely arbitrary offset
+                            imageYOffset.animateTo(-(screenHeightDp / 4))
                         }
                         launch {
                             imageXOffset.animateTo(0.dp)

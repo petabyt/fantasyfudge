@@ -1,6 +1,5 @@
 package dev.danielc.common
 import dev.danielc.R
-import dev.danielc.common.screens.MimeType
 import kotlinx.serialization.Serializable
 
 enum class Device(val id: String) {
@@ -198,8 +197,9 @@ enum class Screen(val strId: String, val id: Int) {
  * struct PakFileHandle
  */
 data class FileHandle(
-    var index: Int = 0,
-    var storageName: String? = null,
+    val index: Int = 0,
+    val storageName: String? = null,
+    val path: String? = null,
 )
 
 /**
@@ -243,4 +243,76 @@ enum class ModulePermission(val id: String) {
     BLUETOOTH("bluetooth"),
     SOCKETS("sockets"),
     INTERNET("internet"),
+}
+
+enum class SortBy(val id: Int) {
+    DEFAULT(0),
+    NEWEST_FIRST(1),
+    OLDEST_FIRST(2),
+    LARGEST_FIRST(3),
+    SMALLEST_FIRST(4);
+
+    companion object {
+        fun fromId(id: Int): SortBy? {
+            return entries.find { it.id == id }
+        }
+    }
+}
+
+data class StorageInfo(
+    val name: String,
+    val nFiles: Int,
+    val itemsSortedBy: SortBy = SortBy.DEFAULT,
+    val sizeBytes: Long? = null,
+    val usedBytes: Long? = null,
+    val isLiveFeedMedium: Boolean = false,
+    val currentStatus: String? = null
+) {
+    constructor(
+        name: String,
+        nFiles: Int,
+        itemsSortedBy: Int,
+        sizeBytes: Long,
+        usedBytes: Long,
+        isLiveFeedMedium: Boolean,
+    ) : this(name, nFiles, SortBy.fromId(itemsSortedBy)!!, if (sizeBytes == 0L) null else sizeBytes, if (usedBytes == 0L) null else usedBytes, isLiveFeedMedium)
+}
+
+enum class MimeType(val mediaTypeString: String) {
+    FILE("application/octet-stream"),
+    FOLDER("inode/directory"),
+    JPEG("image/jpeg"),
+    PNG("image/png"),
+    IMAGE("image"),
+    VIDEO("video"),
+    MOV("video/quicktime");
+    fun isImage(): Boolean {
+        return when (this) {
+            JPEG, PNG, IMAGE -> true
+            else -> false
+        }
+    }
+    fun isVideo(): Boolean {
+        return when (this) {
+            MOV, VIDEO -> true
+            else -> false
+        }
+    }
+    companion object {
+        fun getIcon(type: MimeType?): Int {
+            return when (type) {
+                FOLDER -> R.drawable.baseline_folder_open_24
+                JPEG -> R.drawable.baseline_landscape_24
+                PNG -> R.drawable.baseline_landscape_24
+                MOV -> R.drawable.baseline_movie_24
+                else -> R.drawable.outline_files_24
+            }
+        }
+        fun toString(t: MimeType?): String {
+            return (t ?: FILE).mediaTypeString
+        }
+        fun fromString(str: String?): MimeType {
+            return MimeType.entries.find { it.mediaTypeString == str } ?: FILE
+        }
+    }
 }

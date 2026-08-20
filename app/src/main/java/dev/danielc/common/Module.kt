@@ -3,11 +3,13 @@ import dev.danielc.common.screens.ConnectingRequiredAction
 import dev.danielc.common.screens.ConnectingScreenModel
 import dev.danielc.common.screens.ConsoleModel
 import dev.danielc.common.screens.DashboardModel
+import dev.danielc.common.screens.FileDownloader
 import dev.danielc.common.screens.GalleryObjectReference
 import dev.danielc.common.screens.GalleryViewModel
+import dev.danielc.common.screens.LiveFeedItem
+import dev.danielc.common.screens.LiveFeedModel
 import dev.danielc.common.screens.ModuleInstanceModel
 import dev.danielc.common.screens.ModuleIntervalometerModel
-import dev.danielc.common.screens.SortBy
 import dev.danielc.common.screens.ViewerModel
 import dev.danielc.fudge.AndroidRuntime
 import dev.danielc.fudge.FileLayer
@@ -21,6 +23,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlin.time.DurationUnit
@@ -46,7 +51,36 @@ data class ModuleJob(
     var isFinished: Boolean = false,
 )
 
+class ModuleLiveFeedModel(val module: ModuleInstance): LiveFeedModel() {
+    var downloader: FileDownloader? = null
+    fun addFileMetadata(file: FileHandle, v: FileMetadata?)  {
+        setItem(LiveFeedItem(file, v))
+    }
+    fun setFileContents(file: FileHandle, data: ByteArray?, offset: Long, totalSize: Long) {
+        val item = getItem(file)
+        if (downloader?.file != file) {
+            downloader = object : FileDownloader(
+                file,
+                item?.metadata?.filename ?: "unknown${file.index}.jpg",
+                item?.metadata?.mimeType ?: MimeType.JPEG.mediaTypeString
+            ) {
+                override fun onFinished(file: FileLayer.Handle) {
+                    module.updateStorageDeviceStatus(this.file.storageName, "Finished downloading")
+                    downloader = null
+                }
+                override fun onFinished(buffer: ByteArray) {
+                    module.updateStorageDeviceStatus(this.file.storageName, "Finished downloading")
+                    downloader = null
+                    // TODO: Save
+                }
+            }
+        }
+        downloader?.setFileContents(data, offset, totalSize)
+    }
+}
+
 class ModuleGalleryViewModel(val module: ModuleInstance, val viewerViewModel: ViewerModel): GalleryViewModel() {
+    var downloader: FileDownloader? = null
     override fun fulfillThumbnail(file: GalleryObjectReference) {
         if (module.getFileThumbnail(file = FileHandle(file.index, null)) != 0) {
             updateThumbnail(file.index, thumbData = null)
@@ -56,6 +90,32 @@ class ModuleGalleryViewModel(val module: ModuleInstance, val viewerViewModel: Vi
     override fun fulfillMetadata(file: GalleryObjectReference) {
         if (module.getFileMetadata(file = FileHandle(file.index, null)) != 0) {
             updateMetadata(file.index, null)
+        }
+    }
+
+    private fun updateDownloader(file: FileHandle) {
+        val md = module.galleryViewModel.getMetadata(file)
+        downloader = object : FileDownloader(file, md?.filename ?: "unknown${file.index}.jpg", MimeType.JPEG.mediaTypeString) {
+            private var isNotUpdatingDownloadSpeed: Boolean = false
+            override fun onFinished(buffer: ByteArray) {
+                module.viewerViewModel.loadImage(buffer)
+            }
+            override fun onFinished(file: FileLayer.Handle) {
+                module.viewerViewModel.loadImage(file)
+            }
+            override fun onSaving() {
+                module.viewerViewModel.setHasSaved(true)
+                module.viewerViewModel.updateStatus("File too big; saving...")
+            }
+            override fun setFileContents(data: ByteArray?, offset: Long, totalSize: Long) {
+                if ((offset == 0L || isNotUpdatingDownloadSpeed) && data != null) {
+                    if (!isNotUpdatingDownloadSpeed) if (viewerViewModel.viewerState.value?.currentDownloadSpeed == null) isNotUpdatingDownloadSpeed = true
+                }
+                super.setFileContents(data, offset, totalSize)
+            }
+            override fun updateSpeed(speed: String) {
+                viewerViewModel.updateSpeed(speed)
+            }
         }
     }
 
@@ -90,6 +150,7 @@ class ModuleGalleryViewModel(val module: ModuleInstance, val viewerViewModel: Vi
                     viewerViewModel.updateStatus("Grabbing metadata...")
                     module.getFileMetadata(file = file)
                 }
+                updateDownloader(file)
                 viewerViewModel.updateStatus("Downloading...")
                 rc = module.getFileContents({ job ->
                     module.viewerDownloadJob = job
@@ -113,7 +174,7 @@ class ModuleGalleryViewModel(val module: ModuleInstance, val viewerViewModel: Vi
     }
 }
 
-class ModuleDashboardModel(val module: ModuleInstance) : DashboardModel(module.manifest) {
+class ModuleDashboardModel(val module: ModuleInstance) : DashboardModel(module.manifest, storageDevices = module.storageDevices.asStateFlow()) {
     override fun disconnect() {
         scope.launch {
             module.homeModelView.showDisconnectDialog(true)
@@ -127,6 +188,15 @@ class ModuleDashboardModel(val module: ModuleInstance) : DashboardModel(module.m
     }
     override fun save() {
         module.userSave()
+    }
+    override fun onStorageDeviceClicked(name: String) {
+        val dev = module.storageDevices.value.find { it.name == name }
+        if (dev == null) return
+        if (dev.isLiveFeedMedium) {
+            module.switchScreen(Screen.LIVE_FEED, isInNavBar = true)
+        } else {
+            module.switchScreen(Screen.FILE_GALLERY, isInNavBar = true)
+        }
     }
 }
 
@@ -289,6 +359,8 @@ data class ModuleInstanceRequest(
  * Instance of a module with a single connection
  */
 class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRequest, val homeModelView: ModuleInstanceModel): ModuleBase() {
+    val storageDevices = MutableStateFlow(emptyList<StorageInfo>())
+    val liveFeedModel = ModuleLiveFeedModel(this)
     val viewerViewModel = ViewerModel()
     val galleryViewModel = ModuleGalleryViewModel(this, viewerViewModel)
     val intervalometerModel = ModuleIntervalometerModel(this)
@@ -307,7 +379,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             // TODO: Set saved/update timestamp
         }
 
-        val rc = when (manifest.moduleType) {
+        var rc = when (manifest.moduleType) {
             ModuleManifest.ModuleType.SHARED_LIBRARY -> {
                 AndroidRuntime.setupSharedLibraryModule(this, manifest.scriptPath!!)
             }
@@ -336,6 +408,10 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             homeModelView.initializationError.value = true
         } else {
             request.chosenSetupOption?.let { setSetupOptionName(it) }
+            rc = init()
+            if (rc != 0) {
+                homeModelView.initializationError.value = true
+            }
         }
     }
     var currentTickIntervalUs: Int = (100 * 1000)
@@ -350,7 +426,6 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     fun trimMemory() {
         galleryViewModel.onTrimMemory()
     }
-
     fun userSave() {
         val name = dashboardModel.state.value.nameOfDevice ?: return
         saveDeviceSignature(SavedDeviceInfo(
@@ -358,6 +433,12 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             name = name,
             privateData = null,
         ))
+    }
+    fun getStorageDevice(name: String): StorageInfo? { return storageDevices.value.find { it.name == name } }
+    fun updateStorageDeviceStatus(name: String?, message: String?) {
+        storageDevices.update {
+            it.map { item -> if (item.name == name) item.copy(currentStatus = message) else item }
+        }
     }
 
     @CalledFromNative
@@ -449,6 +530,12 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     @CalledFromNative
     fun addFileMetadata(file: FileHandle, v: FileMetadata?) {
         galleryViewModel.updateMetadata(file.index, v)
+
+        val dev = storageDevices.value.find { it.name == file.storageName }
+        if (dev != null && dev.isLiveFeedMedium) {
+            liveFeedModel.addFileMetadata(file, v)
+        }
+
         // Update the image viewer state if it doesn't already have the metadata
         val viewerState = viewerViewModel.viewerState.value
         if (viewerState != null) {
@@ -457,29 +544,28 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             }
         }
     }
-    private var elapsed = TimeSource.Monotonic.markNow()
-    private var isNotUpdatingDownloadSpeed: Boolean = false
     @CalledFromNative
     fun setFileContents(file: FileHandle, data: ByteArray?, offset: Long, totalSize: Long) {
-        if ((offset == 0L || isNotUpdatingDownloadSpeed) && data != null) {
-            if (!isNotUpdatingDownloadSpeed) if (viewerViewModel.viewerState.value?.currentDownloadSpeed == null) isNotUpdatingDownloadSpeed = true
-            var ms = elapsed.elapsedNow().toInt(DurationUnit.MILLISECONDS)
-            if (ms == 0) ms++
-            viewerViewModel.updateSpeed("${(data.size / ms) / 1000.0}MB/s")
-            elapsed = TimeSource.Monotonic.markNow()
+        val md = galleryViewModel.getMetadata(file)
+        updateStorageDeviceStatus(file.storageName, "Downloading ${md?.filename ?: file.index}...")
+        val dev = storageDevices.value.find { it.name == file.storageName }
+        if (dev != null && dev.isLiveFeedMedium) {
+            liveFeedModel.setFileContents(file, data, offset, totalSize)
         }
-        viewerViewModel.setFileContents(data, offset, totalSize)
+        galleryViewModel.downloader?.setFileContents(data, offset, totalSize)
     }
     @CalledFromNative
     fun addFileThumbnail(file: FileHandle, data: ByteArray) {
         galleryViewModel.updateThumbnail(file.index, data)
     }
     @CalledFromNative
-    fun setStorageInfo(nItems: Int, name: String, sortBy: Int) {
-        // TODO: Manage multiple storage devices
-        galleryViewModel.setProperties(nItems, name, SortBy.fromId(sortBy)!!)
-        // TODO: Count total files if needed
-        dashboardModel.updateNumFiles(nItems)
+    fun setStorageInfo(info: StorageInfo) {
+        storageDevices.update { it + info }
+        if (info.isLiveFeedMedium) {
+            liveFeedModel.update(info)
+        } else {
+            galleryViewModel.setProperties(info)
+        }
     }
     @CalledFromNative
     private fun setIsConnected() {
@@ -629,7 +715,6 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                     debugLog("System error: ${reason}")
                     connectingModel.setPopupText(null)
                 }
-
                 override fun onCancel() {
                     debugLog("Cancelled")
                 }
@@ -652,6 +737,11 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         }
         connectingModel.reset(target, transport)
         if (target.wifiDiscovery != null && transport == ModuleManifest.Transport.WIFI_AP) {
+            if (!WiFi.checkPermission()) {
+                connectingModel.setRequiredAction(ConnectingRequiredAction.ACCEPT_PERMISSION)
+                WiFi.requestConnectPermission()
+                return
+            }
             wifiConnectRoutine(target.wifiDiscovery, savedDeviceInfo)
         } else if (target.bluetoothDiscovery.isNotEmpty() && transport == ModuleManifest.Transport.BLUETOOTH) {
             bluetoothConnectRoutine(target.bluetoothDiscovery, savedDeviceInfo)
@@ -715,7 +805,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             isConnected = false
             CoroutineScope(Dispatchers.IO).launch {
                 stopAllThreads()
-                withJob({}) { job ->
+                withJob({}) {
                     onDisconnect()
                 }
                 disconnect(reason, code)
@@ -724,7 +814,8 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     }
 
     private fun switchScreen(prev: Screen, new: Screen, callback: JobUpdateCallback): Int {
-        val rc = withJob(callback) { job ->
+        val skip = (prev == Screen.DASHBOARD && new == Screen.LIVE_FEED) || (prev == Screen.LIVE_FEED && new == Screen.DASHBOARD)
+        val rc = if (skip) 0 else withJob(callback) { job ->
             onSwitchScreen(prev.id, new.id, job.id)
         }
         if (new != prev) {

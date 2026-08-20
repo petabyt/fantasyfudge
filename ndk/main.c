@@ -127,10 +127,11 @@ static jobject create_filehandle(JNIEnv *env, const struct PakFileHandle *file) 
 	if (file == NULL) return NULL;
 	(*env)->PushLocalFrame(env, 10);
 	jclass filehandle_c = (*env)->FindClass(env, "dev/danielc/common/FileHandle");
-	jmethodID constructor = (*env)->GetMethodID(env, filehandle_c, "<init>", "(ILjava/lang/String;)V");
+	jmethodID constructor = (*env)->GetMethodID(env, filehandle_c, "<init>", "(ILjava/lang/String;Ljava/lang/String;)V");
 	jobject handle_o = (*env)->NewObject(env, filehandle_c, constructor,
 		file->index_in_view,
-		(*env)->NewStringUTF(env, file->storage_name)
+		file->storage_name == NULL ? NULL : (*env)->NewStringUTF(env, file->storage_name),
+		file->path == NULL ? NULL : (*env)->NewStringUTF(env, file->path)
 	);
 	return (*env)->PopLocalFrame(env, handle_o);
 }
@@ -202,20 +203,31 @@ int pak_rt_set_download_stats(struct PakModule *mod, int job, long time, unsigne
 	return 0;
 }
 
-int pak_rt_set_storage_info(struct PakModule *mod, const char *storage_name, unsigned int n_items, enum PakSortedBy sorted_by) {
+int pak_rt_set_storage_info(struct PakModule *mod, const char *name, struct PakStorageInfo *info) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
+
+	jclass info_c = (*env)->FindClass(env, "dev/danielc/common/StorageInfo");
+	jmethodID constructor = (*env)->GetMethodID(env, info_c, "<init>", "(Ljava/lang/String;IIJJZ)V");
+	jobject handle_o = (*env)->NewObject(env, info_c, constructor,
+		(*env)->NewStringUTF(env, name),
+		(jint)info->n_files_total,
+		(jint)info->sorted_by,
+		(jlong)info->size_bytes,
+		(jlong)info->used_bytes,
+		(jboolean)info->is_live
+	);
+
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
-	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "setStorageInfo", "(ILjava/lang/String;I)V");
-	jstring name_s = (*env)->NewStringUTF(env, storage_name);
-	(*env)->CallVoidMethod(env, mod->rt->obj, set_storage_info, (int)n_items, name_s, (int)sorted_by);
+	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "setStorageInfo", "(Ldev/danielc/common/StorageInfo;)V");
+	(*env)->CallVoidMethod(env, mod->rt->obj, set_storage_info, handle_o);
 	(*env)->PopLocalFrame(env, NULL);
 	return 0;
 }
 
 int pak_rt_add_file_contents(struct PakModule *mod, struct PakFileHandle *file, void *image_data, unsigned int length, uint64_t offset, uint64_t total_size) {
 	JNIEnv *env = get_jni_env();
-	if (!strcmp(file->storage_name, "liveview")) {
+	if (file->storage_name != NULL && !strcmp(file->storage_name, "liveview")) {
 		liveview_render_frame(env, mod->rt->liveview_surface_handle_obj, image_data, length);
 		return 0;
 	}
