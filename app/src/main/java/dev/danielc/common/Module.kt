@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.DurationUnit
 import kotlin.time.TimeSource
 
@@ -371,6 +372,16 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     val target = manifest.targets[request.targetIndex]
     var viewerDownloadJob: ModuleJob? = null
     val companionName = "${target.company} ${target.deviceId.getReadableName()}"
+
+    private var currentTickIntervalUs: Int = (100 * 1000)
+    private var mainLoopJob: Job? = null
+    var initJob: Job? = null
+    private var currentScreen: Screen = Screen.CONNECT
+    var isConnected = false
+    var disconnectReason: String? = null
+    var disconnectedErrorCode: Int? = null
+    private var isNavigating = false
+
     init {
         Runtime.addModuleInstance(this)
         if (request.savedDeviceUniqueId != null) {
@@ -414,14 +425,6 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             }
         }
     }
-    var currentTickIntervalUs: Int = (100 * 1000)
-    private var mainLoopJob: Job? = null
-    var initJob: Job? = null
-    private var currentScreen: Screen = Screen.CONNECT
-    var isConnected = false
-    var disconnectReason: String? = null
-    var disconnectedErrorCode: Int? = null
-    private var isNavigating = false
 
     fun trimMemory() {
         galleryViewModel.onTrimMemory()
@@ -787,7 +790,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             while (job != null && !job.isCancelled) {
                 module.onIdleTick(curr.elapsedNow().toInt(DurationUnit.MICROSECONDS))
                 curr = TimeSource.Monotonic.markNow()
-                delay(currentTickIntervalUs.toLong() / 1000)
+                delay(module.currentTickIntervalUs.toLong().microseconds)
             }
         }
     }
