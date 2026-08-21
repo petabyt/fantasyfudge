@@ -4,6 +4,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,6 +40,7 @@ import dev.danielc.common.BackgroundViewModel
 import dev.danielc.common.Command
 import dev.danielc.common.ModuleInstance
 import dev.danielc.common.ui.PreviewPixel9ProDark
+import dev.danielc.common.ui.PreviewTabletDark
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.errorIconButtonColors
 import dev.danielc.common.ui.theme.primaryIconButtonColors
@@ -101,10 +103,12 @@ fun Intervalometer(modifier: Modifier = Modifier, model: IntervalometerModel) {
     val doingCapture by model.doingCapture.collectAsStateWithLifecycle()
     val status by model.status.collectAsStateWithLifecycle()
     val haptic = LocalHapticFeedback.current
-    Column(modifier.padding(10.dp).fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+
+    @Composable
+    fun layout(modifier: Modifier) {
         var shotsToTake by remember { mutableStateOf("10") }
         var secondsInBetweenShots by remember { mutableStateOf("1") }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(modifier, verticalArrangement = Arrangement.spacedBy(20.dp, Alignment.CenterVertically), horizontalAlignment = Alignment.CenterHorizontally) {
             TextField(
                 leadingIcon = {
                     Icon(painterResource(R.drawable.outline_numbers_24), contentDescription = null)
@@ -160,8 +164,7 @@ fun Intervalometer(modifier: Modifier = Modifier, model: IntervalometerModel) {
                 }
             }
         }
-
-        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+        Row(modifier, horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
             val interactionSource = remember { MutableInteractionSource() }
             val isPressed by interactionSource.collectIsPressedAsState()
             LaunchedEffect(interactionSource) {
@@ -186,10 +189,21 @@ fun Intervalometer(modifier: Modifier = Modifier, model: IntervalometerModel) {
             }
         }
     }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        if (minWidth < minHeight) {
+            Column(modifier.padding(10.dp).fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+                layout(Modifier.weight(1f))
+            }
+        } else {
+            Row(modifier.padding(10.dp).fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                layout(Modifier.weight(1f))
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@PreviewPixel9ProDark
+@PreviewTabletDark
 @Composable
 fun IntervalometerScreen(navController: NavHostController = rememberNavController(), model: IntervalometerModel = IntervalometerModel()) {
     return FudgeTheme {
