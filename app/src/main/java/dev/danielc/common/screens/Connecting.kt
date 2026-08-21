@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -26,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.toClipEntry
@@ -251,7 +253,7 @@ fun ConnectingScreen(back: () -> Unit = {}, model: ConnectingScreenModel = Conne
                     }
                 }
                 state.loadingPopupText?.let {
-                    Box(Modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest).align(Alignment.Center)) {
+                    Box(Modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest).align(Alignment.Center)) {
                         Column(Modifier.padding(20.dp)) {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(it)
@@ -262,7 +264,7 @@ fun ConnectingScreen(back: () -> Unit = {}, model: ConnectingScreenModel = Conne
                     }
                 }
                 state.userInstruction?.let {
-                    Box(Modifier.padding(10.dp).background(MaterialTheme.colorScheme.surfaceContainerHighest).align(Alignment.BottomCenter)) {
+                    Box(Modifier.padding(10.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest).align(Alignment.BottomCenter)) {
                         Row(Modifier
                             .fillMaxWidth()
                             .padding(20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
