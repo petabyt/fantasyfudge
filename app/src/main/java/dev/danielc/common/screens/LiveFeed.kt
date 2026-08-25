@@ -42,6 +42,7 @@ import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
 import dev.danielc.common.MimeType
 import dev.danielc.common.StorageInfo
+import dev.danielc.common.longToFileSize
 import dev.danielc.common.ui.theme.FudgeTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -51,6 +52,7 @@ data class LiveFeedItem(
     val metadata: FileMetadata? = null,
     val progress: Int? = null,
     val hasFinished: Boolean = false,
+    val savedPath: String? = null,
 )
 
 open class LiveFeedModel: BackgroundViewModel() {
@@ -63,8 +65,18 @@ open class LiveFeedModel: BackgroundViewModel() {
     fun setItem(item: LiveFeedItem) {
         items.update { it + item }
     }
+    fun updateItem(handle: FileHandle, path: String, hasFinished: Boolean) {
+        items.update {
+            it.map { item -> if (item.handle == handle) item.copy(savedPath = path, hasFinished = hasFinished) else item }
+        }
+    }
     fun getItem(handle: FileHandle): LiveFeedItem? {
         return items.value.find { it.handle.index == handle.index }
+    }
+    fun updateProgressFromIdleJob(v: Int) {
+        items.update {
+            it.map { item -> if (item == it.last()) item.copy(progress = v) else item }
+        }
     }
 }
 

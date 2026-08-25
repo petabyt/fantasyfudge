@@ -30,8 +30,9 @@ data class ModuleManifest(
     val publicKey: String? = null,
     val isDraft: Boolean = false,
     val moduleType: ModuleType = ModuleType.WEBASSEMBLY,
-    val scriptPath: String? = null,
-    val targets: List<Target> = emptyList()
+    val scriptPath: String = "",
+    val targets: List<Target> = emptyList(),
+    val manifestFilePath: String? = null,
 ) {
     enum class Transport(value: Int) {
         BLUETOOTH(1),
@@ -42,7 +43,6 @@ data class ModuleManifest(
         LOCAL_NETWORK_UDP(6),
         INTERNET(7),
     }
-
     enum class ModuleType {
         QUICKJS,
         WEBASSEMBLY,
@@ -95,6 +95,10 @@ data class ModuleManifest(
         val vid: Int? = null,
         val usbClass: Int? = null,
     )
+    fun getModulePath(): String {
+        if (manifestFilePath == null || moduleType == ModuleType.SHARED_LIBRARY) return scriptPath
+        return manifestFilePath.replaceAfterLast("/", scriptPath)
+    }
 }
 
 fun manifestFromJson(text: String, filename: String): ModuleManifest? {
@@ -157,11 +161,12 @@ fun manifestFromJson(text: String, filename: String): ModuleManifest? {
             }
         }
         val manifest = ModuleManifest(
+            manifestFilePath = filename,
             name = root["name"]?.jsonPrimitive?.content ?: throw Error("missing name field"),
             description = root["description"]?.jsonPrimitive?.content,
             author = root["author"]?.jsonPrimitive?.content,
             website = root["website"]?.jsonPrimitive?.content,
-            scriptPath = filename.replaceAfterLast("/", root["modulePath"]?.jsonPrimitive?.content ?: throw Error("missing modulePath field")),
+            scriptPath = root["modulePath"]?.jsonPrimitive?.content ?: throw Error("missing modulePath field"),
             moduleType = when (root["moduleType"]?.jsonPrimitive?.content ?: throw Error("missing moduleType field")) {
                 "js" -> ModuleManifest.ModuleType.QUICKJS
                 "wasm" -> ModuleManifest.ModuleType.WEBASSEMBLY

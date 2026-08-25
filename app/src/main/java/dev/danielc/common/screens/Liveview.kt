@@ -2,6 +2,9 @@ package dev.danielc.common.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +26,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import dev.danielc.R
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.LightGray
+import dev.danielc.common.ui.theme.primaryIconButtonColors
 import dev.danielc.fudge.FramebufferSurface
 import dev.danielc.fudge.ModuleLiveviewModel
 
@@ -75,7 +82,7 @@ fun LiveviewButton(modifier: Modifier = Modifier, text: String, icon: Int, curre
 }
 
 @Composable
-fun Liveview(modifier: Modifier = Modifier, model: ModuleLiveviewModel?) {
+fun Liveview(modifier: Modifier = Modifier, model: ModuleLiveviewModel?, intervalometerModel: ModuleIntervalometerModel? = null) {
     val haptic = LocalHapticFeedback.current
     Box(modifier.fillMaxSize().background(Color.Black)) {
         @Composable
@@ -90,27 +97,33 @@ fun Liveview(modifier: Modifier = Modifier, model: ModuleLiveviewModel?) {
         fun shutterPanel() {
             // Fullscreen button
 
-            IconButton(onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-            }, modifier = Modifier.size(70.dp),
-                colors = IconButtonColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                disabledContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                disabledContentColor = MaterialTheme.colorScheme.surfaceContainerHighest
-            ), shape = RoundedCornerShape(10.dp)) {
+            val interactionSource = remember { MutableInteractionSource() }
+            val isPressed by interactionSource.collectIsPressedAsState()
+            LaunchedEffect(interactionSource) {
+                interactionSource.interactions.collect { interaction ->
+                    if (interaction is PressInteraction.Press) {
+                        haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                        intervalometerModel?.shutter(true)
+                    } else {
+                        haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                        intervalometerModel?.shutter(false)
+                    }
+                }
+            }
+
+            IconButton(onClick = {}, modifier = Modifier.size(70.dp),
+                interactionSource = interactionSource,
+                colors = if (isPressed) primaryIconButtonColors(0.8f) else primaryIconButtonColors(), shape = RoundedCornerShape(10.dp)) {
                 Icon(painterResource(R.drawable.outline_camera_24), contentDescription = null, Modifier.padding(10.dp).fillMaxSize())
             }
         }
         if (LocalConfiguration.current.orientation == 2) {
             Column(Modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                val modifier = Modifier.weight(1f)
-                buttons(modifier)
+                buttons(Modifier.weight(1f))
             }
         } else {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                val modifier = Modifier.weight(1f)
-                buttons(modifier)
+                buttons(Modifier.weight(1f))
             }
         }
         if (model == null) {

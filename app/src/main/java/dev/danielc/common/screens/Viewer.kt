@@ -67,6 +67,7 @@ import dev.danielc.common.BackgroundViewModel
 import dev.danielc.common.FileHandle
 import dev.danielc.common.FileMetadata
 import dev.danielc.common.MimeType
+import dev.danielc.common.longToFileSize
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
 import dev.danielc.fudge.FileLayer
@@ -126,7 +127,8 @@ open class FileDownloader(val file: FileHandle, val filename: String, val mimeTy
 
     private var elapsed = TimeSource.Monotonic.markNow()
 
-    open fun onSaving() {}
+    open fun onSaved(handle: FileLayer.Handle) {}
+    open fun onAutomaticallySaved() {}
     open fun onFinished(buffer: ByteArray) {}
     open fun onFinished(file: FileLayer.Handle) {}
     open fun updateSpeed(speed: String) {}
@@ -139,12 +141,19 @@ open class FileDownloader(val file: FileHandle, val filename: String, val mimeTy
         fileTotalSize = null
     }
 
-    fun save() {
+    fun save(): FileLayer.Handle? {
         temporaryBuffer?.let {
-            val fd = FileLayer.openFileForWriting(filename, mimeType) ?: return
+            val fd = FileLayer.openFileForWriting(filename, mimeType)
+            if (fd == null) {
+                println("TODO: Failed to open file")
+                return null
+            }
             fd.write(it)
             fd.close()
+            onSaved(fd)
+            return fd
         }
+        return null
     }
     fun cleanupAfterCancel() {
         rejectTransfers = true
@@ -195,7 +204,7 @@ open class FileDownloader(val file: FileHandle, val filename: String, val mimeTy
                 // TODO: set isLoading to false
                 return
             } else {
-                onSaving()
+                onAutomaticallySaved()
                 fileHandle?.write(temporaryBufferRef)
             }
         }

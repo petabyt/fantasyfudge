@@ -2,6 +2,21 @@ package dev.danielc.common
 import dev.danielc.R
 import kotlinx.serialization.Serializable
 
+fun longToFileSize(bytes: Long): String {
+    if (bytes <= 0) return "0b"
+
+    val units = arrayOf("b", "kb", "mb", "gb", "tb", "pb", "eb")
+    var size = bytes.toDouble()
+    var unitIndex = 0
+
+    while (size >= 1024 && unitIndex < units.size - 1) {
+        size /= 1024
+        unitIndex++
+    }
+
+    return "${size.toInt()} ${units[unitIndex]}"
+}
+
 enum class Device(val id: String) {
     // Photo class
     PROFESSIONAL_CAMERA("professional-camera"),

@@ -20,7 +20,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Nobody uses 32bit anymore, disabling 32bit arm/x86 for now
-        ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
+        //ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
     }
 
     buildTypes.getByName("debug") {
@@ -145,7 +145,7 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-    //androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

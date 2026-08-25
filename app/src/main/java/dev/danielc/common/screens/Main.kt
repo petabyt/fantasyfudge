@@ -62,6 +62,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.danielc.R
 import dev.danielc.common.ConnectableDevice
+import dev.danielc.common.Device
 import dev.danielc.common.ModuleInstanceRequest
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.Runtime
@@ -69,11 +70,16 @@ import dev.danielc.common.SavedDeviceEntity
 import dev.danielc.common.ui.ClickableCard
 import dev.danielc.common.ui.DefaultNavHost
 import dev.danielc.common.ui.DeleteDialog
+import dev.danielc.common.ui.DynamicScaffold
+import dev.danielc.common.ui.DynamicScaffoldNavBarItem
 import dev.danielc.common.ui.ManifestList
+import dev.danielc.common.ui.PreviewPixel9ProDark
+import dev.danielc.common.ui.PreviewTabletDark
 import dev.danielc.common.ui.TargetCard
 import dev.danielc.common.ui.dummyManifestList
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.BuildInfo
+import dev.danielc.fudge.FileLayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -331,12 +337,19 @@ fun MainConnectScreen(navController: NavController, modifier: Modifier = Modifie
                 item {
                     Text("Select a type of device to connect to:")
                 }
-                val targets = mutableListOf<Pair<ModuleManifest.Target, ModuleManifest>>()
+                var targets = mutableListOf<Pair<ModuleManifest.Target, ModuleManifest>>()
                 for (manifest in manifestList) {
                     for (target in manifest.targets) {
                         targets += Pair(target, manifest)
                     }
                 }
+                targets = targets.sortedBy {
+                    if (it.second.name == "dummymod") 0 else
+                    when (it.first.deviceId) {
+                        Device.PROFESSIONAL_CAMERA, Device.DASHCAM -> 1
+                        else -> 2
+                    }
+                }.toMutableList()
                 items(targets) { pair ->
                     TargetCard(pair.first, pair.second, clicked = {
                         clicked(ModuleInstanceRequest(pair.second.name, pair.second.targets.indexOf(pair.first)))
@@ -371,7 +384,8 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
     )
 
     return FudgeTheme {
-        Scaffold(
+        DynamicScaffold(
+            noTopBar = navBackStackEntry?.destination?.route == "local-gallery",
             topBar = {
                 if (navBackStackEntry?.destination?.route != "local-gallery") {
                     TopAppBar(
@@ -403,31 +417,52 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
                     )
                 }
             },
-            bottomBar = {
-                NavigationBar() {
-                    items.forEach { item ->
-                        NavigationBarItem(
-                            icon = {
-                                Icon(
-                                    painter = painterResource(item.icon),
-                                    contentDescription = null
-                                )
-                            },
-                            label = {
-                                Text(item.text)
-                            },
-                            selected = navBackStackEntry?.destination?.hierarchy?.any { it.route == item.route } == true,
-                            onClick = {
-                                subNavController.navigate(item.route) {
-                                    launchSingleTop = true
-                                    restoreState = false
-                                }
-                                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                            }
+            navBarItems = items.map { item ->
+                DynamicScaffoldNavBarItem(
+                    icon = {
+                        Icon(
+                            painter = painterResource(item.icon),
+                            contentDescription = null
                         )
+                    },
+                    label = {
+                        Text(item.text)
+                    },
+                    selected = navBackStackEntry?.destination?.hierarchy?.any { it.route == item.route } == true,
+                    onClick = {
+                        subNavController.navigate(item.route) {
+                            launchSingleTop = true
+                            restoreState = false
+                        }
+                        haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
                     }
-                }
-            }
+                )
+            },
+//            bottomBar = {
+//                NavigationBar {
+//                    items.forEach { item ->
+//                        NavigationBarItem(
+//                            icon = {
+//                                Icon(
+//                                    painter = painterResource(item.icon),
+//                                    contentDescription = null
+//                                )
+//                            },
+//                            label = {
+//                                Text(item.text)
+//                            },
+//                            selected = navBackStackEntry?.destination?.hierarchy?.any { it.route == item.route } == true,
+//                            onClick = {
+//                                subNavController.navigate(item.route) {
+//                                    launchSingleTop = true
+//                                    restoreState = false
+//                                }
+//                                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+//                            }
+//                        )
+//                    }
+//                }
+//            }
         ) { innerPadding ->
             NavHost(
                 enterTransition = { EnterTransition.None },
@@ -450,6 +485,9 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
                     })
                 }
                 composable("local-gallery") {
+                    LaunchedEffect(Unit) {
+                        FileLayer.requestLegacyPermissions()
+                    }
                     LocalGallery(onItemClick = { i ->
                         navController.navigate("local-viewer")
                         CoroutineScope(Dispatchers.IO).launch {
@@ -463,7 +501,7 @@ fun MainScreen(navController: NavHostController = rememberNavController()) {
 }
 
 @Composable
-@Preview(showBackground = true, device = "id:pixel_9a", uiMode = 32)
+@PreviewPixel9ProDark
 fun PreviewMainScreen() {
     Runtime.savedDevices = MutableStateFlow(listOf(SavedDeviceEntity(
         uniqueIdentifier = "ASD",

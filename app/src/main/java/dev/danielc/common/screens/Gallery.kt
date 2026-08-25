@@ -23,11 +23,13 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -78,6 +80,7 @@ import dev.danielc.common.FileMetadata
 import dev.danielc.common.MimeType
 import dev.danielc.common.SortBy
 import dev.danielc.common.StorageInfo
+import dev.danielc.common.longToFileSize
 import dev.danielc.common.ui.theme.FudgeRippleConfig
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.fudge.AndroidRuntime
@@ -162,24 +165,18 @@ abstract class GalleryViewModel(val checkFileSaved: Boolean = true, var isThumbn
         return _uiState.value.objects.getOrNull(file.index + offset)?.thumbnail
     }
 
-    open fun onRefresh() {
-        // ...
-    }
-    open fun onShare(ref: GalleryObjectReference) {
-        // ...
-    }
-    open fun itemClicked(ref: GalleryObjectReference) {
-        // ...
-    }
-    open fun init() {
-        // ...
-    }
+    open fun onRefresh() {}
+    open fun onShare(ref: GalleryObjectReference) {}
+    open fun itemClicked(ref: GalleryObjectReference) {}
+    open fun init() {}
     abstract fun fulfillThumbnail(file: GalleryObjectReference)
     abstract fun fulfillMetadata(file: GalleryObjectReference)
 
-    private fun objectIsFulfilled(obj: GalleryObject?): Boolean {
-        if (obj == null) return false
-        return ((obj.metadata != null || obj.invalidMetadata) && (obj.thumbnail != null || obj.invalidThumbnail));
+    companion object {
+        fun objectIsFulfilled(obj: GalleryObject?): Boolean {
+            if (obj == null) return false
+            return ((obj.metadata != null || obj.invalidMetadata) && (obj.thumbnail != null || obj.invalidThumbnail))
+        }
     }
 
     fun setSortBy(sort: SortBy) {
@@ -352,6 +349,7 @@ abstract class GalleryViewModel(val checkFileSaved: Boolean = true, var isThumbn
     }
     override fun onTrimMemory() {
         val nObjectsToFree = 10
+        if (_uiState.value.objects.isEmpty()) return
         CoroutineScope(Dispatchers.IO).launch {
             _uiState.update { currentState ->
                 // Sort objects by oldest and deref the thumbnail
@@ -427,23 +425,11 @@ private fun GalleryThumbnail(obj: GalleryObject?, onClick: () -> Unit = {}, scal
                     )
                 }
             }
+            if (!GalleryViewModel.objectIsFulfilled(obj)) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center).size(35.dp), color = ProgressIndicatorDefaults.linearColor.copy(0.5f))
+            }
         }
     }
-}
-
-fun longToFileSize(bytes: Long): String {
-    if (bytes <= 0) return "0b"
-
-    val units = arrayOf("b", "kb", "mb", "gb", "tb", "pb", "eb")
-    var size = bytes.toDouble()
-    var unitIndex = 0
-
-    while (size >= 1024 && unitIndex < units.size - 1) {
-        size /= 1024
-        unitIndex++
-    }
-
-    return "${size.toInt()} ${units[unitIndex]}"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

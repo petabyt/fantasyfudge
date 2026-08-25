@@ -72,7 +72,11 @@ class ModuleLiveFeedModel(val module: ModuleInstance): LiveFeedModel() {
                 override fun onFinished(buffer: ByteArray) {
                     module.updateStorageDeviceStatus(this.file.storageName, "Finished downloading")
                     downloader = null
-                    // TODO: Save
+                    save()
+                }
+                override fun onSaved(handle: FileLayer.Handle) {
+                    updateItem(file, handle.getPath(), true)
+                    module.addDownloadedItem(handle.getPath(), null)
                 }
             }
         }
@@ -104,8 +108,12 @@ class ModuleGalleryViewModel(val module: ModuleInstance, val viewerViewModel: Vi
             override fun onFinished(file: FileLayer.Handle) {
                 module.viewerViewModel.loadImage(file)
             }
-            override fun onSaving() {
+            override fun onSaved(handle: FileLayer.Handle) {
                 module.viewerViewModel.setHasSaved(true)
+                module.galleryViewModel.setHasSaved(file.index, true)
+                module.addDownloadedItem(handle.getPath(), null)
+            }
+            override fun onAutomaticallySaved() {
                 module.viewerViewModel.updateStatus("File too big; saving...")
             }
             override fun setFileContents(data: ByteArray?, offset: Long, totalSize: Long) {
@@ -191,8 +199,7 @@ class ModuleDashboardModel(val module: ModuleInstance) : DashboardModel(module.m
         module.userSave()
     }
     override fun onStorageDeviceClicked(name: String) {
-        val dev = module.storageDevices.value.find { it.name == name }
-        if (dev == null) return
+        val dev = module.storageDevices.value.find { it.name == name } ?: return
         if (dev.isLiveFeedMedium) {
             module.switchScreen(Screen.LIVE_FEED, isInNavBar = true)
         } else {
@@ -219,6 +226,7 @@ class ModuleConnectingScreenModel(val module: ModuleInstance) : ConnectingScreen
     }
 
     override fun onCancel(): Boolean {
+        Pak.interruptAll();
         WiFi.interruptAll()
         return true
     }
@@ -371,7 +379,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     val liveviewWorker = ModuleLiveviewModel(this)
     val target = manifest.targets[request.targetIndex]
     var viewerDownloadJob: ModuleJob? = null
-    val companionName = "${target.company} ${target.deviceId.getReadableName()}"
+    private val companionName = "${target.company} ${target.deviceId.getReadableName()}"
 
     private var currentTickIntervalUs: Int = (100 * 1000)
     private var mainLoopJob: Job? = null
@@ -381,6 +389,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     var disconnectReason: String? = null
     var disconnectedErrorCode: Int? = null
     private var isNavigating = false
+    var downloadedItemPaths: List<String> = emptyList()
 
     init {
         Runtime.addModuleInstance(this)
@@ -392,10 +401,10 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
 
         var rc = when (manifest.moduleType) {
             ModuleManifest.ModuleType.SHARED_LIBRARY -> {
-                AndroidRuntime.setupSharedLibraryModule(this, manifest.scriptPath!!)
+                AndroidRuntime.setupSharedLibraryModule(this, manifest.getModulePath())
             }
             ModuleManifest.ModuleType.QUICKJS -> {
-                val path = manifest.scriptPath
+                val path = manifest.getModulePath()
                 if (path == null) {
                     debugLog("<error>script path not included")
                     -1
@@ -426,6 +435,9 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         }
     }
 
+    fun addDownloadedItem(path: String, metadata: FileMetadata?) {
+        downloadedItemPaths += path
+    }
     fun trimMemory() {
         galleryViewModel.onTrimMemory()
     }
@@ -473,6 +485,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         println("Stopping module threads")
         cancelAllJobs()
         Bluetooth.interruptAll()
+        Pak.interruptAll()
         WiFi.interruptAll()
         galleryViewModel.stop()
         initJob?.cancelAndJoin()
@@ -633,30 +646,35 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
                 debugLog("Cancelled")
             }
         }
-        if (saved == null) {
+
+        if (WiFi.requiresManualAccessPointConnection) {
             val primaryAdapter = WiFi.getPrimaryAdapter()
             // Try connection over primary adapter in case user connected to access point manually
             if (primaryAdapter != null) {
-                debugLog("First trying connection over primary adapter...")
+                connectingModel.setUserInstruction("Please connect to the WiFi Access point manually.")
                 val rc = tryConnectWiFi(primaryAdapter, { job -> connectCallback(job) })
                 if (rc == Pak.Error.CANCELLED) return
                 if (rc == 0) {
                     setIsConnected()
                     return
+                } else {
+                    debugLog("<error>Failed to connect")
                 }
             }
-
-            val filter = WiFi.ApFilter()
-            filter.ssidPattern = wifi.ssidPattern
-            filter.password = wifi.defaultPassword
-            WiFi.connectToAccessPointCompanion(filter, companionName, callback)
         } else {
-            if (saved.wifiInfo != null) {
+            if (saved == null) {
                 val filter = WiFi.ApFilter()
-                filter.ssidPattern = saved.wifiInfo.ssid
-                filter.password = saved.wifiInfo.password
-                filter.bssid = saved.wifiInfo.bssid
+                filter.ssidPattern = wifi.ssidPattern
+                filter.password = wifi.defaultPassword
                 WiFi.connectToAccessPointCompanion(filter, companionName, callback)
+            } else {
+                if (saved.wifiInfo != null) {
+                    val filter = WiFi.ApFilter()
+                    filter.ssidPattern = saved.wifiInfo.ssid
+                    filter.password = saved.wifiInfo.password
+                    filter.bssid = saved.wifiInfo.bssid
+                    WiFi.connectToAccessPointCompanion(filter, companionName, callback)
+                }
             }
         }
         connectingModel.setTryAgainDisabled(false)

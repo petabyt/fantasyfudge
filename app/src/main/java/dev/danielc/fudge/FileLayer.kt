@@ -128,22 +128,15 @@ object FileLayer {
             streamIn?.close()
             fd.close()
         }
+        fun getPath(): String {
+            return uri.toString()
+        }
     }
 
     fun deleteFile(file: Handle) {
         Log.d("files", "Deleting ${file.uri}")
         val resolver = Pak.getActivity().contentResolver
         resolver.delete(file.uri, null, null)
-    }
-
-    fun readFile(file: MediaStoreFile): ByteArray? {
-        val resolver = Pak.getActivity().contentResolver
-        val fd = resolver.openFileDescriptor(file.contentUri, "r") ?: return null
-        val stream = FileInputStream(fd.fileDescriptor)
-        val data = stream.readBytes()
-        stream.close()
-        fd.close()
-        return data
     }
 
     fun openFileForReading(ref: MediaStoreFile): Handle? {
@@ -153,21 +146,30 @@ object FileLayer {
         } catch (ignored: Exception) { return null }
     }
 
-    fun doesFileExist(filename: String, subdirectory: String = "fudge"): Boolean {
-        // TODO: Would be better to try to open the file for writing
-        // querying doesn't work for files app doesn't have access to
+    fun doesFileExist(filename: String, subfolder: String = "fudge"): Boolean {
+        // querying doesn't work for files the app doesn't have access to
+
+        val selection = "${MediaStore.MediaColumns.DISPLAY_NAME} = ? AND " +
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                "${MediaStore.Files.FileColumns.RELATIVE_PATH} LIKE ?"
+            else
+                "(${MediaStore.Files.FileColumns.DATA} LIKE ? OR ${MediaStore.Files.FileColumns.DATA} LIKE ?)"
+
         Pak.getActivity().contentResolver.query(
             MediaStore.Files.getContentUri("external"),
             arrayOf(MediaStore.MediaColumns._ID),
-            "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? AND ${MediaStore.MediaColumns.DISPLAY_NAME} = ?",
-            arrayOf("${Environment.DIRECTORY_DOWNLOADS}/${subdirectory}/%", filename),
+            selection,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                arrayOf(filename, "%${Environment.DIRECTORY_DOWNLOADS}/${subfolder}/%")
+            else
+                arrayOf(filename, "%/${Environment.DIRECTORY_PICTURES}/${subfolder}/%", "%/${Environment.DIRECTORY_MOVIES}/${subfolder}/%"),
             null
         ).use { cursor ->
             return cursor != null && cursor.count > 0
         }
     }
 
-    fun openFileForWriting(filename: String, mimeType: String?, subdirectory: String = "fudge"): Handle? {
+    fun openFileForWriting(filename: String, mimeType: String?, subdirectory: String = "fudge", mode: String = "w"): Handle? {
         val resolver = Pak.getActivity().contentResolver
 
         val pair = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -188,9 +190,9 @@ object FileLayer {
             put(MediaStore.MediaColumns.RELATIVE_PATH, "${directory}/${subdirectory}")
         }
 
-        val uri = resolver.insert(collection, values) ?: return null
         try {
-            return Handle(resolver.openFileDescriptor(uri, "w") ?: return null, uri)
+            val uri = resolver.insert(collection, values) ?: return null
+            return Handle(resolver.openFileDescriptor(uri, mode) ?: return null, uri)
         } catch (ignored: Exception) { return null }
     }
 
@@ -309,5 +311,16 @@ object FileLayer {
             }
         }
         return list
+    }
+
+    fun requestLegacyPermissions() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            if (Pak.getActivity().checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                Pak.getActivity().requestPermissions(arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE), 1);
+            }
+            if (Pak.getActivity().checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                Pak.getActivity().requestPermissions(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), 1);
+            }
+        }
     }
 }

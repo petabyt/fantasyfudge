@@ -86,7 +86,7 @@ class ModuleInstanceModel(manifest: ModuleManifest, request: ModuleInstanceReque
 
     var module: ModuleInstance = ModuleInstance(manifest, request, this)
     init {
-        module.initThread()
+        if (!initializationError.value) module.initThread()
     }
 
     fun showDisconnectDialog(v: Boolean) {

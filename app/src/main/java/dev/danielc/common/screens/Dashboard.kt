@@ -65,6 +65,7 @@ import dev.danielc.common.Device
 import dev.danielc.common.ModuleManifest
 import dev.danielc.common.ModuleProperty
 import dev.danielc.common.StorageInfo
+import dev.danielc.common.longToFileSize
 import dev.danielc.common.ui.IntGridGraph
 import dev.danielc.common.ui.PreviewPixel9ProDark
 import dev.danielc.common.ui.theme.FudgeRippleConfig
