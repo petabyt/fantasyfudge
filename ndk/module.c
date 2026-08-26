@@ -336,7 +336,9 @@ JNIEXPORT jint JNICALL Java_dev_danielc_fudge_NativeModule_onPropChanged(JNIEnv 
 	if ((*env)->IsInstanceOf(env, pane, (*env)->FindClass(env, "dev/danielc/common/Widget$Button"))) {
 		setting.type = PAK_BUTTON;
 	} else if ((*env)->IsInstanceOf(env, pane, (*env)->FindClass(env, "dev/danielc/common/Widget$BooleanSetting"))) {
+		jfieldID value_f = (*env)->GetFieldID(env, (*env)->FindClass(env, "dev/danielc/common/Widget$BooleanSetting"), "value", "Z");
 		setting.type = PAK_BOOLEAN;
+		setting.u.boolv.v = (*env)->GetBooleanField(env, (jobject)pane, value_f);
 	}
 
 	int rc = PAK_ERR_UNIMPLEMENTED;

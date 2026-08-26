@@ -126,7 +126,7 @@ object Runtime {
         // Match installed manifests with bonded bluetooth devices
         val devices = Bluetooth.getBondedDevices(Bluetooth.getDefaultAdapter())
         val list = mutableListOf<ConnectableDevice>()
-        fun checkServiceUuids(b: ModuleManifest.BluetoothDiscovery, d: Bluetooth.Device): Boolean {
+        fun checkServiceUuids(b: ModuleManifest.BluetoothFilter, d: Bluetooth.Device): Boolean {
             // Will return true even if both sets are empty
             val serviceUuids = d.serviceUuids
             //if (serviceUuids.isEmpty() || b.serviceUuids.isEmpty()) return false
@@ -137,7 +137,7 @@ object Runtime {
         }
         fun matchAgainstManifest(m: ModuleManifest, d: Bluetooth.Device): Boolean {
             for (t in m.targets) {
-                for (b in t.bluetoothDiscovery) {
+                for (b in t.bluetoothFilters) {
                     // TODO: async try to fetch UUIDs over sdp
                     if (!checkServiceUuids(b, d)) continue
                     if (b.namePattern != null) {
@@ -216,14 +216,14 @@ object Runtime {
                     summary = "All Fujifilm digital cameras",
                     deviceId = Device.PROFESSIONAL_CAMERA,
                     products = listOf("X-T1", "X-T2", "X-T3", "X-T4", "X-T5"),
-                    wifiDiscovery = ModuleManifest.WiFiDiscovery("FUJIFILM-.*"),
-                    bluetoothDiscovery = listOf(ModuleManifest.BluetoothDiscovery(
+                    wifiFilter = ModuleManifest.WiFiFilter("FUJIFILM-.*"),
+                    bluetoothFilters = listOf(ModuleManifest.BluetoothFilter(
                         serviceUuids = listOf("117c4142-edd4-4c77-8696-dd18eebb770a"),
 //                        mfgData = byteArrayOf(0xD8.toByte(), 0x04, 0x02, 0xA0.toByte(), 0x48, 0x21,
 //                            0x80.toByte()
 //                        ),
 //                        mfgDataMask = byteArrayOf(0xff.toByte())
-                    ), ModuleManifest.BluetoothDiscovery(
+                    ), ModuleManifest.BluetoothFilter(
                         serviceUuids = listOf("a9d2b304-e8d6-4902-8336-352b772d7597")
                     )),
                     setupOptions = listOf(
@@ -247,7 +247,7 @@ object Runtime {
                     summary = "CMF Nothing Audio devices",
                     deviceId = Device.EARBUDS,
                     products = listOf("Buds Pro 2", "Buds 2"),
-                    bluetoothDiscovery = listOf(ModuleManifest.BluetoothDiscovery(
+                    bluetoothFilters = listOf(ModuleManifest.BluetoothFilter(
                         isClassic = false,
                         namePattern = "CMF.*",
                         mfgData = byteArrayOf(0x31, 0x44, 0x42, 0xee.toByte(), 0xbe.toByte(), 0x2c),
@@ -268,7 +268,7 @@ object Runtime {
                     summary = "GoveeLife smart home devices",
                     deviceId = Device.GENERIC_HOME_DEVICE,
                     products = listOf("thermometer"),
-                    bluetoothDiscovery = listOf(ModuleManifest.BluetoothDiscovery(
+                    bluetoothFilters = listOf(ModuleManifest.BluetoothFilter(
                         namePattern = "GVH...._....",
                         serviceUuids = listOf("0000ec88-0000-1000-8000-00805f9b34fb"),
                         mfgData = byteArrayOf(0x4c, 0x0, 0x02, 0x15, 0x49, 0x4E, 0x54, 0x45, 0x4C, 0x4C, 0x49, 0x5F, 0x52, 0x4F, 0x43, 0x4B, 0x53, 0x5F, 0x48, 0x57, 0x50, 0x75,

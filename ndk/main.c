@@ -198,7 +198,7 @@ int pak_rt_set_download_stats(struct PakModule *mod, int job, long time, unsigne
 	(*env)->PushLocalFrame(env, 10);
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID set_progress_bar = (*env)->GetMethodID(env, module_c, "setDownloadStats", "(IJI)V");
-	(*env)->CallVoidMethod(env, mod->rt->obj, set_progress_bar, job, time, (jint)n_bytes);
+	(*env)->CallVoidMethod(env, mod->rt->obj, set_progress_bar, job, (jlong)time, (jint)n_bytes);
 	(*env)->PopLocalFrame(env, NULL);
 	return 0;
 }
@@ -252,8 +252,8 @@ int pak_rt_add_file_thumbnail(struct PakModule *mod, struct PakFileHandle *file,
 	jclass module_c = (*env)->FindClass(env, "dev/danielc/common/ModuleInstance");
 	jmethodID set_storage_info = (*env)->GetMethodID(env, module_c, "addFileThumbnail", "(Ldev/danielc/common/FileHandle;[B)V");
 
-	jbyteArray image_data_o = (*env)->NewByteArray(env, (jsize)length);
-	(*env)->SetByteArrayRegion(env, image_data_o, 0, (jsize)length, (const jbyte *)image_data);
+	jbyteArray image_data_o = image_data == NULL ? NULL : (*env)->NewByteArray(env, (jsize)length);
+	if (image_data_o != NULL) (*env)->SetByteArrayRegion(env, image_data_o, 0, (jsize)length, (const jbyte *)image_data);
 
 	(*env)->CallVoidMethod(env, mod->rt->obj, set_storage_info, handle_o, image_data_o);
 	(*env)->PopLocalFrame(env, NULL);

@@ -65,18 +65,14 @@ open class LiveFeedModel: BackgroundViewModel() {
     fun setItem(item: LiveFeedItem) {
         items.update { it + item }
     }
-    fun updateItem(handle: FileHandle, path: String, hasFinished: Boolean) {
+    fun updateItem(handle: FileHandle, path: String?, hasFinished: Boolean, progress: Int? = null) {
         items.update {
-            it.map { item -> if (item.handle == handle) item.copy(savedPath = path, hasFinished = hasFinished) else item }
+            it.map { item -> if (item.handle == handle) item.copy(savedPath = path, hasFinished = hasFinished, progress = progress) else item }
         }
     }
+    fun hasFinished(handle: FileHandle): Boolean { return items.value.find { it.handle.index == handle.index }?.hasFinished ?: false }
     fun getItem(handle: FileHandle): LiveFeedItem? {
         return items.value.find { it.handle.index == handle.index }
-    }
-    fun updateProgressFromIdleJob(v: Int) {
-        items.update {
-            it.map { item -> if (item == it.last()) item.copy(progress = v) else item }
-        }
     }
 }
 

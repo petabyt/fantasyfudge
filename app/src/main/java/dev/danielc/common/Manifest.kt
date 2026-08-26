@@ -66,15 +66,15 @@ data class ModuleManifest(
         val summary: String? = null,
         val products: List<String> = emptyList(),
         val setupOptions: List<SetupOption> = emptyList(),
-        val wifiDiscovery: WiFiDiscovery? = null,
-        val bluetoothDiscovery: List<BluetoothDiscovery> = emptyList(),
+        val wifiFilter: WiFiFilter? = null,
+        val bluetoothFilters: List<BluetoothFilter> = emptyList(),
     )
-    data class WiFiDiscovery(
+    data class WiFiFilter(
         val ssidPattern: String,
         val defaultPassword: String? = null,
     )
     @Suppress("ArrayInDataClass")
-    data class BluetoothDiscovery(
+    data class BluetoothFilter(
         val namePattern: String? = null,
         val isClassic: Boolean = false,
         val mfgData: ByteArray? = null,
@@ -90,7 +90,7 @@ data class ModuleManifest(
             return filter
         }
     }
-    data class UsbDiscovery(
+    data class UsbFilter(
         val pid: Int? = null,
         val vid: Int? = null,
         val usbClass: Int? = null,
@@ -121,7 +121,7 @@ fun manifestFromJson(text: String, filename: String): ModuleManifest? {
                 val jsonWiFiFilter = target.jsonObject["wifiFilter"]?.jsonObject
                 if (jsonWiFiFilter != null) {
                     t = t.copy(
-                        wifiDiscovery = ModuleManifest.WiFiDiscovery(
+                        wifiFilter = ModuleManifest.WiFiFilter(
                             ssidPattern = jsonWiFiFilter.jsonObject["ssidPattern"]?.jsonPrimitive?.content ?: throw Error("Missing ssidPattern field"),
                             defaultPassword = jsonWiFiFilter.jsonObject["defaultPassword"]?.jsonPrimitive?.content
                         )
@@ -149,7 +149,7 @@ fun manifestFromJson(text: String, filename: String): ModuleManifest? {
                             svcUuids += s.jsonPrimitive.content
                         }
                         t = t.copy(
-                            bluetoothDiscovery = t.bluetoothDiscovery + ModuleManifest.BluetoothDiscovery(
+                            bluetoothFilters = t.bluetoothFilters + ModuleManifest.BluetoothFilter(
                                 mfgData = toByteArray(filter.jsonObject["mfgData"]),
                                 serviceUuids = svcUuids,
                             ),

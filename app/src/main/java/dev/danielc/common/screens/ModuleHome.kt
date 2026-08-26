@@ -244,7 +244,7 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
                     Gallery(Modifier.padding(innerPadding), galleryState, requestLoad = { items ->
                         module.galleryViewModel.enqueueObjects(items)
                     }, onItemClick = { i ->
-                        module.galleryViewModel.goToViewer(FileHandle(i))
+                        module.galleryViewModel.goToViewer(FileHandle(i, storageName = module.galleryViewModel.uiState.value.storageName))
                     }, setSortBy = { sort -> module.galleryViewModel.setSortBy(sort) })
                 }
                 composable(Screen.LIVEVIEW.strId) {
@@ -346,18 +346,18 @@ fun ModuleInstanceNav(module: ModuleInstance, backToMainScreen: () -> Unit = {})
                 switchTo = { i ->
                     module.galleryViewModel.goToViewer(FileHandle(i, viewerState?.handle?.storageName))
                 }, close = {
-                    if (module.viewerDownloadJob == null) {
+                    if (module.galleryViewModel.viewerDownloadJob == null) {
                         CoroutineScope(Dispatchers.IO).launch {
                             module.goBack(Screen.FILE_GALLERY, false)
                         }
                     } else {
                         module.galleryViewModel.downloader?.cleanupAfterCancel()
-                        module.viewerDownloadJob?.let { module.cancelJob(it) }
+                        module.galleryViewModel.viewerDownloadJob?.let { module.cancelJob(it) }
                     }
                 },
                 cancel = {
                     module.galleryViewModel.downloader?.cleanupAfterCancel()
-                    module.viewerDownloadJob?.let { module.cancelJob(it) }
+                    module.galleryViewModel.viewerDownloadJob?.let { module.cancelJob(it) }
                 },
                 save = {
                     module.galleryViewModel.downloader?.save()

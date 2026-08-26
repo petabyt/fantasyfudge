@@ -25,8 +25,10 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.DurationUnit
@@ -54,6 +56,30 @@ data class ModuleJob(
 
 class ModuleLiveFeedModel(val module: ModuleInstance): LiveFeedModel() {
     var downloader: FileDownloader? = null
+    var job: Job? = null
+    var downloadJob: ModuleJob? = null
+    override fun onShutdown() {
+        runBlocking {
+            job?.cancel()
+            job?.join()
+        }
+    }
+    fun start() {
+        if (job != null) return
+        job = CoroutineScope(Dispatchers.IO).launch {
+            items.collectLatest {
+                it.lastOrNull()?.let { file ->
+                    if (!file.hasFinished) {
+                        module.updateStorageDeviceStatus(file.handle.storageName, "Downloading ${file.metadata?.filename}")
+                        module.getFileContents(file = file.handle, onUpdate = { job ->
+                            module.updateStorageDeviceStatus(file.handle.storageName, null, if (job.isFinished) null else job.progressBarValue)
+                            if (job.isFinished) downloadJob = null else downloadJob = job
+                        })
+                    }
+                }
+            }
+        }
+    }
     fun addFileMetadata(file: FileHandle, v: FileMetadata?)  {
         setItem(LiveFeedItem(file, v))
     }
@@ -86,6 +112,7 @@ class ModuleLiveFeedModel(val module: ModuleInstance): LiveFeedModel() {
 
 class ModuleGalleryViewModel(val module: ModuleInstance, val viewerViewModel: ViewerModel): GalleryViewModel() {
     var downloader: FileDownloader? = null
+    var viewerDownloadJob: ModuleJob? = null
     override fun fulfillThumbnail(file: GalleryObjectReference) {
         if (module.getFileThumbnail(file = FileHandle(file.index, null)) != 0) {
             updateThumbnail(file.index, thumbData = null)
@@ -144,9 +171,9 @@ class ModuleGalleryViewModel(val module: ModuleInstance, val viewerViewModel: Vi
 
             viewerViewModel.updateStatus("Switching to viewer...")
             var rc = module.switchScreen(Screen.FILE_VIEWER, false, { job ->
-                module.viewerDownloadJob = job
+                viewerDownloadJob = job
                 if (job.isFinished) {
-                    module.viewerDownloadJob = null
+                    viewerDownloadJob = null
                 }
                 viewerViewModel.updateProgress(job.progressBarValue ?: 0)
             })
@@ -162,13 +189,13 @@ class ModuleGalleryViewModel(val module: ModuleInstance, val viewerViewModel: Vi
                 updateDownloader(file)
                 viewerViewModel.updateStatus("Downloading...")
                 rc = module.getFileContents({ job ->
-                    module.viewerDownloadJob = job
+                    viewerDownloadJob = job
                     if (job.isCancelled) {
                         viewerViewModel.updateStatus("Cancelling...")
                     }
                     viewerViewModel.updateProgress(job.progressBarValue ?: 0)
                     if (job.isFinished) {
-                        module.viewerDownloadJob = null
+                        viewerDownloadJob = null
                     }
                 }, file)
                 if (rc == Pak.Error.CANCELLED) {
@@ -378,7 +405,6 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     val dashboardModel = ModuleDashboardModel(this)
     val liveviewWorker = ModuleLiveviewModel(this)
     val target = manifest.targets[request.targetIndex]
-    var viewerDownloadJob: ModuleJob? = null
     private val companionName = "${target.company} ${target.deviceId.getReadableName()}"
 
     private var currentTickIntervalUs: Int = (100 * 1000)
@@ -450,9 +476,9 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         ))
     }
     fun getStorageDevice(name: String): StorageInfo? { return storageDevices.value.find { it.name == name } }
-    fun updateStorageDeviceStatus(name: String?, message: String?) {
+    fun updateStorageDeviceStatus(name: String?, message: String?, percent: Int? = null) {
         storageDevices.update {
-            it.map { item -> if (item.name == name) item.copy(currentStatus = message) else item }
+            it.map { item -> if (item.name == name) item.copy(currentStatus = message ?: item.currentStatus, currentProgress = percent) else item }
         }
     }
 
@@ -487,6 +513,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         Bluetooth.interruptAll()
         Pak.interruptAll()
         WiFi.interruptAll()
+        liveFeedModel.onShutdown()
         galleryViewModel.stop()
         initJob?.cancelAndJoin()
         mainLoopJob?.cancelAndJoin()
@@ -533,7 +560,11 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         }
     }
     fun setDownloadStats(job: Int, timeMs: Long, nBytes: Int) {
-        viewerViewModel.updateSpeed("${(nBytes * 8) / timeMs}Mbps")
+        if (galleryViewModel.viewerDownloadJob?.id == job) {
+            viewerViewModel.updateSpeed("${(nBytes * 8) / timeMs}Mbps")
+        } else if (liveFeedModel.downloadJob?.id == job) {
+            // TODO: Shoud livefeed have stats?
+        }
     }
     @CalledFromNative
     fun isJobCancelled(job: Int): Boolean {
@@ -562,8 +593,6 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
     }
     @CalledFromNative
     fun setFileContents(file: FileHandle, data: ByteArray?, offset: Long, totalSize: Long) {
-        val md = galleryViewModel.getMetadata(file)
-        updateStorageDeviceStatus(file.storageName, "Downloading ${md?.filename ?: file.index}...")
         val dev = storageDevices.value.find { it.name == file.storageName }
         if (dev != null && dev.isLiveFeedMedium) {
             liveFeedModel.setFileContents(file, data, offset, totalSize)
@@ -571,23 +600,17 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         galleryViewModel.downloader?.setFileContents(data, offset, totalSize)
     }
     @CalledFromNative
-    fun addFileThumbnail(file: FileHandle, data: ByteArray) {
+    fun addFileThumbnail(file: FileHandle, data: ByteArray?) {
         galleryViewModel.updateThumbnail(file.index, data)
     }
     @CalledFromNative
     fun setStorageInfo(info: StorageInfo) {
-        storageDevices.update { it + info }
+        if (storageDevices.value.find { it.name == info.name } == null) storageDevices.update { it + info }
         if (info.isLiveFeedMedium) {
             liveFeedModel.update(info)
         } else {
             galleryViewModel.setProperties(info)
         }
-    }
-    @CalledFromNative
-    private fun setIsConnected() {
-        isConnected = true
-        startMainLoop()
-        switchScreen(Screen.DASHBOARD, false)
     }
     @CalledFromNative
     fun addWiFiConnection(filter: WiFi.ApFilter, setupOption: String) {
@@ -625,8 +648,13 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
             connectingModel.setPopupText(null)
         }
     }
-
-    private fun wifiConnectRoutine(wifi: ModuleManifest.WiFiDiscovery, saved: SavedDeviceEntity?) {
+    private fun setIsConnected() {
+        isConnected = true
+        startMainLoop()
+        liveFeedModel.start()
+        switchScreen(Screen.DASHBOARD, false)
+    }
+    private fun wifiConnectRoutine(wifi: ModuleManifest.WiFiFilter, saved: SavedDeviceEntity?) {
         connectingModel.setTryAgainDisabled(true)
         val callback = object : WiFi.WiFiDiscoveryCallback() {
             override fun failed(reason: String, code: Int) {
@@ -685,7 +713,7 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         connectingModel.setProgress(job.progressBarValue)
     }
 
-    private fun bluetoothConnectRoutine(info: List<ModuleManifest.BluetoothDiscovery>, saved: SavedDeviceEntity?) {
+    private fun bluetoothConnectRoutine(info: List<ModuleManifest.BluetoothFilter>, saved: SavedDeviceEntity?) {
         if (!Bluetooth.checkPermission()) {
             connectingModel.setRequiredAction(ConnectingRequiredAction.ACCEPT_PERMISSION)
             Bluetooth.requestConnectPermission()
@@ -752,20 +780,20 @@ class ModuleInstance(val manifest: ModuleManifest, var request: ModuleInstanceRe
         val option = request.getSetupOption()
         val transport = when {
             option != null -> option.transport
-            target.wifiDiscovery != null -> ModuleManifest.Transport.WIFI_AP
-            target.bluetoothDiscovery.isNotEmpty() -> ModuleManifest.Transport.BLUETOOTH
+            target.wifiFilter != null -> ModuleManifest.Transport.WIFI_AP
+            target.bluetoothFilters.isNotEmpty() -> ModuleManifest.Transport.BLUETOOTH
             else -> null
         }
         connectingModel.reset(target, transport)
-        if (target.wifiDiscovery != null && transport == ModuleManifest.Transport.WIFI_AP) {
+        if (target.wifiFilter != null && transport == ModuleManifest.Transport.WIFI_AP) {
             if (!WiFi.checkPermission()) {
                 connectingModel.setRequiredAction(ConnectingRequiredAction.ACCEPT_PERMISSION)
                 WiFi.requestConnectPermission()
                 return
             }
-            wifiConnectRoutine(target.wifiDiscovery, savedDeviceInfo)
-        } else if (target.bluetoothDiscovery.isNotEmpty() && transport == ModuleManifest.Transport.BLUETOOTH) {
-            bluetoothConnectRoutine(target.bluetoothDiscovery, savedDeviceInfo)
+            wifiConnectRoutine(target.wifiFilter, savedDeviceInfo)
+        } else if (target.bluetoothFilters.isNotEmpty() && transport == ModuleManifest.Transport.BLUETOOTH) {
+            bluetoothConnectRoutine(target.bluetoothFilters, savedDeviceInfo)
         } else if (transport == ModuleManifest.Transport.LOCAL_NETWORK_UDP) {
             if (!WiFi.checkPermission()) {
                 connectingModel.setRequiredAction(ConnectingRequiredAction.ACCEPT_PERMISSION)

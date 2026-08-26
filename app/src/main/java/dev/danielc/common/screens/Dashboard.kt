@@ -192,6 +192,7 @@ private fun cameraState(): DashboardModel {
         name = "Live",
         nFiles = 10,
         currentStatus = "Downloading DSC0001.JPG..",
+        currentProgress = 20,
         isLiveFeedMedium = true,
     ))).asStateFlow())
 }
@@ -456,11 +457,10 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
                             Icon(painterResource(R.drawable.outline_sd_card_24), contentDescription = null)
                         }
                         Text(e.name)
+                        Spacer(Modifier.weight(1f))
                         if (e.sizeBytes != null && e.usedBytes != null) {
-                            Spacer(Modifier.weight(1f))
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 LinearProgressIndicator(progress = { e.usedBytes.toFloat() / e.sizeBytes })
-                                Spacer(Modifier.height(4.dp))
                                 val percent = ((e.usedBytes.toFloat() / e.sizeBytes) * 100).toInt()
                                 Text(
                                     "${percent}% of ${longToFileSize(e.sizeBytes)} used",
@@ -469,7 +469,10 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
                             }
                         }
                         if (e.currentStatus != null) {
-                            Text("${e.currentStatus}", fontStyle = FontStyle.Italic, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(e.currentStatus, fontStyle = FontStyle.Italic, textAlign = TextAlign.Center)
+                                if (e.currentProgress != null) LinearProgressIndicator(progress = { e.currentProgress.toFloat() / 100 })
+                            }
                         }
                     }
                     Text("${e.nFiles} files")

@@ -281,7 +281,8 @@ data class StorageInfo(
     val sizeBytes: Long? = null,
     val usedBytes: Long? = null,
     val isLiveFeedMedium: Boolean = false,
-    val currentStatus: String? = null
+    val currentStatus: String? = null,
+    val currentProgress: Int? = null,
 ) {
     constructor(
         name: String,

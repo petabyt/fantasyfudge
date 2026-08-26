@@ -177,10 +177,13 @@ open class FileDownloader(val file: FileHandle, val filename: String, val mimeTy
         if (rejectTransfers) return
         val temporaryBufferRef = temporaryBuffer
         if (temporaryBufferRef == null) {
-            if (totalSize != 0L) fileTotalSize = totalSize
             temporaryBuffer = data
-            if (data != null && (data.size.toLong() >= totalSize)) {
-                onFinished(data)
+            if (totalSize != 0L) {
+                fileTotalSize = totalSize
+                if (data != null && (data.size.toLong() >= totalSize)) {
+                    onFinished(data)
+                    return
+                }
             }
             return
         }
