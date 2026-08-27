@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -66,8 +67,11 @@ import dev.danielc.common.ModuleManifest
 import dev.danielc.common.ModuleProperty
 import dev.danielc.common.StorageInfo
 import dev.danielc.common.longToFileSize
+import dev.danielc.common.ui.DynamicScaffold
+import dev.danielc.common.ui.DynamicScaffoldNavBarItem
 import dev.danielc.common.ui.IntGridGraph
 import dev.danielc.common.ui.PreviewPixel9ProDark
+import dev.danielc.common.ui.PreviewTabletDark
 import dev.danielc.common.ui.theme.FudgeRippleConfig
 import dev.danielc.common.ui.theme.FudgeTheme
 import dev.danielc.common.ui.theme.errorButtonColors
@@ -180,29 +184,32 @@ data class PaneState(
 private fun cameraState(): DashboardModel {
     val manifest = ModuleManifest(name = "Fujifilm", targets = listOf(ModuleManifest.Target(deviceId = Device.PROFESSIONAL_CAMERA)))
     return DashboardModel(manifest, DashboardState(
-        nameOfDevice = "Fujifilm X100VI",
-        batteryLevelMain = 78,
-        firmwareVersion = "0.1.0",
+        nameOfDevice = "Fujifilm X-T5",
+        batteryLevelMain = 48,
+        firmwareVersion = "4.31",
     ), storageDevices = MutableStateFlow(listOf(StorageInfo(
-        name = "Card 2",
+        name = "Card 1",
         nFiles = 320,
-        sizeBytes = 60000000L,
-        usedBytes = 3000000L
+        sizeBytes = 64000000000L,
+        usedBytes = 30000000000L
     ), StorageInfo(
-        name = "Live",
-        nFiles = 10,
-        currentStatus = "Downloading DSC0001.JPG..",
-        currentProgress = 20,
-        isLiveFeedMedium = true,
+        name = "Card 2",
+        nFiles = 67,
+        sizeBytes = 128000000000L,
+        usedBytes = 30000000000L
     ))).asStateFlow())
 }
 
-@PreviewPixel9ProDark
+@PreviewTabletDark
 @Composable
 private fun PreviewDashboardCamera() {
     var state by remember { mutableStateOf(cameraState()) }
     return FudgeTheme {
-        Scaffold { innerPadding ->
+        DynamicScaffold(topBar = {}, navBarItems = listOf(
+            DynamicScaffoldNavBarItem(label = { Text("Dashboard") }, onClick = {}, icon = { Icon(painterResource(R.drawable.outline_home_24), contentDescription = null) }, selected = true),
+            DynamicScaffoldNavBarItem(label = { Text("Gallery") }, onClick = {}, icon = { Icon(painterResource(R.drawable.outline_photo_library_24), contentDescription = null) }, selected = false),
+            DynamicScaffoldNavBarItem(label = { Text("Liveview") }, onClick = {}, icon = { Icon(painterResource(R.drawable.outline_smart_display_24), contentDescription = null) }, selected = false),
+        )) { innerPadding ->
             Dashboard(Modifier.padding(innerPadding), state)
         }
     }
@@ -213,6 +220,9 @@ private fun budsState(): DashboardModel {
     return DashboardModel(manifest, DashboardState(
         nameOfDevice = "CMF Buds Pro 2",
         firmwareVersion = "5.0",
+        batteryLevelMain = 50,
+        batteryLevelLeft = 20,
+        batteryLevelRight = 70,
         panes = listOf(
             Widget.BooleanSetting(
                 Widget.Properties("nc", "Noise cancellation"),
@@ -239,7 +249,7 @@ private fun budsState(): DashboardModel {
     ), storageDevices = MutableStateFlow(emptyList<StorageInfo>()).asStateFlow())
 }
 
-//@PreviewPixel9ProDark
+@PreviewPixel9ProDark
 @Composable
 private fun PreviewDashboardBuds() {
     var state by remember { mutableStateOf(budsState()) }
@@ -355,6 +365,176 @@ fun DropdownDialog(close: () -> Unit = {}, dropdownSetting: Widget.DropdownSetti
     }
 }
 
+@Composable
+private fun OverviewPane(state: DashboardState, model: DashboardModel, showSettings: () -> Unit) {
+    Box(modifier = Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(12.dp))
+        .background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                state.nameOfDevice?.let { name ->
+                    if (!model.manifest.targets.isEmpty())
+                        Icon(
+                            painter = painterResource(model.manifest.targets[0].deviceId.getIcon()),
+                            contentDescription = null
+                        )
+                    Text(
+                        name,
+                        fontSize = 25.sp,
+                        modifier = Modifier.padding(5.dp)
+                    )
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, alignment = Alignment.End)) {
+                    state.batteryLevelMain?.let {
+                        Icon(
+                            painter = painterResource(getBatteryStatusIcon(it)),
+                            contentDescription = null,
+                        )
+                    }
+                    val icon = when (state.connectionType) {
+                        ModuleManifest.Transport.BLUETOOTH -> R.drawable.outline_bluetooth_24
+                        ModuleManifest.Transport.USB -> R.drawable.baseline_usb_24
+                        else -> R.drawable.outline_wifi_24
+                    }
+                    Icon(
+                        painter = painterResource(icon),
+                        contentDescription = null,
+                    )
+                }
+            }
+            if (state.firmwareVersion != null) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(painter = painterResource(R.drawable.outline_developer_board_24), contentDescription = null)
+                    Text("Firmware version: ${state.firmwareVersion}")
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                IconButton(onClick = showSettings) {
+                    Icon(painterResource(R.drawable.baseline_settings_24), contentDescription = null)
+                }
+                Spacer(Modifier.weight(1f))
+                Button(onClick = { model.save() }, modifier = Modifier, enabled = !state.isSaved) {
+                    Icon(painterResource(R.drawable.outline_save_24), contentDescription = null)
+                    Spacer(Modifier.width(2.dp))
+                    Text(if (state.isSaved) "Saved" else "Save")
+                }
+                Button(onClick = { model.disconnect() }, modifier = Modifier, colors = errorButtonColors()) {
+                    Icon(painterResource(R.drawable.outline_close_24), contentDescription = null)
+                    Spacer(Modifier.width(2.dp))
+                    Text("Disconnect")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardPane(e: StorageInfo, model: DashboardModel) {
+    Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+        .clickable(onClick = { model.onStorageDeviceClicked(e.name) })
+    ) {
+        Column(Modifier.padding(10.dp)) {
+            Row(Modifier.padding(5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (e.isLiveFeedMedium) {
+                    Icon(painterResource(R.drawable.outline_sim_card_download_24), contentDescription = null)
+                } else {
+                    Icon(painterResource(R.drawable.outline_sd_card_24), contentDescription = null)
+                }
+                Text(e.name)
+                Spacer(Modifier.weight(1f))
+                if (e.sizeBytes != null && e.usedBytes != null) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        LinearProgressIndicator(progress = { e.usedBytes.toFloat() / e.sizeBytes })
+                        val percent = ((e.usedBytes.toFloat() / e.sizeBytes) * 100).toInt()
+                        Text(
+                            "${percent}% of ${longToFileSize(e.sizeBytes)} used",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                    }
+                }
+                if (e.currentStatus != null) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(e.currentStatus, fontStyle = FontStyle.Italic, textAlign = TextAlign.Center)
+                        if (e.currentProgress != null) LinearProgressIndicator(progress = { e.currentProgress.toFloat() / 100 })
+                    }
+                }
+            }
+            Text("${e.nFiles} files")
+            //Text("7 downloaded")
+        }
+    }
+}
+
+@Composable
+private fun RenderPanes(panes: List<PaneState>) {
+    LazyVerticalStaggeredGrid(
+        modifier = Modifier.fillMaxSize(),
+        columns = StaggeredGridCells.Adaptive(160.dp),
+        verticalItemSpacing = 8.dp,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        content = {
+            items(panes, span = {
+                if (it.fillMaxWidth) {
+                    StaggeredGridItemSpan.FullLine
+                } else {
+                    StaggeredGridItemSpan.SingleLane
+                }
+            }) { pane ->
+                var bg: Color
+                var fg: Color
+                when (pane.color) {
+                    PaneState.Color.PRIMARY -> {
+                        bg = MaterialTheme.colorScheme.primary
+                        fg = MaterialTheme.colorScheme.onPrimary
+                    }
+                    PaneState.Color.SECONDARY -> {
+                        bg = MaterialTheme.colorScheme.secondary
+                        fg = MaterialTheme.colorScheme.onSecondary
+                    }
+                    PaneState.Color.ERROR -> {
+                        bg = MaterialTheme.colorScheme.error
+                        fg = MaterialTheme.colorScheme.onError
+                    }
+                    PaneState.Color.NEUTRAL -> {
+                        bg = MaterialTheme.colorScheme.surfaceContainer
+                        fg = MaterialTheme.colorScheme.onSurface
+                    }
+                    PaneState.Color.TERTIARY -> {
+                        bg = MaterialTheme.colorScheme.tertiary
+                        fg = MaterialTheme.colorScheme.onTertiary
+                    }
+                }
+                DashboardPane(
+                    Modifier.fillMaxSize().wrapContentHeight(), // ?? not expanding pane size
+                    bg = bg,
+                    fg = fg,
+                    onClick = pane.onClick,
+                    content = {
+                        if (pane.content == null) {
+                            Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                if (pane.icon != null) {
+                                    Icon(
+                                        painter = painterResource(pane.icon),
+                                        contentDescription = null,
+                                        tint = fg,
+                                    )
+                                }
+                                Text(pane.text.orEmpty(), color = fg)
+                            }
+                        } else {
+                            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                pane.content()
+                            }
+                        }
+                    }
+                )
+            }
+        }
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
@@ -379,261 +559,105 @@ fun Dashboard(modifier: Modifier = Modifier, model: DashboardModel) {
             }
         })
     }
-    Column(
-        modifier = modifier.padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Box(modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest)) {
-            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    state.nameOfDevice?.let { name ->
-                        if (!model.manifest.targets.isEmpty())
-                            Icon(
-                                painter = painterResource(model.manifest.targets[0].deviceId.getIcon()),
-                                contentDescription = null
-                            )
-                        Text(
-                            name,
-                            fontSize = 25.sp,
-                            modifier = Modifier.padding(5.dp)
-                        )
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp, alignment = Alignment.End)) {
-                        state.batteryLevelMain?.let {
-                            Icon(
-                                painter = painterResource(getBatteryStatusIcon(it)),
-                                contentDescription = null,
-                            )
-                        }
-                        val icon = when (state.connectionType) {
-                            ModuleManifest.Transport.BLUETOOTH -> R.drawable.outline_bluetooth_24
-                            ModuleManifest.Transport.USB -> R.drawable.baseline_usb_24
-                            else -> R.drawable.outline_wifi_24
-                        }
-                        Icon(
-                            painter = painterResource(icon),
-                            contentDescription = null,
-                        )
-                    }
-                }
-                if (state.firmwareVersion != null) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Icon(painter = painterResource(R.drawable.outline_developer_board_24), contentDescription = null)
-                        Text("Firmware version: ${state.firmwareVersion}")
-                    }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    IconButton(onClick = { showSettings = true }) {
-                        Icon(painterResource(R.drawable.baseline_settings_24), contentDescription = null)
-                    }
-                    Spacer(Modifier.weight(1f))
-                    Button(onClick = { model.save() }, modifier = Modifier, enabled = !state.isSaved) {
-                        Icon(painterResource(R.drawable.outline_save_24), contentDescription = null)
-                        Spacer(Modifier.width(2.dp))
-                        Text(if (state.isSaved) "Saved" else "Save")
-                    }
-                    Button(onClick = { model.disconnect() }, modifier = Modifier, colors = errorButtonColors()) {
-                        Icon(painterResource(R.drawable.outline_close_24), contentDescription = null)
-                        Spacer(Modifier.width(2.dp))
-                        Text("Disconnect")
-                    }
-                }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+        Column(
+            modifier = modifier.padding(10.dp).widthIn(max = 600.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OverviewPane(state, model, { showSettings = true })
+            for (e in storageDevices) {
+                CardPane(e, model)
             }
-        }
 
-        for (e in storageDevices) {
-            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                .clickable(onClick = { model.onStorageDeviceClicked(e.name) })
-            ) {
-                Column(Modifier.padding(10.dp)) {
-                    Row(Modifier.padding(5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (e.isLiveFeedMedium) {
-                            Icon(painterResource(R.drawable.outline_sim_card_download_24), contentDescription = null)
-                        } else {
-                            Icon(painterResource(R.drawable.outline_sd_card_24), contentDescription = null)
-                        }
-                        Text(e.name)
-                        Spacer(Modifier.weight(1f))
-                        if (e.sizeBytes != null && e.usedBytes != null) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                LinearProgressIndicator(progress = { e.usedBytes.toFloat() / e.sizeBytes })
-                                val percent = ((e.usedBytes.toFloat() / e.sizeBytes) * 100).toInt()
-                                Text(
-                                    "${percent}% of ${longToFileSize(e.sizeBytes)} used",
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            }
-                        }
-                        if (e.currentStatus != null) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(e.currentStatus, fontStyle = FontStyle.Italic, textAlign = TextAlign.Center)
-                                if (e.currentProgress != null) LinearProgressIndicator(progress = { e.currentProgress.toFloat() / 100 })
-                            }
-                        }
+            val panes = mutableListOf<PaneState>()
+
+            val batteries = mutableListOf<PaneBatteryStatus>()
+            state.batteryLevelLeft?.let { level -> batteries.add(PaneBatteryStatus("Left", level)) }
+            state.batteryLevelMain?.let { level -> batteries.add(PaneBatteryStatus("Base", level)) }
+            state.batteryLevelRight?.let { level ->  batteries.add(PaneBatteryStatus("Right", level)) }
+            if (batteries.size > 1) panes += BatteryListPane(batteries)
+
+            state.temperature?.let { temp ->
+                panes += PaneState(PaneState.Color.NEUTRAL, content = {
+                    Row(Modifier.fillMaxWidth()) {
+                        Icon(painterResource(R.drawable.outline_device_thermostat_24), contentDescription = null)
+                        Text("Temperature", color = MaterialTheme.colorScheme.onSurface)
                     }
-                    Text("${e.nFiles} files")
-                    //Text("7 downloaded")
-                }
+                    val c = temp.toFloat() / 100
+                    Text("%.2f C / %.2f F".format(c, c * 1.8 + 32))
+                })
             }
-        }
 
-        val panes = mutableListOf<PaneState>()
-
-        val batteries = mutableListOf<PaneBatteryStatus>()
-        state.batteryLevelLeft?.let { level -> batteries.add(PaneBatteryStatus("Left", level)) }
-        state.batteryLevelMain?.let { level -> batteries.add(PaneBatteryStatus("Base", level)) }
-        state.batteryLevelRight?.let { level ->  batteries.add(PaneBatteryStatus("Right", level)) }
-        if (batteries.size > 1) panes += BatteryListPane(batteries)
-
-        state.temperature?.let { temp ->
-            panes += PaneState(PaneState.Color.NEUTRAL, content = {
-                Row(Modifier.fillMaxWidth()) {
-                    Icon(painterResource(R.drawable.outline_device_thermostat_24), contentDescription = null)
-                    Text("Temperature", color = MaterialTheme.colorScheme.onSurface)
-                }
-                val c = temp.toFloat() / 100
-                Text("%.2f C / %.2f F".format(c, c * 1.8 + 32))
-            })
-        }
-
-        state.humidity?.let { humid ->
-            panes += PaneState(PaneState.Color.NEUTRAL, content = {
-                Row(Modifier.fillMaxWidth()) {
-                    Icon(painterResource(R.drawable.outline_humidity_percentage_24), contentDescription = null)
-                    Text("Humidity", color = MaterialTheme.colorScheme.onSurface)
-                }
-                Text("%.2f%%".format(humid.toFloat() / 100))
-            })
-        }
-
-        for (pane in state.panes) {
-            panes += when (pane) {
-                is Widget.BooleanSetting -> {
-                    PaneState(PaneState.Color.NEUTRAL, content = {
-                        Text(pane.args.title, style = MaterialTheme.typography.titleSmall)
-                        Switch(pane.value,
-                            onCheckedChange = {
-                                model.updateSettingPane(pane.copy(value = !pane.value))
-                            }
-                        )
-                    })
-                }
-                is Widget.Button -> {
-                    PaneState(PaneState.Color.PRIMARY, icon = R.drawable.outline_lightbulb_2_24, text = pane.args.title, onClick = {
-                        model.updateSettingPane(pane)
-                    })
-                }
-                is Widget.Graph -> {
-                    PaneState(PaneState.Color.NEUTRAL, content = {
-                        val coords = mutableListOf<Pair<Int, Int>>()
-                        for (i in pane.points.indices) coords += Pair(i, pane.points[i])
-                        Text(pane.args.title)
-                        Box(Modifier.aspectRatio(1f)) {
-                            IntGridGraph(coords, Modifier)
-                        }
-                    }, fillMaxWidth = true)
-                }
-                is Widget.DropdownSetting -> {
-                    PaneState(PaneState.Color.NEUTRAL, content = {
-                        Text(pane.args.title, style = MaterialTheme.typography.titleSmall)
-                        Row(Modifier.background(MaterialTheme.colorScheme.surface).padding(10.dp).fillMaxWidth()) {
-                            Text(pane.options[pane.index])
-                            Spacer(Modifier.weight(1f))
-                            Icon(painterResource(R.drawable.outline_arrow_forward_24), contentDescription = null)
-                        }
-                    }, onClick = {
-                        selectedDropdown = pane
-                    })
-                }
-                is Widget.IntSetting -> {
-                    PaneState(PaneState.Color.NEUTRAL, content = {
-                        TextField(
-                            leadingIcon = {
-                                Icon(painterResource(R.drawable.outline_numbers_24), contentDescription = null)
-                            },
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Decimal
-                            ),
-                            value = pane.value.toString(),
-                            onValueChange = { model.updateSettingPane(pane.copy(value = it.toInt())) },
-                            label = { Text(pane.args.title) }
-                        )
-                    })
-                }
-                is Widget.SliderSetting -> {
-                    PaneState()
-                }
+            state.humidity?.let { humid ->
+                panes += PaneState(PaneState.Color.NEUTRAL, content = {
+                    Row(Modifier.fillMaxWidth()) {
+                        Icon(painterResource(R.drawable.outline_humidity_percentage_24), contentDescription = null)
+                        Text("Humidity", color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    Text("%.2f%%".format(humid.toFloat() / 100))
+                })
             }
-        }
 
-        LazyVerticalStaggeredGrid(
-            modifier = Modifier.fillMaxSize(),
-            columns = StaggeredGridCells.Adaptive(160.dp),
-            verticalItemSpacing = 8.dp,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            content = {
-                items(panes, span = {
-                    if (it.fillMaxWidth) {
-                        StaggeredGridItemSpan.FullLine
-                    } else {
-                        StaggeredGridItemSpan.SingleLane
-                    }
-                }) { pane ->
-                    var bg: Color
-                    var fg: Color
-                    when (pane.color) {
-                        PaneState.Color.PRIMARY -> {
-                            bg = MaterialTheme.colorScheme.primary
-                            fg = MaterialTheme.colorScheme.onPrimary
-                        }
-                        PaneState.Color.SECONDARY -> {
-                            bg = MaterialTheme.colorScheme.secondary
-                            fg = MaterialTheme.colorScheme.onSecondary
-                        }
-                        PaneState.Color.ERROR -> {
-                            bg = MaterialTheme.colorScheme.error
-                            fg = MaterialTheme.colorScheme.onError
-                        }
-                        PaneState.Color.NEUTRAL -> {
-                            bg = MaterialTheme.colorScheme.surfaceContainer
-                            fg = MaterialTheme.colorScheme.onSurface
-                        }
-                        PaneState.Color.TERTIARY -> {
-                            bg = MaterialTheme.colorScheme.tertiary
-                            fg = MaterialTheme.colorScheme.onTertiary
-                        }
-                    }
-                    DashboardPane(
-                        Modifier.fillMaxSize().wrapContentHeight(), // ?? not expanding pane size
-                        bg = bg,
-                        fg = fg,
-                        onClick = pane.onClick,
-                        content = {
-                            if (pane.content == null) {
-                                Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                                    if (pane.icon != null) {
-                                        Icon(
-                                            painter = painterResource(pane.icon),
-                                            contentDescription = null,
-                                            tint = fg,
-                                        )
-                                    }
-                                    Text(pane.text.orEmpty(), color = fg)
+            for (pane in state.panes) {
+                panes += when (pane) {
+                    is Widget.BooleanSetting -> {
+                        PaneState(PaneState.Color.NEUTRAL, content = {
+                            Text(pane.args.title, style = MaterialTheme.typography.titleSmall)
+                            Switch(pane.value,
+                                onCheckedChange = {
+                                    model.updateSettingPane(pane.copy(value = !pane.value))
                                 }
-                            } else {
-                                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                                    pane.content()
-                                }
+                            )
+                        })
+                    }
+                    is Widget.Button -> {
+                        PaneState(PaneState.Color.PRIMARY, icon = R.drawable.outline_lightbulb_2_24, text = pane.args.title, onClick = {
+                            model.updateSettingPane(pane)
+                        })
+                    }
+                    is Widget.Graph -> {
+                        PaneState(PaneState.Color.NEUTRAL, content = {
+                            val coords = mutableListOf<Pair<Int, Int>>()
+                            for (i in pane.points.indices) coords += Pair(i, pane.points[i])
+                            Text(pane.args.title)
+                            Box(Modifier.aspectRatio(1f)) {
+                                IntGridGraph(coords, Modifier)
                             }
-                        }
-                    )
-
+                        }, fillMaxWidth = true)
+                    }
+                    is Widget.DropdownSetting -> {
+                        PaneState(PaneState.Color.NEUTRAL, content = {
+                            Text(pane.args.title, style = MaterialTheme.typography.titleSmall)
+                            Row(Modifier.background(MaterialTheme.colorScheme.surface).padding(10.dp).fillMaxWidth()) {
+                                Text(pane.options[pane.index])
+                                Spacer(Modifier.weight(1f))
+                                Icon(painterResource(R.drawable.outline_arrow_forward_24), contentDescription = null)
+                            }
+                        }, onClick = {
+                            selectedDropdown = pane
+                        })
+                    }
+                    is Widget.IntSetting -> {
+                        PaneState(PaneState.Color.NEUTRAL, content = {
+                            TextField(
+                                leadingIcon = {
+                                    Icon(painterResource(R.drawable.outline_numbers_24), contentDescription = null)
+                                },
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Decimal
+                                ),
+                                value = pane.value.toString(),
+                                onValueChange = { model.updateSettingPane(pane.copy(value = it.toInt())) },
+                                label = { Text(pane.args.title) }
+                            )
+                        })
+                    }
+                    is Widget.SliderSetting -> {
+                        PaneState()
+                    }
                 }
             }
-        )
+            RenderPanes(panes)
+        }
     }
 }

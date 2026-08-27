@@ -42,6 +42,8 @@ import dev.danielc.common.Runtime
 import dev.danielc.common.Screen
 import dev.danielc.common.ui.DefaultNavHost
 import dev.danielc.common.ui.DisconnectDialog
+import dev.danielc.common.ui.DynamicScaffold
+import dev.danielc.common.ui.DynamicScaffoldNavBarItem
 import dev.danielc.common.ui.theme.FudgeTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -172,49 +174,43 @@ fun ModuleHomeScreen(module: ModuleInstance, hostNavController: NavController) {
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val haptic = LocalHapticFeedback.current
-    return FudgeTheme {
-        Scaffold(
-            bottomBar = {
-                Box {
-                    NavigationBar(
-                        windowInsets = NavigationBarDefaults.windowInsets,
-                        containerColor = TopAppBarDefaults.topAppBarColors().containerColor
-                    ) {
-                        for (i in navScreens.indices) {
-                            NavigationBarItem(
-                                enabled = screenSwitchProgress == null,
-                                selected = navBackStackEntry?.destination?.hierarchy?.any { it.route == navScreens[i].strId } == true,
-                                onClick = {
-                                    haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                                    CoroutineScope(Dispatchers.IO).launch {
-                                        module.switchScreen(navScreens[i], isInNavBar = true, { job ->
-                                            screenSwitchProgress = job.progressBarValue
-                                        })
-                                        screenSwitchProgress = null
-                                    }
-                                },
-                                icon = {
-                                    Icon(
-                                        painter = painterResource(navScreens[i].getIcon()),
-                                        contentDescription = null
-                                    )
-                                },
-                                label = {
-                                    Text(navScreens[i].getName())
-                                }
-                            )
-                        }
-                    }
 
-                    screenSwitchProgress?.let {
-                        LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.primary,
-                            progress = { it.toFloat() / 100 }
+    // Progress bar for navbar
+    // screenSwitchProgress?.let {
+    //     LinearProgressIndicator(
+    //         modifier = Modifier.fillMaxWidth(),
+    //         color = MaterialTheme.colorScheme.primary,
+    //         progress = { it.toFloat() / 100 }
+    //     )
+    // }
+
+    FudgeTheme {
+        DynamicScaffold(
+            topBar = {},
+            navBarItems = navScreens.map { screen ->
+                DynamicScaffoldNavBarItem(
+                    enabled = screenSwitchProgress == null,
+                    selected = navBackStackEntry?.destination?.hierarchy?.any { it.route == screen.strId } == true,
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                        CoroutineScope(Dispatchers.IO).launch {
+                            module.switchScreen(screen, isInNavBar = true, { job ->
+                                screenSwitchProgress = job.progressBarValue
+                            })
+                            screenSwitchProgress = null
+                        }
+                    },
+                    icon = {
+                        Icon(
+                            painter = painterResource(screen.getIcon()),
+                            contentDescription = null
                         )
+                    },
+                    label = {
+                        Text(screen.getName())
                     }
-                }
-            }
+                )
+            },
         ) { innerPadding ->
             fun goBack() {
                 val previousRoute = navController.previousBackStackEntry?.destination?.route

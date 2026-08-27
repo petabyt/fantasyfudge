@@ -85,7 +85,7 @@ import dev.danielc.fudge.BuildInfo
 )
 annotation class PreviewPixel9ProDark
 
-@Preview(showSystemUi = true, device = "id:tv_1080p", uiMode = 32)
+@Preview(showSystemUi = true, device = "spec:width=2500px,height=1700px,dpi=440", uiMode = 32)
 annotation class PreviewTabletDark
 
 @Composable
@@ -274,6 +274,7 @@ data class DynamicScaffoldNavBarItem(
     val icon: @Composable (() -> Unit) = {},
     val selected: Boolean,
     val onClick: () -> Unit,
+    val enabled: Boolean = true,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -322,6 +323,7 @@ fun DynamicScaffold(
                                     label = e.label,
                                     selected = e.selected,
                                     onClick = e.onClick,
+                                    enabled = e.enabled,
                                 )
                             }
                         }
