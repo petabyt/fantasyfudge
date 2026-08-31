@@ -107,7 +107,7 @@ tasks.register<Exec>("compileModules") {
     group = "verification"
     description = "Compiles and copies modules"
     doNotTrackState("Always run this script during compilation")
-    commandLine("bash", "-c", "cd ../modules && make install")
+    commandLine("bash", "-c", "cd ../modules && make install_fudge")
 }
 tasks.register<Exec>("compileLibs") {
     group = "verification"
