@@ -87,3 +87,6 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/dummy ${CMAKE_CURRENT_BI
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/nothing-buds ${CMAKE_CURRENT_BINARY_DIR}/nothing)
 # dummy goveelife module
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/goveelife ${CMAKE_CURRENT_BINARY_DIR}/goveelife)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../modules/ptp2)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../modules/ptp2 ${CMAKE_CURRENT_BINARY_DIR}/ptp2)
+endif()

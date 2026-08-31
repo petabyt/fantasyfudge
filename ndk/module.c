@@ -331,7 +331,6 @@ JNIEXPORT jint JNICALL Java_dev_danielc_fudge_NativeModule_onPropChanged(JNIEnv 
 	jfieldID name_f = (*env)->GetFieldID(env, properties_c, "name", "Ljava/lang/String;");
 	jstring name_s = (*env)->GetObjectField(env, args, name_f);
 	const char *name = (*env)->GetStringUTFChars(env, name_s, NULL);
-	setting.name = name;
 
 	if ((*env)->IsInstanceOf(env, pane, (*env)->FindClass(env, "dev/danielc/common/Widget$Button"))) {
 		setting.type = PAK_BUTTON;
@@ -342,7 +341,7 @@ JNIEXPORT jint JNICALL Java_dev_danielc_fudge_NativeModule_onPropChanged(JNIEnv 
 	}
 
 	int rc = PAK_ERR_UNIMPLEMENTED;
-	if (mod->on_setting_changed) rc = mod->on_setting_changed(mod, job, &setting);
+	if (mod->on_setting_changed) rc = mod->on_setting_changed(mod, job, name, &setting);
 
 	(*env)->ReleaseStringUTFChars(env, name_s, name);
 

@@ -225,26 +225,26 @@ private fun budsState(): DashboardModel {
         batteryLevelRight = 70,
         panes = listOf(
             Widget.BooleanSetting(
-                Widget.Properties("nc", "Noise cancellation"),
+                Widget.Properties("ll", "Low Lag Mode"),
                 value = true
             ),
             Widget.BooleanSetting(
-                Widget.Properties("be", "Bass enhancement"),
+                Widget.Properties("be", "Bass Enhancement"),
                 value = false
             ),
-            Widget.IntSetting(
-               Widget.Properties("st", "Something"),
-                value = 123
-            ),
+//            Widget.IntSetting(
+//               Widget.Properties("st", "Something"),
+//                value = 123
+//            ),
             Widget.DropdownSetting(
-                Widget.Properties("temp", "Dropdown"),
-                index = 2,
-                options = listOf("4.0l I6", "5.6l v8", "7.4l v8", "2.8l tdi")
+                Widget.Properties("temp", "Noise Cancelling"),
+                index = 0,
+                options = listOf("Adaptive")
             ),
-            Widget.Graph(
-                Widget.Properties("temp", "Graph"),
-                points = intArrayOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 5, 7, 8, 5)
-            ),
+//            Widget.Graph(
+//                Widget.Properties("temp", "Graph"),
+//                points = intArrayOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 8, 7, 6, 5, 4, 5, 7, 8, 5)
+//            ),
         )
     ), storageDevices = MutableStateFlow(emptyList<StorageInfo>()).asStateFlow())
 }

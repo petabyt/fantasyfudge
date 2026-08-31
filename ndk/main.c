@@ -287,11 +287,11 @@ int pak_rt_set_session_property_int(struct PakModule *mod, const char *key, int 
 	return 0;
 }
 
-int pak_rt_set_widget(struct PakModule *mod, const struct PakWidget *s) {
+int pak_rt_set_widget(struct PakModule *mod, const char *name, const struct PakWidget *s) {
 	JNIEnv *env = get_jni_env();
 	(*env)->PushLocalFrame(env, 10);
 	jclass properties_c = (*env)->FindClass(env, "dev/danielc/common/Widget$Properties");
-	jstring name_s = (*env)->NewStringUTF(env, s->name);
+	jstring name_s = (*env)->NewStringUTF(env, name);
 	jstring title_s = (*env)->NewStringUTF(env, s->title);
 	jobject properties_o = (*env)->NewObject(env, properties_c, (*env)->GetMethodID(env, properties_c, "<init>", "(Ljava/lang/String;Ljava/lang/String;)V"), name_s, title_s);
 

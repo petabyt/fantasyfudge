@@ -34,14 +34,19 @@ data class ModuleManifest(
     val targets: List<Target> = emptyList(),
     val manifestFilePath: String? = null,
 ) {
-    enum class Transport(value: Int) {
+    enum class Transport(val value: Int) {
         BLUETOOTH(1),
         USB(2),
         WIFI_AP(3),
         USB_DEVICE_MODE(4),
         HOST_WIFI_AP(5),
         LOCAL_NETWORK_UDP(6),
-        INTERNET(7),
+        INTERNET(7);
+        companion object {
+            fun fromValue(value: Int): Transport? {
+                return entries.find { it.value == value }
+            }
+        }
     }
     enum class ModuleType {
         QUICKJS,
@@ -157,6 +162,16 @@ fun manifestFromJson(text: String, filename: String): ModuleManifest? {
                     }
                 }
 
+                target.jsonObject["setupOptions"]?.jsonArray?.let { setupOptions ->
+                    for (filter in setupOptions) {
+                        t = t.copy(setupOptions = t.setupOptions + ModuleManifest.SetupOption(
+                            name = filter.jsonObject["name"]?.jsonPrimitive?.content ?: throw Error("Missing name field"),
+                            title = filter.jsonObject["title"]?.jsonPrimitive?.content ?: throw Error("Missing title field"),
+                            transport = ModuleManifest.Transport.fromValue(filter.jsonObject["transport"]?.jsonPrimitive?.int ?: throw Error("Missing transport field")),
+                        ))
+                    }
+                }
+
                 targets += t
             }
         }
@@ -178,7 +193,7 @@ fun manifestFromJson(text: String, filename: String): ModuleManifest? {
         )
 
         return manifest
-    } catch (e: Exception) {
+    } catch (e: Error) {
         logGlobalLine("Error parsing manifest $filename")
         logGlobalLine(e.message ?: "")
         return null
