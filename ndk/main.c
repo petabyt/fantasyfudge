@@ -228,8 +228,7 @@ int pak_rt_set_storage_info(struct PakModule *mod, const char *name, struct PakS
 int pak_rt_add_file_contents(struct PakModule *mod, struct PakFileHandle *file, void *image_data, unsigned int length, uint64_t offset, uint64_t total_size) {
 	JNIEnv *env = get_jni_env();
 	if (file->storage_name != NULL && !strcmp(file->storage_name, "liveview")) {
-		liveview_render_frame(env, mod->rt->liveview_surface_handle_obj, image_data, length);
-		return 0;
+		return liveview_render_frame(env, &mod->rt->liveview, image_data, length);
 	}
 
 	(*env)->PushLocalFrame(env, 10);

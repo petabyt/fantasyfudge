@@ -87,5 +87,6 @@ open class NativeModule {
     @Synchronized
     external fun setSetupOptionName(name: String)
     external fun updateNativeLiveview(view: Surface?, isPaused: Boolean)
+    // Blocking render loop
     external fun nativeLiveviewThread()
 }

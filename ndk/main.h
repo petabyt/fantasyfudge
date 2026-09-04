@@ -3,14 +3,23 @@
 #include <pak.h>
 #include <runtime.h>
 #include <stdatomic.h>
+#include <android/native_window.h>
+#include <android/native_window_jni.h>
+
+struct SurfacePriv {
+	ANativeWindow *window;
+	pthread_mutex_t lock;
+	atomic_bool liveview_cancel;
+};
 
 struct RuntimePriv {
+	// NativeModule global handle
 	jobject obj;
 	char *setup_option;
 	// dlopen handle
 	void *lib;
-	jobject liveview_surface_handle_obj;
-	atomic_bool liveview_cancel;
+	// TODO: Multiple liveviews
+	struct SurfacePriv liveview;
 
 	unsigned int log_len;
 	unsigned int log_pos;
@@ -21,4 +30,4 @@ jobject pak_wifi_ap_filter_to_jobject(JNIEnv *env, struct PakWiFiApFilter *filte
 struct PakBtDevice *pak_bt_device_from_jobject(JNIEnv *env, struct PakBt *ctx, jobject dev_o);
 struct PakWiFiAdapter *pak_wifi_adapter_from_jobject(JNIEnv *env, jobject wifi_adapter);
 
-int liveview_render_frame(JNIEnv *env, jobject surface_handle, void *buffer, unsigned int size);
+int liveview_render_frame(JNIEnv *env, struct SurfacePriv *priv, void *buffer, unsigned int size);

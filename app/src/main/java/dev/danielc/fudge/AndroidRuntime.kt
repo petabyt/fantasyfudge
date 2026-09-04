@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.room.Room
 import dev.danielc.common.AppDatabase
+import dev.danielc.common.AppSettingEntity
 import dev.danielc.common.ModuleInstance
 import dev.danielc.common.Runtime
 import dev.danielc.libpak.Pak
@@ -47,6 +48,9 @@ object AndroidRuntime {
         CoroutineScope(Dispatchers.IO).launch {
             getDatabase().clearAllTables()
         }
+    }
+    suspend fun updateAppSetting(block: (AppSettingEntity) -> AppSettingEntity) {
+        getDatabase().settingsDao().save(block(Runtime.appSettings.value))
     }
 
     external fun init()

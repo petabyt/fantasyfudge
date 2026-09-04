@@ -17,13 +17,36 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import androidx.core.net.toUri
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 
-class ModuleLiveviewModel(val mod: ModuleInstance): BackgroundViewModel() {
+class ModuleLiveviewModel(val mod: ModuleInstance): BackgroundViewModel(), SurfaceHolder.Callback {
+    val currentFps = MutableStateFlow(0)
     private var isRtsp: Boolean = false
     private var rtspProcessor: RtspProcessor? = null
     private var currentSurfaceHolder: SurfaceHolder? = null // should be WeakReference?
     private var blockingJob: Job? = null
+
+//    external fun nativeSurfaceCreated(surfaceHolder: SurfaceHolder)
+//    external fun nativeSurfaceChanged(holder: SurfaceHolder, i2: Int, width: Int, height: Int)
+//    external fun nativeSurfaceDestroyed(holder: SurfaceHolder)
+
+    override fun surfaceCreated(surfaceHolder: SurfaceHolder) {
+        updateNative(surfaceHolder)
+    }
+
+    override fun surfaceChanged(holder: SurfaceHolder, i2: Int, width: Int, height: Int) {
+        updateNative(holder)
+    }
+
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        Log.d("lv", "surfaceDestroyed")
+        setPaused(true)
+        runBlocking {
+            stopThread()
+        }
+    }
+
     fun updateNative(holder: SurfaceHolder) {
         currentSurfaceHolder = holder
         mod.updateNativeLiveview(holder.surface, false)
@@ -85,27 +108,11 @@ class ModuleLiveviewModel(val mod: ModuleInstance): BackgroundViewModel() {
     }
 }
 
-class MySurfaceHolderCallback(val model: ModuleLiveviewModel) : SurfaceHolder.Callback {
-    override fun surfaceCreated(surfaceHolder: SurfaceHolder) {
-        model.updateNative(surfaceHolder)
-    }
-    override fun surfaceChanged(holder: SurfaceHolder, i2: Int, width: Int, height: Int) {
-        // ...
-    }
-    override fun surfaceDestroyed(holder: SurfaceHolder) {
-        Log.d("lv", "surfaceDestroyed")
-        model.setPaused(true)
-        runBlocking {
-            model.stopThread()
-        }
-    }
-}
-
 @Composable
 fun FramebufferSurface(modifier: Modifier = Modifier, model: ModuleLiveviewModel) {
     AndroidView(modifier = modifier, factory = { ctx ->
         val view = SurfaceView(ctx)
-        view.holder.addCallback(MySurfaceHolderCallback(model))
+        view.holder.addCallback(model)
         view
     }, update = { view ->
 

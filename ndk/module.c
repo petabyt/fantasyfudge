@@ -424,16 +424,20 @@ Java_dev_danielc_fudge_AndroidRuntime_setupSharedLibraryModule(JNIEnv *env, jcla
 }
 
 JNIEXPORT void JNICALL
-Java_dev_danielc_fudge_NativeModule_updateNativeLiveview(JNIEnv *env, jobject thiz, jobject view, jboolean is_paused) {
+Java_dev_danielc_fudge_NativeModule_updateNativeLiveview(JNIEnv *env, jobject thiz, jobject surface, jboolean is_paused) {
 	struct TempStruct info;
 	struct PakModule *mod = get_mod(env, thiz, &info);
-	if (mod->rt->liveview_surface_handle_obj != NULL) (*env)->DeleteGlobalRef(env, mod->rt->liveview_surface_handle_obj);
-	if (view != NULL) {
-		mod->rt->liveview_surface_handle_obj = (*env)->NewGlobalRef(env, view);
+	if (surface == NULL) {
+		mod->rt->liveview.window = NULL;
 	} else {
-		mod->rt->liveview_surface_handle_obj = NULL;
+		if (mod->rt->liveview.window != NULL) ANativeWindow_release(mod->rt->liveview.window);
+		mod->rt->liveview.window = ANativeWindow_fromSurface(env, surface);
+		if (mod->rt->liveview.window != NULL)
+			ANativeWindow_acquire(mod->rt->liveview.window);
+		else
+			__android_log_write(ANDROID_LOG_ERROR, "liveview", "ANativeWindow_fromSurface");
 	}
-	atomic_store(&mod->rt->liveview_cancel, is_paused);
+	atomic_store(&mod->rt->liveview.liveview_cancel, is_paused);
 	release_mod(env, &info);
 }
 
@@ -441,7 +445,7 @@ JNIEXPORT void JNICALL
 Java_dev_danielc_fudge_NativeModule_nativeLiveviewThread(JNIEnv *env, jobject thiz) {
 	struct TempStruct info;
 	struct PakModule *mod = get_mod(env, thiz, &info);
-	while (!atomic_load(&mod->rt->liveview_cancel)) {
+	while (!atomic_load(&mod->rt->liveview.liveview_cancel)) {
 		if (mod->on_request_liveview_frame(mod, -1, &(struct PakFileHandle){
 			.storage_name = "liveview",
 		})) break;

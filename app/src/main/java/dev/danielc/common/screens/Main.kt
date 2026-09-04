@@ -78,6 +78,7 @@ import dev.danielc.common.ui.PreviewTabletDark
 import dev.danielc.common.ui.TargetCard
 import dev.danielc.common.ui.dummyManifestList
 import dev.danielc.common.ui.theme.FudgeTheme
+import dev.danielc.fudge.AndroidRuntime
 import dev.danielc.fudge.BuildInfo
 import dev.danielc.fudge.FileLayer
 import kotlinx.coroutines.CoroutineScope
@@ -251,7 +252,7 @@ fun SavedDeviceCard(target: ModuleManifest.Target, transport: ModuleManifest.Tra
 @Composable
 fun MainConnectScreen(navController: NavController, modifier: Modifier = Modifier, clicked: (ModuleInstanceRequest) -> Unit) {
     var isRefreshing by remember { mutableStateOf(false) }
-    var showWelcome by remember { mutableStateOf(true) }
+    val settingsValue by Runtime.appSettings.collectAsStateWithLifecycle()
     var selectedSavedDevice by remember { mutableStateOf<SavedDeviceEntity?>(null) }
     val savedDevices by Runtime.savedDevices.collectAsStateWithLifecycle()
     val deviceList by Runtime.connectableDevices.collectAsStateWithLifecycle()
@@ -277,7 +278,7 @@ fun MainConnectScreen(navController: NavController, modifier: Modifier = Modifie
     ) {
         Column(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (showWelcome) {
+                if (settingsValue.showWelcomeDialog) {
                     item {
                         ClickableCard(color = MaterialTheme.colorScheme.surfaceContainerHighest, click = {
                             navController.navigate("about")
@@ -287,7 +288,11 @@ fun MainConnectScreen(navController: NavController, modifier: Modifier = Modifie
                                     Text("FantasyFudge pre-release", style = MaterialTheme.typography.titleMedium)
                                     Text("Introduction and what this app does")
                                 }
-                                IconButton(onClick = { showWelcome = false }, modifier = Modifier.fillMaxHeight()) {
+                                IconButton(onClick = {
+                                    CoroutineScope(Dispatchers.IO).launch {
+                                        AndroidRuntime.updateAppSetting({it.copy(showWelcomeDialog = false)})
+                                    }
+                                }, modifier = Modifier.fillMaxHeight()) {
                                     Icon(
                                         painterResource(R.drawable.outline_close_24),
                                         contentDescription = null
